@@ -13,7 +13,7 @@ Genre inspiration: "survivors-likes" / "bullet heaven" (e.g. Vampire Survivors).
 - Pick one of three aircraft before each round: Interceptor (fast, fragile), Striker (all-rounder) or Gunship (slow, tough, hits hard).
 - Drones swarm towards you: quadcopters, fast kamikaze darts and armoured hexacopters. Some drones carry guns and fire at you (they glow red first).
 - Anti-aircraft guns in the forest at the bottom of the screen fire flak at the jet. Your cannon can destroy them. Flying into the trees is a crash (game over); "PULL UP!" warns you.
-- Weapons fire automatically. Downed drones drop pickups (XP). Each level-up you pick 1 of 3 upgrades: new weapons or stronger ones. Watch out for the big red button trap card: picking it ends the run on the spot.
+- Weapons fire automatically. Downed drones drop SSD cards (XP). Each level-up you pick 1 of 3 upgrades: new weapons or stronger ones. Trap: from level 3, each level-up has a 50% chance that one card is a **Big Red Button** ("Do not press"). Picking it ends the run at once ("YOU PRESSED THE BIG RED BUTTON" on the game-over screen). Tunable in `js/config.js` (`redButtonFromLevel`, `redButtonChance`).
 - The jet only moves while you hold WASD or the arrow keys; let go and it hovers in place. It can't climb more than 900 px above the ground ("MAX ALTITUDE" warns you).
 - From level 10, power-up crates sometimes drop and give a special weapon for 6 seconds: Scatter Cannon, Pulse Laser or Rocket Swarm.
 - Health at 0 ends the run. The longer you survive, the more and tougher the drones.
@@ -103,3 +103,4 @@ Plain HTML, JavaScript modules and canvas. No libraries, no build step. Gameplay
 - 2026-11-09 (from main): the jet always flies forward and you steer it, with a max altitude; power-ups last 6 s and only drop from level 10; big red button trap card added to the level-ups.
 - 2026-11-09: Back to direct WASD/arrow flight: the jet only moves while a key is held (no more always flying forward).
 - 2026-11-09: Merged the teammate's day cycle (moon, sunrise and blue daytime sky) with the boss: an in-game clock runs 6 PM → 6 AM over the 5 minutes before the boss, holds at 6 AM during the fight, and the sun rises when the boss is beaten. The boss now arrives at 5:00 instead of 6:00.
+- 2026-11-09 (from main): the Big Red Button shows up more often (50% of level-ups from level 3); the end screen title is now GAME OVER with the reason underneath.

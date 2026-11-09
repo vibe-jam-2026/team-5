@@ -212,6 +212,9 @@ export const sfx = {
   power() { tone(440, 0.08, 'square', 0.1); setTimeout(() => tone(660, 0.08, 'square', 0.1), 60); setTimeout(() => tone(990, 0.15, 'square', 0.1), 120); },
   rocket() { tone(500, 0.1, 'sawtooth', 0.03, 400); },
   pop() { tone(110, 0.12, 'square', 0.05, -60); },
+  // Big red button: a rocket-seat whoosh, then a soft pop as the chute opens.
+  seatFire() { tone(160, 0.5, 'sawtooth', 0.14, 900); },
+  chute() { tone(240, 0.18, 'triangle', 0.1, -120); },
   select() { tone(660, 0.05, 'square', 0.08); },
   // Boss: a two-tone siren, a big crunch, and a rising fanfare at dawn.
   bossWarn() { for (let i = 0; i < 6; i++) setTimeout(() => tone(i % 2 ? 520 : 780, 0.22, 'square', 0.09), i * 230); },

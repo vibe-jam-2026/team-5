@@ -89,6 +89,9 @@ function update(dt) {
         if (e === 'pop' && soundBudget-- > 0) sfx.pop();
         if (e === 'levelup') sfx.levelUp();
         if (e === 'choose') sfx.choose();
+        if (e === 'eject') { sfx.bossWarn(); shake = Math.max(shake, 8); }
+        if (e === 'seatFire') { sfx.seatFire(); shake = Math.max(shake, 6); }
+        if (e === 'chute') sfx.chute();
         if (e === 'bossWarn') sfx.bossWarn();
         if (e === 'bossDown') { sfx.bossDown(); shake = Math.max(shake, 14); }
         if (e === 'dawn') { sfx.dawn(); shake = Math.max(shake, 10); }

@@ -75,5 +75,6 @@ export const CONFIG = {
   powerupChanceHeavy: 0.1296,    // ...per hexacopter kill
   powerupFromGun: 1 / 3,          // ...per destroyed anti-aircraft gun
   powerupLife: 14,               // seconds a crate stays before it fades
-  powerupDuration: 10,           // seconds the special weapon lasts
+  powerupDuration: 6,            // seconds the special weapon lasts
+  powerupFromLevel: 10,          // no crates drop before the player reaches this level
 };

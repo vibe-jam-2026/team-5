@@ -1018,20 +1018,20 @@ export class Game {
   // Bars and the level-up picker, drawn above the HUD.
   drawUi(ctx) {
     const p = this.player;
-    // Health and XP bars, top left under the score and streak
+    // Health and XP bars, top left (the score sits top middle, the streak below the bars)
     const bx = 44, bw = 170;
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.font = 'bold 12px monospace';
     const hpK = Math.max(0, p.hp / p.maxHp), low = hpK <= 0.3;
-    ctx.fillStyle = NEON.ink; ctx.fillText('HP', 16, 76);
-    ctx.fillStyle = '#1a0838'; ctx.fillRect(bx, 71, bw, 10);
-    ctx.fillStyle = low ? '#ff4d6d' : '#7ae582'; ctx.fillRect(bx, 71, bw * hpK, 10);
-    ctx.fillStyle = NEON.ink; ctx.fillText('XP', 16, 92);
-    ctx.fillStyle = '#1a0838'; ctx.fillRect(bx, 88, bw, 8);
+    ctx.fillStyle = NEON.ink; ctx.fillText('HP', 16, 22);
+    ctx.fillStyle = '#1a0838'; ctx.fillRect(bx, 17, bw, 10);
+    ctx.fillStyle = low ? '#ff4d6d' : '#7ae582'; ctx.fillRect(bx, 17, bw * hpK, 10);
+    ctx.fillStyle = NEON.ink; ctx.fillText('XP', 16, 38);
+    ctx.fillStyle = '#1a0838'; ctx.fillRect(bx, 34, bw, 8);
     const xpGrad = ctx.createLinearGradient(bx, 0, bx + bw, 0);
     xpGrad.addColorStop(0, NEON.magenta); xpGrad.addColorStop(1, NEON.cyan);
-    ctx.fillStyle = xpGrad; ctx.fillRect(bx, 88, bw * Math.min(1, this.xp / this.xpToNext), 8);
+    ctx.fillStyle = xpGrad; ctx.fillRect(bx, 34, bw * Math.min(1, this.xp / this.xpToNext), 8);
     ctx.strokeStyle = 'rgba(232,220,255,0.35)'; ctx.lineWidth = 1;
-    ctx.strokeRect(bx + 0.5, 71.5, bw - 1, 9); ctx.strokeRect(bx + 0.5, 88.5, bw - 1, 7);
+    ctx.strokeRect(bx + 0.5, 17.5, bw - 1, 9); ctx.strokeRect(bx + 0.5, 34.5, bw - 1, 7);
     // Low-altitude warning when the jet nears the treetops
     const alt = CRASH_Y - p.y;
     if (!this.over && alt < C.pullUpWarning && Math.floor(this.time * 6) % 2 === 0) {
@@ -1049,10 +1049,10 @@ export class Game {
       if (k > 0.25 || Math.floor(this.time * 8) % 2) {
         ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
         ctx.fillStyle = pu.color; ctx.font = 'bold 16px monospace';
-        ctx.fillText(pu.name, W / 2, 72);
+        ctx.fillText(pu.name, W / 2, 92);
       }
-      ctx.fillStyle = '#000'; ctx.fillRect(W / 2 - 70, 80, 140, 5);
-      ctx.fillStyle = pu.color; ctx.fillRect(W / 2 - 70, 80, 140 * k, 5);
+      ctx.fillStyle = '#000'; ctx.fillRect(W / 2 - 70, 100, 140, 5);
+      ctx.fillStyle = pu.color; ctx.fillRect(W / 2 - 70, 100, 140 * k, 5);
     }
 
     if (!this.choosing) return;

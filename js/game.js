@@ -139,13 +139,14 @@ const RED_BUTTON = { name: 'Big Red Button', desc: 'Do not press. Seriously. Do 
 
 // Fill a polygon and give it a crisp dark outline (mitred corners keep it sharp).
 const OUTLINE = '#07040b';
+let outlineColor = OUTLINE;   // drawJet swaps it (blue while the flare shield is up)
 function poly(ctx, pts, fill, lw = 1) {
   ctx.beginPath();
   ctx.moveTo(pts[0], pts[1]);
   for (let i = 2; i < pts.length; i += 2) ctx.lineTo(pts[i], pts[i + 1]);
   ctx.closePath();
   ctx.fillStyle = fill; ctx.fill();
-  ctx.lineJoin = 'miter'; ctx.lineWidth = lw; ctx.strokeStyle = OUTLINE; ctx.stroke();
+  ctx.lineJoin = 'miter'; ctx.lineWidth = lw; ctx.strokeStyle = outlineColor; ctx.stroke();
 }
 
 // Neon afterburner out of the tail nozzle (at x = -12): a hot pink glow,
@@ -175,11 +176,13 @@ function drawAfterburner(ctx, burner) {
 }
 
 // Draw an aircraft at the origin pointing along +x (callers translate/rotate).
-function drawJet(ctx, a, burner = 0) {
+// outline: optional contour colour; it also gets a thicker line and a glow.
+function drawJet(ctx, a, burner = 0, outline = null) {
   ctx.save();
   ctx.scale(a.size, a.size);
-  const lw = 0.9 / a.size;
   if (burner) drawAfterburner(ctx, burner);
+  const lw = (outline ? 1.8 : 0.9) / a.size;
+  if (outline) { outlineColor = outline; ctx.shadowColor = outline; ctx.shadowBlur = 10; }
   if (a.id === 'interceptor') {        // slim delta wing
     poly(ctx, [9, -2, -10, -13, -12, -12, -11, -2, -11, 2, -12, 12, -10, 13, 9, 2], a.wing, lw);
   } else if (a.id === 'gunship') {     // broad straight wings with pointed tips, twin engines
@@ -203,6 +206,7 @@ function drawJet(ctx, a, burner = 0) {
   poly(ctx, [10, 0, 6, -1.8, 1, -1.5, 1, 1.5, 6, 1.8], '#4cc9f0', lw * 0.7);
   ctx.fillStyle = 'rgba(255,255,255,0.8)';
   ctx.fillRect(5, -1, 3, 0.8);
+  outlineColor = OUTLINE;
   ctx.restore();
 }
 
@@ -1184,7 +1188,9 @@ export class Game {
     else if (!(this.hurtCd > 0.2 && Math.floor(this.hurtCd * 30) % 2)) {
       ctx.save();
       ctx.translate(p.x, p.y); ctx.rotate(p.heading);
-      drawJet(ctx, this.aircraft, p.moving ? 6 + Math.sin(this.time * 50) * 2 : 2.5 + Math.sin(this.time * 40) * 0.5);
+      // Blue contours while the flare shield is up (flickering in its last moments).
+      const shieldLine = this.shielded && (this.shieldT > 0.4 || Math.floor(this.time * 16) % 2) ? '#3da5ff' : null;
+      drawJet(ctx, this.aircraft, p.moving ? 6 + Math.sin(this.time * 50) * 2 : 2.5 + Math.sin(this.time * 40) * 0.5, shieldLine);
       ctx.restore();
     }
     this.drawFlares(ctx);

@@ -29,6 +29,7 @@ const CEIL_Y = GROUND_Y - C.maxAltitude;      // jet centre can't go above this 
 const AA_SLOT = 520;                          // at most one gun per this many px of world x
 const AA_Y = H - 34;                          // screen y of a gun's turret
 const AA_CHANCE = 0.65;                       // share of slots that hold a gun
+const AA_TX = 4, AA_TY = -7;                  // roof gun turret, relative to AA_Y (before the 1.4x scale)
 
 // Deterministic per-tile noise so ground decoration stays put as you walk.
 function hash(x, y) {
@@ -549,7 +550,7 @@ export class Game {
       const lead = (d / sp) * rand(0.4, 0.9);
       const tx = p.x + (p.vx || 0) * lead + rand(-12, 12), ty = p.y + (p.vy || 0) * lead + rand(-12, 12);
       const a = Math.atan2(ty - g.y, tx - g.x), td = Math.hypot(tx - g.x, ty - g.y);
-      const mx = g.x + Math.cos(g.aim) * 18, my = g.y + Math.sin(g.aim) * 18;
+      const mx = g.x + AA_TX * 1.4 + Math.cos(g.aim) * 21, my = g.y + AA_TY * 1.4 + Math.sin(g.aim) * 21;
       this.shells.push({ x: mx, y: my, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, fuse: td / sp });
       this.events.push('flak');
     }
@@ -1002,7 +1003,7 @@ export class Game {
       const cam = p.x * parallax, i0 = Math.floor((cam - W / 2) / spacing) - 1, i1 = Math.floor((cam + W / 2) / spacing) + 1;
       for (let i = i0; i <= i1; i++) {
         const x = i * spacing + hash(i, seed) * spacing * 0.6 - cam + W / 2;
-        if (clearings && guns.some((g) => Math.abs(g.sx - x) < 30)) continue;
+        if (clearings && guns.some((g) => Math.abs(g.sx - x) < 42)) continue;
         const h = minH + hash(i, seed + 1) * (maxH - minH);
         pine(x, H, h, h * 0.55);
       }
@@ -1028,12 +1029,19 @@ export class Game {
     ctx.restore();
   }
 
+  // A military radar truck (cab-over cab, equipment shelter, folding lattice
+  // mast with a spinning radar head) with a twin flak gun on its roof.
+  // Drawn facing left around its turret point; the turret is at (AA_TX, AA_TY).
   drawGunShape(ctx, g) {
     const x = g.sx, y = AA_Y;
-    if (g.dead) {             // burnt-out wreck with a trail of smoke
+    if (g.dead) {             // burnt-out wreck, mast toppled, with a trail of smoke
       ctx.fillStyle = '#1c1620';
-      ctx.fillRect(x - 18, y + 4, 36, 10);
-      ctx.beginPath(); ctx.arc(x - 2, y + 4, 8, Math.PI, 0); ctx.fill();
+      ctx.fillRect(x - 26, y + 1, 12, 9);
+      ctx.fillRect(x - 12, y - 2, 32, 11);
+      ctx.fillStyle = '#100c14';
+      for (const wx of [-18, 4, 14]) { ctx.beginPath(); ctx.arc(x + wx, y + 12, 3.5, 0, Math.PI * 2); ctx.fill(); }
+      ctx.strokeStyle = '#1c1620'; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.moveTo(x + 18, y - 2); ctx.lineTo(x + 34, y + 6); ctx.lineTo(x + 44, y + 13); ctx.stroke();
       for (let i = 0; i < 4; i++) {
         const t = (this.time * 0.6 + i / 4) % 1;
         ctx.fillStyle = `rgba(90,80,100,${(0.3 * (1 - t)).toFixed(3)})`;
@@ -1041,56 +1049,117 @@ export class Game {
       }
       return;
     }
-    const lit = g.hitFlash > 0;
-    this.drawRadar(ctx, x - 12, y - 10, g.spin, lit);
-    // Twin barrels
+    const lit = g.hitFlash > 0, col = (c) => (lit ? '#fff' : c);
+    const olive = col('#4a5240'), dark = col('#353b2e'), light = col('#5d6650'), line = '#07040b';
+    // Whip antennas on the shelter roof
+    ctx.strokeStyle = col('#2a2e26'); ctx.lineWidth = 0.6;
+    ctx.beginPath();
+    for (const [ax, ah] of [[-9, 22], [-4, 26], [10, 18]]) { ctx.moveTo(x + ax, y - 6); ctx.lineTo(x + ax, y - 6 - ah); }
+    ctx.stroke();
+    // Folding lattice mast at the back, radar head on top
+    const base = [x + 18, y - 6], elbow = [x + 25, y - 26], top = [x + 13, y - 46];
+    ctx.strokeStyle = olive; ctx.lineWidth = 2.6;
+    ctx.beginPath(); ctx.moveTo(...base); ctx.lineTo(...elbow); ctx.lineTo(...top); ctx.stroke();
+    ctx.strokeStyle = dark; ctx.lineWidth = 0.6;      // lattice bracing
+    ctx.beginPath();
+    for (let i = 1; i < 6; i++) {
+      const k = i / 6;
+      ctx.moveTo(base[0] + (elbow[0] - base[0]) * k - 1.2, base[1] + (elbow[1] - base[1]) * k);
+      ctx.lineTo(base[0] + (elbow[0] - base[0]) * k + 1.2, base[1] + (elbow[1] - base[1]) * (k + 0.1));
+      ctx.moveTo(elbow[0] + (top[0] - elbow[0]) * k - 1.2, elbow[1] + (top[1] - elbow[1]) * k);
+      ctx.lineTo(elbow[0] + (top[0] - elbow[0]) * k + 1.2, elbow[1] + (top[1] - elbow[1]) * (k + 0.1));
+    }
+    ctx.stroke();
+    ctx.fillStyle = dark; ctx.beginPath(); ctx.arc(...elbow, 2, 0, Math.PI * 2); ctx.fill();
+    // Hydraulic ram bracing the lower arm
+    ctx.strokeStyle = col('#8a927c'); ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x + 8, y - 6); ctx.lineTo(x + 21, y - 17); ctx.stroke();
+    this.drawRadar(ctx, top[0], top[1] - 6, g.spin, lit);
+    // Twin barrels of the roof gun
     ctx.save();
-    ctx.translate(x, y); ctx.rotate(g.aim);
-    ctx.fillStyle = lit ? '#fff' : '#6b745e';
-    ctx.fillRect(0, -4, 20, 2.5); ctx.fillRect(0, 1.5, 20, 2.5);
+    ctx.translate(x + AA_TX, y + AA_TY); ctx.rotate(g.aim);
+    ctx.fillStyle = col('#6b745e');
+    ctx.fillRect(0, -3, 15, 2); ctx.fillRect(0, 1, 15, 2);
     if (g.flash > 0) {
       ctx.fillStyle = '#ffd166';
-      ctx.beginPath(); ctx.moveTo(20, -6); ctx.lineTo(30, 0); ctx.lineTo(20, 6); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(15, -5); ctx.lineTo(24, 0); ctx.lineTo(15, 5); ctx.fill();
     }
     ctx.restore();
-    // Turret and tracked body
-    ctx.fillStyle = lit ? '#fff' : '#4a5240';
-    ctx.beginPath(); ctx.arc(x, y + 2, 9, Math.PI, 0); ctx.fill();
-    ctx.fillRect(x - 18, y + 2, 36, 10);
+    ctx.fillStyle = olive;
+    ctx.beginPath(); ctx.arc(x + AA_TX, y + AA_TY + 1, 5, Math.PI, 0); ctx.fill();
+    // Chassis and wheels
     ctx.fillStyle = '#15171a';
-    ctx.fillRect(x - 20, y + 10, 40, 6);
-    // Moonlight on the edge, and a warning light that blinks before it fires
+    ctx.fillRect(x - 26, y + 7, 50, 4);
+    for (const wx of [-18, 4, 14]) {
+      ctx.fillStyle = '#0d0e10'; ctx.beginPath(); ctx.arc(x + wx, y + 12, 4, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = col('#3a4034'); ctx.beginPath(); ctx.arc(x + wx, y + 12, 1.6, 0, Math.PI * 2); ctx.fill();
+    }
+    // Cab-over cab with a sloped windscreen
+    ctx.fillStyle = olive; ctx.strokeStyle = line; ctx.lineWidth = 0.7;
+    ctx.beginPath();
+    ctx.moveTo(x - 13, y - 4); ctx.lineTo(x - 23, y - 4); ctx.lineTo(x - 27, y + 2);
+    ctx.lineTo(x - 27, y + 8); ctx.lineTo(x - 13, y + 8); ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle = lit ? '#fff' : '#1b2430';
+    ctx.beginPath(); ctx.moveTo(x - 22, y - 2.5); ctx.lineTo(x - 25.5, y + 2); ctx.lineTo(x - 17, y + 2); ctx.lineTo(x - 17, y - 2.5); ctx.fill();
+    ctx.fillStyle = 'rgba(200,190,230,0.35)';
+    ctx.fillRect(x - 21, y - 2, 2, 1.2);
+    ctx.fillStyle = dark; ctx.fillRect(x - 27, y + 4, 3, 1.5);     // bumper / grille
+    // Equipment shelter: panels, door, vent grille, ladder
+    ctx.fillStyle = olive;
+    ctx.fillRect(x - 12, y - 6, 34, 13); ctx.strokeRect(x - 12, y - 6, 34, 13);
+    ctx.strokeStyle = dark; ctx.lineWidth = 0.6;
+    ctx.beginPath();
+    for (const px of [-4, 6, 14]) { ctx.moveTo(x + px, y - 6); ctx.lineTo(x + px, y + 7); }
+    ctx.stroke();
+    ctx.fillStyle = dark; ctx.fillRect(x - 2, y - 3, 6, 9);            // door
+    ctx.fillStyle = light; ctx.fillRect(x + 8, y - 3, 4, 3);           // hatch
+    ctx.fillStyle = dark;
+    for (let i = 0; i < 4; i++) ctx.fillRect(x + 16, y - 4 + i * 2.6, 5, 1.2);   // vent
+    ctx.strokeStyle = col('#2a2e26'); ctx.lineWidth = 0.5;
+    ctx.beginPath(); ctx.moveTo(x - 11, y - 6); ctx.lineTo(x - 11, y + 8); ctx.moveTo(x - 9, y - 6); ctx.lineTo(x - 9, y + 8);
+    for (let i = 0; i < 5; i++) { ctx.moveTo(x - 11, y - 4 + i * 3); ctx.lineTo(x - 9, y - 4 + i * 3); }
+    ctx.stroke();
+    // Moonlight on the roof edge, and a warning light that blinks before it fires
     ctx.fillStyle = 'rgba(200,190,230,0.25)';
-    ctx.fillRect(x - 18, y + 2, 36, 1.5);
+    ctx.fillRect(x - 12, y - 6, 34, 1.2); ctx.fillRect(x - 23, y - 4, 10, 1);
     const armed = this.time >= C.aaFrom;
     ctx.fillStyle = armed && g.cd < 0.5 && Math.floor(this.time * 12) % 2 ? '#ff4d6d' : armed ? '#5a1020' : '#222';
-    ctx.fillRect(x + 10, y + 4, 3, 3);
+    ctx.fillRect(x - 16, y - 6, 2.5, 2);
     // Damage bar once hit
     if (g.hp < g.maxHp) {
-      ctx.fillStyle = '#000'; ctx.fillRect(x - 14, y - 25, 28, 3);
-      ctx.fillStyle = '#ffb703'; ctx.fillRect(x - 14, y - 25, 28 * (g.hp / g.maxHp), 3);
+      ctx.fillStyle = '#000'; ctx.fillRect(x - 14, y - 22, 28, 3);
+      ctx.fillStyle = '#ffb703'; ctx.fillRect(x - 14, y - 22, 28 * (g.hp / g.maxHp), 3);
     }
   }
 
-  // Radar dish on a short mast at the back of the gun. It's seen side-on:
-  // squashing the dish by cos(spin) makes it look like it turns, and its
-  // darker back shows while it faces away.
+  // Rotating radar head on top of the mast. It's seen side-on: squashing the
+  // flat antenna panel by cos(spin) makes it look like it turns, with its
+  // darker back showing while it faces away.
   drawRadar(ctx, x, y, spin, lit) {
     ctx.fillStyle = lit ? '#fff' : '#3a4034';
-    ctx.fillRect(x - 1, y, 2, 13);                    // mast
-    const c = Math.cos(spin), sx = Math.sign(c || 1) * Math.max(0.12, Math.abs(c));
+    ctx.fillRect(x - 2, y + 4, 4, 4);                 // turntable
+    const c = Math.cos(spin), s = Math.sin(spin);
+    const sx = Math.sign(c || 1) * Math.max(0.15, Math.abs(c));
+    // Electronics box behind the panel, visible from the side
+    ctx.fillStyle = lit ? '#fff' : '#353b2e';
+    ctx.fillRect(x - 3 - 2 * c, y - 3, 6, 7);
     ctx.save();
-    ctx.translate(x, y);
+    ctx.translate(x + 2 * c, y);
     ctx.scale(sx, 1);
     ctx.fillStyle = lit ? '#fff' : c >= 0 ? '#a3ad92' : '#4f5845';
     ctx.strokeStyle = '#07040b'; ctx.lineWidth = 0.8;
-    ctx.beginPath(); ctx.ellipse(0, 0, 4.5, 9, 0, -Math.PI / 2, Math.PI / 2); ctx.closePath();
-    ctx.fill(); ctx.stroke();
-    // Feed horn on struts in front of the dish, with a red tip
-    ctx.strokeStyle = lit ? '#fff' : '#6b745e'; ctx.lineWidth = 0.9;
-    ctx.beginPath(); ctx.moveTo(0, -6); ctx.lineTo(8, 0); ctx.lineTo(0, 6); ctx.stroke();
-    ctx.fillStyle = '#ff4d6d'; ctx.fillRect(7, -1.2, 2.5, 2.5);
+    ctx.fillRect(-6, -7, 12, 12); ctx.strokeRect(-6, -7, 12, 12);
+    if (c >= 0 && !lit) {                                // antenna element grid
+      ctx.strokeStyle = 'rgba(40,46,34,0.6)'; ctx.lineWidth = 0.6;
+      ctx.beginPath();
+      for (let i = -3; i <= 3; i += 3) { ctx.moveTo(i, -7); ctx.lineTo(i, 5); ctx.moveTo(-6, i - 1); ctx.lineTo(6, i - 1); }
+      ctx.stroke();
+    }
     ctx.restore();
+    // Beacon on top, blinking as the beam sweeps past
+    ctx.fillStyle = s > 0.7 ? '#ff4d6d' : '#5a1020';
+    ctx.fillRect(x - 1, y - 9, 2, 2);
   }
 
   // Bars and the level-up picker, drawn above the HUD.

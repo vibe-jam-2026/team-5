@@ -89,6 +89,14 @@ export const CONFIG = {
   redButtonChance: 0.5,          // chance per level-up after that
   ejectDuration: 7,            // seconds of the pilot-ejecting animation before game over (ENTER skips)
 
+  // Soundtrack: which of the three tracks plays when (in-game clock hours).
+  // "Neon Sunset" from 6 PM, "Midnight Drive" from midnight, and
+  // "Dawn Strike" from bossMusicHour through the boss fight.
+  music: {
+    midnightHour: 0,             // 12:00 AM (2:30 into the run)
+    bossMusicHour: 4.5,          // 4:30 AM, ~40 s before the Mothership
+  },
+
   // Final boss, just before sunrise: the Mothership, then its AI core.
   // Beat the core and dawn breaks: big bonus, full heal, then Overtime.
   // Testing: Shift+B jumps to the boss, Shift+N skips the current boss phase,

@@ -31,12 +31,62 @@ function hash(x, y) {
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 }
 
-// ---------- Hunter types ----------
+// ---------- Enemy drone types ----------
+// The first entry is the "basic" spawn (see basicShare* in config.js).
 const ENEMIES = {
-  villager: { r: 10, hp: 10, speed: 60, dps: 12, xp: 1, color: '#d98b3a', from: 0 },
-  hunter:   { r: 8,  hp: 8,  speed: 115, dps: 10, xp: 1, color: '#9fb4c7', from: 30 },
-  priest:   { r: 16, hp: 70, speed: 40, dps: 25, xp: 5, color: '#f2efe6', from: 80 },
+  quad:  { r: 10, hp: 10, speed: 60, dps: 12, xp: 1, color: '#d98b3a', from: 0 },   // quadcopter swarm drone
+  dart:  { r: 8,  hp: 8,  speed: 115, dps: 10, xp: 1, color: '#9fb4c7', from: 30 }, // fast fixed-wing kamikaze drone
+  heavy: { r: 16, hp: 70, speed: 40, dps: 25, xp: 5, color: '#8a8f6a', from: 80 },  // armoured hexacopter
 };
+
+// Draw a drone at the origin facing +x (callers translate/rotate).
+function drawDrone(ctx, e, t) {
+  const r = e.r, body = e.flash > 0 ? '#fff' : e.color;
+  const blink = Math.floor(t * 4 + e.seed * 4) % 2 === 0;
+  if (e.kind === 'dart') {
+    // Delta-wing kamikaze drone with a pusher prop
+    ctx.fillStyle = body;
+    ctx.beginPath(); ctx.moveTo(r * 1.5, 0); ctx.lineTo(-r, -r * 1.2); ctx.lineTo(-r * 0.6, 0); ctx.lineTo(-r, r * 1.2); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#3a3f4b';
+    ctx.fillRect(-r * 0.8, -1.5, r * 1.9, 3);
+    ctx.strokeStyle = 'rgba(220,220,230,0.6)'; ctx.lineWidth = 1.5;
+    const s = Math.sin(t * 60 + e.seed * 9) * r * 0.7;
+    ctx.beginPath(); ctx.moveTo(-r * 0.9, -s); ctx.lineTo(-r * 0.9, s); ctx.stroke();
+    ctx.fillStyle = '#e63946';
+    ctx.beginPath(); ctx.arc(r * 1.1, 0, 1.8, 0, Math.PI * 2); ctx.fill();
+    return;
+  }
+  // Multirotors: quad = 4 arms, heavy = 6 arms
+  const arms = e.kind === 'heavy' ? 6 : 4, reach = r * 1.15, rotor = r * (arms === 6 ? 0.45 : 0.55);
+  ctx.strokeStyle = '#3a3f4b'; ctx.lineWidth = arms === 6 ? 3 : 2;
+  for (let i = 0; i < arms; i++) {
+    const a = (i + 0.5) / arms * Math.PI * 2;
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(a) * reach, Math.sin(a) * reach); ctx.stroke();
+  }
+  // Spinning rotor discs
+  for (let i = 0; i < arms; i++) {
+    const a = (i + 0.5) / arms * Math.PI * 2, x = Math.cos(a) * reach, y = Math.sin(a) * reach;
+    ctx.fillStyle = 'rgba(200,205,220,0.22)';
+    ctx.beginPath(); ctx.arc(x, y, rotor, 0, Math.PI * 2); ctx.fill();
+    const b = t * 40 * (i % 2 ? 1 : -1) + e.seed * 7;
+    ctx.strokeStyle = 'rgba(230,230,240,0.7)'; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(x - Math.cos(b) * rotor, y - Math.sin(b) * rotor); ctx.lineTo(x + Math.cos(b) * rotor, y + Math.sin(b) * rotor); ctx.stroke();
+  }
+  // Body
+  ctx.fillStyle = body;
+  if (arms === 6) {
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; ctx.lineTo(Math.cos(a) * r * 0.6, Math.sin(a) * r * 0.6); }
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#4a4f3a'; ctx.fillRect(-r * 0.15, -r * 0.45, r * 0.3, r * 0.9); // armour plate
+  } else {
+    ctx.fillRect(-r * 0.45, -r * 0.35, r * 0.9, r * 0.7);
+  }
+  // Camera eye facing the player, and a blinking nav light
+  ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(r * 0.35, 0, r * 0.2, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#e63946'; ctx.beginPath(); ctx.arc(r * 0.35, 0, r * 0.09, 0, Math.PI * 2); ctx.fill();
+  if (blink) { ctx.fillStyle = arms === 6 ? '#ffb703' : '#4cc9f0'; ctx.beginPath(); ctx.arc(-r * 0.4, 0, 1.6, 0, Math.PI * 2); ctx.fill(); }
+}
 
 // ---------- Upgrades ----------
 // Each upgrade has a max level; `apply` runs when picked.
@@ -176,7 +226,7 @@ export class Game {
     const hpScale = 1 + T / C.hpScaleSeconds;
     const speedScale = Math.min(C.maxSpeedScale, 1 + T / C.speedScaleSeconds);
     const dpsScale = 1 + T / C.dpsScaleSeconds;
-    // Plain villagers get rarer as the night goes on; tougher types take over.
+    // Plain quadcopters get rarer as the night goes on; tougher types take over.
     const basic = C.basicShareStart + (C.basicShareEnd - C.basicShareStart) * Math.min(1, T / C.basicShareSeconds);
     while (this.spawnAcc >= 1) {
       this.spawnAcc--;
@@ -184,7 +234,7 @@ export class Game {
       const [kind, t] = types[Math.random() < basic ? 0 : Math.floor(Math.random() * types.length)];
       const { x, y } = this.around(SPAWN_RADIUS + rand(0, 60));
       this.enemies.push({ kind, x, y, r: t.r, hp: t.hp * hpScale, maxHp: t.hp * hpScale,
-        speed: t.speed * speedScale * rand(0.85, 1.15), dps: t.dps * dpsScale, xp: t.xp, color: t.color, flash: 0, batCd: 0 });
+        speed: t.speed * speedScale * rand(0.85, 1.15), dps: t.dps * dpsScale, xp: t.xp, color: t.color, flash: 0, batCd: 0, seed: Math.random() });
     }
   }
 
@@ -512,12 +562,12 @@ export class Game {
       const s = g.big ? 6 : 4;
       ctx.beginPath(); ctx.moveTo(g.x, g.y - s * 1.6); ctx.lineTo(g.x + s, g.y); ctx.arc(g.x, g.y, s, 0, Math.PI); ctx.lineTo(g.x - s, g.y); ctx.fill();
     }
-    // Hunters
+    // Drones, facing the jet
     for (const e of this.enemies) {
-      ctx.fillStyle = e.flash > 0 ? '#fff' : e.color;
-      ctx.beginPath(); ctx.arc(e.x, e.y, e.r, 0, Math.PI * 2); ctx.fill();
-      if (e.kind === 'villager') { ctx.fillStyle = '#ffb703'; ctx.fillRect(e.x + e.r - 2, e.y - e.r - 6, 4, 6); } // torch
-      if (e.kind === 'priest') { ctx.fillStyle = '#7a1c1c'; ctx.fillRect(e.x - 1.5, e.y - 8, 3, 16); ctx.fillRect(e.x - 6, e.y - 4, 12, 3); } // cross
+      ctx.save();
+      ctx.translate(e.x, e.y); ctx.rotate(Math.atan2(p.y - e.y, p.x - e.x));
+      drawDrone(ctx, e, this.time);
+      ctx.restore();
     }
     // Bolts
     ctx.fillStyle = '#ff4d6d';

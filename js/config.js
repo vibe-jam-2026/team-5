@@ -12,7 +12,9 @@ export const CONFIG = {
   playerMaxHp: 100,
   magnetRange: 90,               // blood drops fly to you inside this range
   crashHeight: 40,               // flying lower than this above the ground crashes into the trees
-  pullUpWarning: 90,             // "PULL UP!" shows when this close above the crash height
+  pullUpWarning: 90,
+  maxAltitude: 900,              // the jet can't climb higher than this above the ground
+  ceilingWarning: 90,            // "MAX ALTITUDE" shows when this close to the ceiling             // "PULL UP!" shows when this close above the crash height
 
   // Aircraft picked before each round. Stats multiply the player values above
   // (speed x playerSpeed, health x playerMaxHp) and all weapon damage.
@@ -73,11 +75,21 @@ export const CONFIG = {
   aaPoints: 250,
 
   // Power-ups: glowing crates that grant a special weapon for a short time.
-  powerupChance: 0.015,          // drop chance per drone kill...
-  powerupChanceHeavy: 0.12,      // ...per hexacopter kill
-  powerupFromGun: 0.5,           // ...per destroyed anti-aircraft gun
+  powerupChance: 0.0162,         // drop chance per drone kill...
+  powerupChanceHeavy: 0.1296,    // ...per hexacopter kill
+  powerupFromGun: 1 / 3,          // ...per destroyed anti-aircraft gun
   powerupLife: 14,               // seconds a crate stays before it fades
-  powerupDuration: 10,           // seconds the special weapon lasts
+  powerupDuration: 6,            // seconds the special weapon lasts
+  powerupFromLevel: 10,          // no crates drop before the player reaches this level
+
+  // Big red button: a trap card that sometimes sneaks into the level-up
+  // choices. Picking it ends the night on the spot.
+  redButtonFromLevel: 3,         // first level-up it can appear on
+  redButtonChance: 0.3,          // chance per level-up after that
+
+  // Day cycle: each run starts at sunset. The sun sinks and the sky fades to
+  // night over this many seconds; dawn comes with the final boss below.
+  sunsetTime: 50,
 
   // Final boss, just before sunrise: the Mothership, then its AI core.
   // Beat the core and dawn breaks: big bonus, full heal, then Overtime.

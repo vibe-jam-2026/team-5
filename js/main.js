@@ -177,90 +177,99 @@ function controlRow(label, keys, x, y) {
   }
 }
 
-// Fixed sky decoration: twinkling stars and a glowing crescent moon.
+// Fixed star positions, shared by the title and in-game skies.
 const STARS = Array.from({ length: 45 }, (_, i) => {
   const r = (n) => { const x = Math.sin(i * 127.1 + n * 311.7) * 43758.5453; return x - Math.floor(x); };
   return { x: r(1) * W, y: r(2) * H * 0.6, s: 0.6 + r(3) * 1.2, phase: r(4) * 6.28, speed: 0.6 + r(5) * 1.6 };
 });
 
-function drawSky(t) {
-  for (const st of STARS) {
-    const a = 0.12 + 0.18 * (0.5 + 0.5 * Math.sin(t * st.speed + st.phase));
-    ctx.fillStyle = `rgba(230,225,255,${a.toFixed(3)})`;
-    ctx.fillRect(st.x, st.y, st.s, st.s);
+// In-game sky: the night's whole story in one sky, in the same neon style as
+// the title screen. Each run starts at sunset: the striped sun sinks behind
+// the forest and the sky fades to deep night while the stars come out. Just
+// before the boss the horizon starts to glow again, and when the boss is
+// beaten the sun rises on the other side: dawn.
+// The horizon sits behind the forest and sinks out of view as the jet climbs.
+const SUN_R = 90;
+const SUNSET_X = W * 0.68, SUNRISE_X = W * 0.32;
+const SKY_STOPS = [0, 0.5, 0.8, 0.93, 1];
+const SUNSET_SKY = ['#07011a', '#2a0a52', '#8a1f78', '#e0407a', '#ff9e3d'];
+const NIGHT_SKY = ['#030008', '#0b0320', '#170733', '#26093f', '#3a1048'];
+
+const hexRgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+function mix(a, b, k) {
+  const A = hexRgb(a), B = hexRgb(b);
+  return `rgb(${A.map((v, i) => Math.round(v + (B[i] - v) * k)).join(',')})`;
+}
+const ease = (k) => k * k * (3 - 2 * k);
+const clamp01 = (k) => Math.max(0, Math.min(1, k));
+
+// Where we are in the day cycle: light (0 night .. 1 sunset/sunrise colours),
+// sun x, and sink (0 = sun sitting on the horizon, 1 = fully below it).
+function skyState() {
+  if (!game || state === 'select' || state === 'title') return { light: 1, x: SUNSET_X, sink: 0 };
+  const dusk = clamp01(game.time / CONFIG.sunsetTime);
+  const dawn = game.daylight;                       // 0 night, 0.3 pre-dawn glow, 1 sunrise
+  const light = Math.max(1 - ease(dusk), dawn);
+  if (dawn > 0.3) {                                 // the sun comes back up
+    const rise = ease((dawn - 0.3) / 0.7);
+    return { light, x: SUNRISE_X, sink: 1.1 - rise * 1.5 };
   }
-  const mx = W - 120, my = 90, mr = 34;
-  // Soft halo that slowly breathes.
-  const pulse = 1 + 0.06 * Math.sin(t * 0.8);
-  const halo = ctx.createRadialGradient(mx, my, mr * 0.6, mx, my, mr * 4.5 * pulse);
-  halo.addColorStop(0, 'rgba(235,225,255,0.16)');
-  halo.addColorStop(0.35, 'rgba(180,160,230,0.06)');
-  halo.addColorStop(1, 'rgba(120,90,180,0)');
-  ctx.fillStyle = halo;
-  ctx.fillRect(mx - mr * 5, my - mr * 5, mr * 10, mr * 10);
-  // Crescent: the moon disc with an offset disc cut out of it.
-  ctx.save();
-  ctx.beginPath(); ctx.arc(mx, my, mr, 0, Math.PI * 2); ctx.clip();
-  ctx.beginPath();
-  ctx.rect(mx - mr, my - mr, mr * 2, mr * 2);
-  ctx.arc(mx + mr * 0.45, my - mr * 0.25, mr * 0.88, 0, Math.PI * 2);
-  const face = ctx.createLinearGradient(mx - mr, my, mx + mr * 0.3, my);
-  face.addColorStop(0, 'rgba(250,244,228,0.75)');
-  face.addColorStop(1, 'rgba(225,215,240,0.45)');
-  ctx.fillStyle = face;
-  ctx.fill('evenodd');
-  ctx.restore();
-  // A thin wisp of cloud drifting across the moon.
-  const cx = mx - 60 + ((t * 6) % 160);
-  const cloud = ctx.createRadialGradient(cx, my + 14, 2, cx, my + 14, 50);
-  cloud.addColorStop(0, 'rgba(40,24,60,0.35)');
-  cloud.addColorStop(1, 'rgba(40,24,60,0)');
-  ctx.fillStyle = cloud;
-  ctx.save(); ctx.translate(cx, my + 14); ctx.scale(1, 0.22); ctx.translate(-cx, -(my + 14));
-  ctx.beginPath(); ctx.arc(cx, my + 14, 50, 0, Math.PI * 2); ctx.fill();
-  ctx.restore();
+  return { light, x: SUNSET_X, sink: ease(clamp01(game.time / (CONFIG.sunsetTime * 0.7))) * 1.1 };
 }
 
 function drawBackground() {
-  const g = ctx.createRadialGradient(W / 2, H / 2, 50, W / 2, H / 2, W * 0.7);
-  g.addColorStop(0, '#1d1028');
-  g.addColorStop(1, '#0a0610');
-  ctx.fillStyle = g;
+  const t = performance.now() / 1000;
+  const { light, x, sink } = skyState();
+  const horizon = H - 50 + (game && state !== 'select' ? game.groundOffset : 0);
+  const sky = ctx.createLinearGradient(0, horizon - H * 1.6, 0, horizon);
+  SKY_STOPS.forEach((stop, i) => sky.addColorStop(stop, mix(NIGHT_SKY[i], SUNSET_SKY[i], light)));
+  ctx.fillStyle = sky;
   ctx.fillRect(0, 0, W, H);
-  const day = game && state !== 'select' ? game.daylight : 0;
-  if (day > 0) drawDawn(day);
-  ctx.save(); ctx.globalAlpha = Math.max(0, 1 - day * 1.4);
-  drawSky(performance.now() / 1000);
-  ctx.restore();
-  // Ground detail scrolls with the camera; it's drawn in game.js.
-}
 
-// Sunrise near the end of the night: the sky warms up from the bottom, and once
-// the boss is beaten a striped synthwave sun rises behind the forest.
-function drawDawn(k) {
-  const g = ctx.createLinearGradient(0, 0, 0, H);
-  g.addColorStop(0, `rgba(70,20,120,${(0.5 * k).toFixed(3)})`);
-  g.addColorStop(0.55, `rgba(255,60,140,${(0.45 * k).toFixed(3)})`);
-  g.addColorStop(1, `rgba(255,170,80,${(0.8 * k).toFixed(3)})`);
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, W, H);
-  const rise = Math.max(0, (k - 0.3) / 0.7);
-  if (rise <= 0) return;
-  const r = 120, cx = W / 2, cy = H + r - rise * 250;
-  const halo = ctx.createRadialGradient(cx, cy, r * 0.6, cx, cy, r * 2.4);
-  halo.addColorStop(0, 'rgba(255,42,109,0.5)');
+  // Stars fade in towards the top, where the sky is darkest, and shine
+  // brighter (and lower) once night falls.
+  const night = 1 - light;
+  for (const st of STARS) {
+    const fade = clamp01((horizon - st.y - H * (0.55 - 0.45 * night)) / (H * 0.5));
+    if (fade <= 0) continue;
+    const a = fade * (0.2 + 0.4 * night + 0.4 * (0.5 + 0.5 * Math.sin(t * st.speed + st.phase)));
+    ctx.fillStyle = `rgba(255,235,255,${Math.min(1, a).toFixed(3)})`;
+    ctx.fillRect(st.x, st.y, st.s, st.s);
+  }
+
+  // The striped sun, clipped at the horizon so it sinks behind it.
+  const r = SUN_R, cy = horizon + sink * r;
+  if (sink >= 1.05 || cy - r * 2.4 > H) return;
+  const show = clamp01(1 - sink);
+  const halo = ctx.createRadialGradient(x, cy, r * 0.6, x, cy, r * 2.4);
+  halo.addColorStop(0, `rgba(255,42,109,${(0.45 * (0.3 + 0.7 * show)).toFixed(3)})`);
   halo.addColorStop(1, 'rgba(255,42,109,0)');
   ctx.fillStyle = halo;
-  ctx.fillRect(0, 0, W, H);
+  ctx.fillRect(x - r * 2.4, Math.min(cy, horizon) - r * 2.4, r * 4.8, horizon - Math.min(cy, horizon) + r * 2.4);
+
   ctx.save();
-  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.clip();
-  const sg = ctx.createLinearGradient(0, cy - r, 0, cy + r * 0.4);
-  sg.addColorStop(0, NEON.yellow); sg.addColorStop(0.45, '#ff9e3d'); sg.addColorStop(1, NEON.pink);
+  ctx.beginPath();
+  ctx.rect(0, 0, W, horizon);
+  ctx.clip();
+  ctx.beginPath();
+  ctx.arc(x, cy, r, 0, Math.PI * 2);
+  ctx.clip();
+  const sg = ctx.createLinearGradient(0, cy - r, 0, cy);
+  sg.addColorStop(0, NEON.yellow);
+  sg.addColorStop(0.45, '#ff9e3d');
+  sg.addColorStop(1, NEON.pink);
   ctx.fillStyle = sg;
-  ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
-  ctx.fillStyle = 'rgba(120,30,90,0.9)';
-  for (let i = 0; i < 6; i++) ctx.fillRect(cx - r, cy - r * 0.2 + i * 16, r * 2, 2 + i * 1.5);
+  ctx.fillRect(x - r, cy - r, r * 2, r);
+  // Slats cut through the lower sun, thicker towards the horizon, slowly sinking.
+  ctx.fillStyle = sky;
+  const gap = 12, drift = (t * 6) % gap;
+  for (let i = 0; i < 7; i++) {
+    const y = cy - r * 0.6 + i * gap + drift;
+    const h = 1 + ((y - (cy - r * 0.6)) / (r * 0.6)) * 6;
+    ctx.fillRect(x - r, y, r * 2, h);
+  }
   ctx.restore();
+  // Ground detail scrolls with the camera; it's drawn in game.js.
 }
 
 function drawHud() {
@@ -468,7 +477,7 @@ function drawTitle() {
 
   neonText('FLIGHT CONTROLS', lx + 20, ly + 196, 16, NEON.magenta, 'left');
   const cy = ly + 222;
-  controlRow('Fly', ['↑', '↓', '←', '→', 'or', 'W', 'A', 'S', 'D'], lx + 20, cy);
+  controlRow('Steer', ['↑', '↓', '←', '→', 'or', 'W', 'A', 'S', 'D'], lx + 20, cy);
   controlRow('Pick upgrade', ['1', '2', '3', 'or', '←', '→', 'Enter'], lx + 20, cy + 26);
   controlRow('Pause', ['P', 'or', 'Esc'], lx + 20, cy + 52);
   controlRow('Sound', ['M'], lx + 20, cy + 78);
@@ -525,7 +534,7 @@ function drawSelect() {
     ctx.translate(px, py + (sel ? Math.sin(clock * 4) * 3 : 0));
     ctx.rotate(-Math.PI / 2);
     ctx.scale(2.4, 2.4);
-    Game.drawJet(ctx, a, sel ? 6 + Math.sin(clock * 50) * 2 : 0);
+    Game.drawJet(ctx, a, (sel ? 6 : 4.5) + Math.sin(clock * 50 + i) * 2);
     ctx.restore();
     // Name: chrome on the selected card
     cardName(a.name.toUpperCase(), x + cw / 2, y + 166, sel);
@@ -613,7 +622,7 @@ function draw() {
 
   if (state === 'gameover') {
     overlay(0.82);
-    chromeTitle(game.cleared ? 'NIGHT CLEARED' : game.crashed ? 'CRASHED' : 'SHOT DOWN', W / 2, 52, 52);
+    chromeTitle(game.pressedRed ? 'YOU PRESSED IT' : game.cleared ? 'NIGHT CLEARED' : game.crashed ? 'CRASHED' : 'SHOT DOWN', W / 2, 52, 52);
     if (game.cleared) neonText(`Survived to dawn at ${fmtTime(game.clearedAt)}, then went down in overtime`, W / 2, H - 78, 15, NEON.yellow);
     if (game.testRun) text('TEST RUN · not logged in the high scores', W / 2, H - 56, 13, '#ffb703');
     neonText(`Airborne ${fmtTime(game.time)}  ·  ${game.kills} bandits splashed  ·  level ${game.level}  ·  ${Math.floor(game.score)} pts`, W / 2, 96, 15, NEON.cyan);

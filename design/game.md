@@ -22,16 +22,17 @@ Genre inspiration: "survivors-likes" / "bullet heaven" (e.g. Vampire Survivors).
 
 Every run builds towards a climax just before sunrise.
 
-1. **Sky lightens:** in the last minute before the boss, the night sky starts to warm up.
-2. **WARNING:** at 6:00 a flashing warning banner and siren appear, and the **Mothership** descends: the hive carrier the drones have been coming from all night. Normal drone spawns drop to a trickle.
-3. **Mothership fight:** it hovers near the top of the screen and drifts over the jet.
+1. **Sunset to night:** each run starts at sunset. The striped neon sun sinks behind the forest and the sky fades to deep night over the first ~50 seconds (`sunsetTime` in `js/config.js`) while the stars come out.
+2. **Sky lightens:** in the last minute before the boss, the night sky starts to warm up.
+3. **WARNING:** at 6:00 a flashing warning banner and siren appear, and the **Mothership** descends: the hive carrier the drones have been coming from all night. Normal drone spawns drop to a trickle.
+4. **Mothership fight:** it hovers near the top of the screen and drifts over the jet.
    - Four turrets fire aimed 3-shot bursts (red glow first). Shooting them off earns points and drops a power-up crate.
    - Its core eye charges up, then fires a ring of bullets (two rings once it's below half health).
    - The hangar launches waves of drones.
    - Ramming the hull hurts.
-4. **"Final final" boss:** when the hull breaks, it explodes in a chain, and the glowing **AI core** breaks loose. The core circles the jet spraying a bullet spiral, and every few seconds it charges straight at you (a red dashed line shows where).
-5. **Dawn breaks:** beating the core shoots down every drone in the sky, a striped synthwave sun rises, and you get a big **Dawn Bonus** (more for health left) plus a full heal.
-6. **Overtime:** the run continues with all points worth x2 until you go down. The game-over screen says "NIGHT CLEARED".
+5. **"Final final" boss:** when the hull breaks, it explodes in a chain, and the glowing **AI core** breaks loose. The core circles the jet spraying a bullet spiral, and every few seconds it charges straight at you (a red dashed line shows where).
+6. **Dawn breaks:** beating the core shoots down every drone in the sky, the striped sun rises again on the other side of the sky, and you get a big **Dawn Bonus** (more for health left) plus a full heal.
+7. **Overtime:** the run continues with all points worth x2 until you go down. The game-over screen says "NIGHT CLEARED".
 
 Losing during the boss keeps everything you scored before it. All boss numbers (arrival time, health, attack rates, bonuses) are in `CONFIG.boss` in `js/config.js`.
 
@@ -54,7 +55,7 @@ Fly to dodge the swarm → weapons shoot drones down → collect pickups → lev
 
 ## Look and sound
 
-- 80s neon synthwave: dark purple night sky with stars and a crescent moon, neon magenta, cyan and yellow, chrome titles, a pine-forest silhouette along the bottom.
+- 80s neon synthwave: a neon sky that goes from sunset (striped sun on the horizon) to deep purple night with stars, and back to sunrise at dawn; neon magenta, cyan and yellow, chrome titles, a pine-forest silhouette along the bottom.
 - Title and aircraft screens: striped synthwave sun and a neon perspective grid.
 - Sound effects are synth tones generated in the browser. Music: a driving 80s jet-rock track, also generated in the browser.
 
@@ -70,6 +71,8 @@ Fly to dodge the swarm → weapons shoot drones down → collect pickups → lev
 - Health, game over, score with kill-streak multiplier, local top-10 high scores with initials
 - Music and sound effects
 - Final boss before dawn (Mothership → AI core → dawn bonus → Overtime)
+- Day cycle sky: sunset at the start, night, pre-dawn glow, sunrise after the boss
+- Big red button trap card in the level-up choices
 
 **Nice to have:** only if there's time.
 
@@ -93,3 +96,4 @@ Plain HTML, JavaScript modules and canvas. No libraries, no build step. Gameplay
 - 2026-11-09: Camera follows the player, who stays centred while the world scrolls. Enemies spawn just off-screen and always chase.
 - 2026-11-09: Theme changed to an 80s neon night sortie, "Midnight Afterburner": fighter jet, drones, anti-aircraft guns, forest you can crash into, aircraft selection, power-ups, 80s music.
 - 2026-11-09: New requirement: a final final boss. To fit the endless genre, it's a timed climax just before sunrise (Mothership, then its AI core). Beating it gives a dawn bonus and Overtime at double points, so the high-score chase continues. Test shortcuts: Shift+B, Shift+N, `?boss`.
+- 2026-11-09: The in-game sky became a neon sunset (from main). Merged with the dawn concept: runs start at sunset, the sun sinks into night, and it rises again on the other side when the boss is beaten.

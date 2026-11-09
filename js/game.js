@@ -28,6 +28,7 @@ const GROUND_Y = H / 2;                       // world y of the bottom edge of t
 const CAM_MAX_Y = GROUND_Y - H / 2;           // lowest camera centre: ground at the screen bottom
 const FOREST_TOP = H - 78;                    // tallest trees reach about here (screen y with the camera at its lowest)
 const CRASH_Y = GROUND_Y - C.crashHeight;     // jet centre below this world y = crashed into the trees
+const CEIL_Y = GROUND_Y - C.maxAltitude;      // jet centre can't go above this world y (max height)
 const AA_SLOT = 520;                          // at most one gun per this many px of world x
 const AA_Y = H - 34;                          // screen y of a gun's turret
 const AA_CHANCE = 0.65;                       // share of slots that hold a gun
@@ -132,6 +133,8 @@ const LASER_LEN = 260;
 
 // Shown when every upgrade is maxed.
 const FLYBY = { name: 'Tower Flyby', desc: 'Heal 30, +500 points' };
+// Trap card: looks like an upgrade, ends the game if picked.
+const RED_BUTTON = { name: 'Big Red Button', desc: 'Do not press. Seriously. Do NOT press it.' };
 
 // Fill a polygon and give it a crisp dark outline (mitred corners keep it sharp).
 const OUTLINE = '#07040b';
@@ -144,15 +147,38 @@ function poly(ctx, pts, fill, lw = 1) {
   ctx.lineJoin = 'miter'; ctx.lineWidth = lw; ctx.strokeStyle = OUTLINE; ctx.stroke();
 }
 
+// Neon afterburner out of the tail nozzle (at x = -12): a hot pink glow,
+// then magenta, orange and white-hot flame layers with shock diamonds.
+function drawAfterburner(ctx, burner) {
+  const len = burner * 2.6, flick = 0.85 + Math.random() * 0.3;
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  const glow = ctx.createRadialGradient(-12 - len * 0.35, 0, 0, -12 - len * 0.35, 0, len * 0.9 + 6);
+  glow.addColorStop(0, 'rgba(255,113,206,0.55)');
+  glow.addColorStop(0.5, 'rgba(255,42,109,0.18)');
+  glow.addColorStop(1, 'rgba(255,42,109,0)');
+  ctx.fillStyle = glow;
+  ctx.beginPath(); ctx.arc(-12 - len * 0.35, 0, len * 0.9 + 6, 0, Math.PI * 2); ctx.fill();
+  poly(ctx, [-12, -4, -12 - len * flick, 0, -12, 4], 'rgba(255,42,109,0.75)', 0);
+  poly(ctx, [-12, -3, -12 - len * 0.75 * flick, 0, -12, 3], '#ff71ce', 0);
+  poly(ctx, [-12, -2.2, -12 - len * 0.5 * flick, 0, -12, 2.2], '#ff9e3d', 0);
+  poly(ctx, [-12, -1.3, -12 - len * 0.3, 0, -12, 1.3], '#fffbe0', 0);
+  if (burner > 4) {   // shock diamonds in the full-power plume
+    ctx.fillStyle = 'rgba(255,251,150,0.8)';
+    for (let i = 1; i <= 3; i++) {
+      const x = -12 - len * 0.18 * i, r = 1.3 - i * 0.25;
+      ctx.beginPath(); ctx.moveTo(x - r * 1.6, 0); ctx.lineTo(x, -r); ctx.lineTo(x + r * 1.6, 0); ctx.lineTo(x, r); ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+
 // Draw an aircraft at the origin pointing along +x (callers translate/rotate).
 function drawJet(ctx, a, burner = 0) {
   ctx.save();
   ctx.scale(a.size, a.size);
   const lw = 0.9 / a.size;
-  if (burner) {   // two-tone afterburner cone
-    poly(ctx, [-12, -3, -12 - burner * 1.3, 0, -12, 3], '#ffb703', 0);
-    poly(ctx, [-12, -1.5, -12 - burner * 0.7, 0, -12, 1.5], '#fff1c1', 0);
-  }
+  if (burner) drawAfterburner(ctx, burner);
   if (a.id === 'interceptor') {        // slim delta wing
     poly(ctx, [9, -2, -10, -13, -12, -12, -11, -2, -11, 2, -12, 12, -10, 13, 9, 2], a.wing, lw);
   } else if (a.id === 'gunship') {     // broad straight wings with pointed tips, twin engines
@@ -219,6 +245,7 @@ export class Game {
     this.boss = null;         // final boss state (see boss.js), set when it arrives
     this.cleared = false;     // true once the boss is beaten and dawn breaks
     this.testRun = false;     // a test shortcut was used: not saved to high scores
+    this.pressedRed = false;  // true if the night ended by picking the big red button
     this.events = [];
   }
 
@@ -311,10 +338,23 @@ export class Game {
       d = Math.atan2(Math.sin(d), Math.cos(d));
       p.heading += d * Math.min(1, dt * 12);
     }
-    p.vx = ax.x * speed; p.vy = ax.y * speed;
+    // The jet never stops: it always flies forward along its heading, and
+    // the arrow keys only steer it.
+    p.vx = Math.cos(p.heading) * speed; p.vy = Math.sin(p.heading) * speed;
     p.x += p.vx * dt;
     p.y += p.vy * dt;
-    p.moving = !!(ax.x || ax.y);
+    if (p.y <= CEIL_Y) {      // max height: level out and nose slightly down
+      p.y = CEIL_Y;
+      if (Math.sin(p.heading) < 0) {
+        const right = Math.abs(Math.cos(p.heading)) > 0.05 ? Math.cos(p.heading) > 0 : p.face > 0;
+        p.heading = right ? 0.15 : Math.PI - 0.15;
+      }
+    }
+    p.moving = true;
+    // Neon exhaust trail left behind the nozzle.
+    const back = 12 * this.aircraft.size;
+    p.trail = (p.trail || []).filter((q) => (q.life -= dt) > 0);
+    p.trail.push({ x: p.x - Math.cos(p.heading) * back, y: p.y - Math.sin(p.heading) * back, life: p.moving ? 0.45 : 0.15, max: p.moving ? 0.45 : 0.15 });
     if (this.hurtCd > 0) this.hurtCd -= dt;
   }
 
@@ -598,6 +638,7 @@ export class Game {
 
   // ---------- Power-ups ----------
   dropCrate(x, y) {
+    if (this.level < C.powerupFromLevel) return;
     const kinds = Object.keys(POWERUPS);
     this.crates.push({ x, y, kind: kinds[Math.floor(Math.random() * kinds.length)], life: C.powerupLife });
   }
@@ -738,6 +779,11 @@ export class Game {
     for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
     this.choosing = pool.slice(0, 3);
     if (!this.choosing.length) this.choosing = ['feast'];
+    // Sometimes the big red button sneaks in, replacing one of the cards.
+    if (this.level >= C.redButtonFromLevel && Math.random() < C.redButtonChance) {
+      const slot = Math.floor(Math.random() * Math.max(this.choosing.length, 2));
+      this.choosing[Math.min(slot, this.choosing.length)] = 'redbutton';
+    }
     this.choiceIndex = 0;
     this.pendingLevels--;
     this.events.push('levelup');
@@ -753,7 +799,12 @@ export class Game {
     if (pick < 0) return;
 
     const key = this.choosing[pick];
-    if (key === 'feast') { this.player.hp = Math.min(this.player.maxHp, this.player.hp + 30); this.addScore(500); }
+    if (key === 'redbutton') {   // told you so
+      this.player.hp = 0;
+      this.pressedRed = true;
+      this.burst(this.player.x, this.player.y, '#e01b2f', 60);
+      this.burst(this.player.x, this.player.y, '#fff1c1', 30);
+    } else if (key === 'feast') { this.player.hp = Math.min(this.player.maxHp, this.player.hp + 30); this.addScore(500); }
     else {
       this.lv[key]++;
       if (key === 'vigor') { this.player.maxHp += 25; this.player.hp = Math.min(this.player.maxHp, this.player.hp + 25); }
@@ -901,11 +952,25 @@ export class Game {
       poly(ctx, [-5, -1.5, 4, -1.5, 7, 0, 4, 1.5, -5, 1.5], '#ff4d6d', 0.8);
       ctx.restore();
     }
+    // Afterburner trail: a fading ribbon from hot pink to cyan
+    const trail = p.trail || [];
+    if (trail.length > 1) {
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.lineCap = 'round';
+      for (let i = 1; i < trail.length; i++) {
+        const a = trail[i - 1], b = trail[i], k = b.life / b.max;
+        ctx.strokeStyle = `rgba(${Math.round(5 + 250 * k)},${Math.round(217 - 170 * k)},${Math.round(232 - 30 * k)},${(0.55 * k).toFixed(3)})`;
+        ctx.lineWidth = (1 + 5 * k) * this.aircraft.size;
+        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+      }
+      ctx.restore();
+    }
     // Fighter jet, pointing where it flies
     if (!(this.hurtCd > 0.2 && Math.floor(this.hurtCd * 30) % 2)) {
       ctx.save();
       ctx.translate(p.x, p.y); ctx.rotate(p.heading);
-      drawJet(ctx, this.aircraft, p.moving ? 6 + Math.sin(this.time * 50) * 2 : 0);
+      drawJet(ctx, this.aircraft, p.moving ? 6 + Math.sin(this.time * 50) * 2 : 2.5 + Math.sin(this.time * 40) * 0.5);
       ctx.restore();
     }
     // Drone bullets: red tracers
@@ -1100,6 +1165,16 @@ export class Game {
       ctx.fillText('PULL UP!', W / 2, H / 2 - 120);
       ctx.restore();
     }
+    // Ceiling notice when the jet nears its max height
+    if (!this.over && p.y - CEIL_Y < C.ceilingWarning && Math.floor(this.time * 4) % 2 === 0) {
+      ctx.save();
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = 'italic 900 24px Impact, "Arial Black", sans-serif';
+      ctx.shadowColor = NEON.cyan; ctx.shadowBlur = 12;
+      ctx.fillStyle = NEON.cyan;
+      ctx.fillText('MAX ALTITUDE', W / 2, H / 2 - 120);
+      ctx.restore();
+    }
     // Active power-up: name and time left, top centre
     if (this.power) {
       const pu = POWERUPS[this.power.kind], k = this.power.t / C.powerupDuration;
@@ -1220,9 +1295,10 @@ function drawUpgradeCard(ctx, key, i, x, y, w, h, sel, l, t) {
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   // Status tag, top left
   ctx.textAlign = 'left'; ctx.font = 'bold 12px monospace';
-  const tag = !u ? 'BONUS' : l === 0 ? '★ NEW' : `LV ${l} → ${l + 1}`;
-  ctx.shadowColor = NEON.yellow; ctx.shadowBlur = l === 0 || !u ? 8 : 0;
-  ctx.fillStyle = l === 0 || !u ? NEON.yellow : '#fff';
+  const trap = key === 'redbutton';
+  const tag = trap ? '⚠ DANGER' : !u ? 'BONUS' : l === 0 ? '★ NEW' : `LV ${l} → ${l + 1}`;
+  ctx.shadowColor = trap ? '#ff2a3a' : NEON.yellow; ctx.shadowBlur = l === 0 || !u ? 8 : 0;
+  ctx.fillStyle = trap ? '#ff4d5a' : l === 0 || !u ? NEON.yellow : '#fff';
   ctx.fillText(tag, x + 22, y + 16);
   ctx.shadowBlur = 0;
   // Icon in a glowing ring
@@ -1241,7 +1317,7 @@ function drawUpgradeCard(ctx, key, i, x, y, w, h, sel, l, t) {
   // Name: chrome gradient on the selected card
   ctx.textAlign = 'center';
   ctx.font = 'italic 900 21px Impact, "Arial Black", sans-serif';
-  const name = (u ? u.name : FLYBY.name).toUpperCase();
+  const name = (u ? u.name : trap ? RED_BUTTON.name : FLYBY.name).toUpperCase();
   if (sel) {
     const chrome = ctx.createLinearGradient(0, y + 114, 0, y + 136);
     chrome.addColorStop(0, '#f4fdff'); chrome.addColorStop(0.45, '#5fd3ff');
@@ -1252,7 +1328,7 @@ function drawUpgradeCard(ctx, key, i, x, y, w, h, sel, l, t) {
   ctx.shadowBlur = 0;
   // Description, wrapped
   ctx.fillStyle = NEON.ink; ctx.font = '13px monospace';
-  wrapText(ctx, u ? u.desc(l) : FLYBY.desc, x + w / 2, y + 154, w - 30, 16);
+  wrapText(ctx, u ? u.desc(l) : trap ? RED_BUTTON.desc : FLYBY.desc, x + w / 2, y + 154, w - 30, 16);
   // Level pips along the bottom: filled = owned, blinking = the level you'd get
   if (u) {
     const pw = 14, pg = 6, total = u.max * pw + (u.max - 1) * pg;
@@ -1350,6 +1426,17 @@ function drawUpgradeIcon(ctx, key, t, sel) {
       ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, 16, a - 0.9, a); ctx.closePath(); ctx.fill();
       ctx.globalAlpha = 1;
       ctx.beginPath(); ctx.arc(7, -6, 2, 0, Math.PI * 2); ctx.fill();
+      break;
+    }
+    case 'redbutton': { // big glossy red button on a yellow-black base
+      ctx.shadowColor = '#ff2a3a'; ctx.shadowBlur = 14 + 6 * Math.sin(t * 6);
+      ctx.fillStyle = '#ffd400'; ctx.fillRect(-18, 4, 36, 10);
+      ctx.fillStyle = '#111';
+      for (let k = -18; k < 18; k += 8) { ctx.beginPath(); ctx.moveTo(k, 14); ctx.lineTo(k + 4, 14); ctx.lineTo(k + 8, 4); ctx.lineTo(k + 4, 4); ctx.fill(); }
+      ctx.fillStyle = '#7a0a14'; ctx.beginPath(); ctx.ellipse(0, 4, 14, 6, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#e01b2f'; ctx.beginPath(); ctx.ellipse(0, -2, 14, 9, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.beginPath(); ctx.ellipse(-5, -5, 4, 2.5, -0.3, 0, Math.PI * 2); ctx.fill();
       break;
     }
     default: {          // flyby bonus: star

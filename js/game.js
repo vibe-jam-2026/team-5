@@ -17,9 +17,14 @@ const SPAWN_RADIUS = Math.hypot(W, H) / 2 + 40;
 const DESPAWN_RADIUS = SPAWN_RADIUS * 1.8;   // hunters left this far behind respawn ahead
 const TILE = 64;                              // ground decoration grid
 
-// Foreground forest: a strip of pine silhouettes along the bottom of the
-// screen. It scrolls sideways with the camera; anti-aircraft guns sit in it.
-const FOREST_TOP = H - 78;                    // tallest trees reach about here
+// Foreground forest: a strip of pine silhouettes on the ground. The ground
+// is at a fixed world height (GROUND_Y); at the start it sits along the bottom
+// of the screen. The camera follows the jet up, but never below the ground,
+// so diving down brings the jet towards the trees. Hitting them is game over.
+const GROUND_Y = H / 2;                       // world y of the bottom edge of the forest strip
+const CAM_MAX_Y = GROUND_Y - H / 2;           // lowest camera centre: ground at the screen bottom
+const FOREST_TOP = H - 78;                    // tallest trees reach about here (screen y with the camera at its lowest)
+const CRASH_Y = GROUND_Y - C.crashHeight;     // jet centre below this world y = crashed into the trees
 const AA_SLOT = 520;                          // at most one gun per this many px of world x
 const AA_Y = H - 34;                          // screen y of a gun's turret
 const AA_CHANCE = 0.65;                       // share of slots that hold a gun
@@ -207,8 +212,14 @@ export class Game {
     this.choosing = null;     // array of upgrade keys while picking
     this.choiceIndex = 0;
     this.over = false;
+    this.crashed = false;     // true if the night ended by flying into the ground
     this.events = [];
   }
+
+  // Camera centre y: follows the jet, but never shows below the ground.
+  get camY() { return Math.min(this.player.y, CAM_MAX_Y); }
+  // How far the forest strip is pushed down the screen while the jet is high.
+  get groundOffset() { return CAM_MAX_Y - this.camY; }
 
   get xpToNext() { return C.xpBase + (this.level - 1) * C.xpPerLevel; }
   get might() { return this.aircraft.damage * (1 + this.lv.might * 0.2); }
@@ -234,6 +245,14 @@ export class Game {
     if (this.streakTimer > 0) {
       this.streakTimer -= dt;
       if (this.streakTimer <= 0) { this.streak = 0; this.multiplier = 1; }
+    }
+
+    if (this.player.y >= CRASH_Y) {   // flew into the trees
+      this.player.y = CRASH_Y;
+      this.player.hp = 0;
+      this.crashed = true;
+      this.burst(this.player.x, this.player.y, '#ffb703', 50);
+      this.burst(this.player.x, this.player.y, '#ff4d6d', 30);
     }
 
     if (this.player.hp <= 0) {
@@ -300,7 +319,7 @@ export class Game {
         dx = p.x - e.x; dy = p.y - e.y; d = Math.hypot(dx, dy);
       }
       e.x += (dx / d) * e.speed * dt;
-      e.y += (dy / d) * e.speed * dt;
+      e.y = Math.min(e.y + (dy / d) * e.speed * dt, CRASH_Y - 10);   // drones skim over the treetops
       if (e.flash > 0) e.flash -= dt;
       if (e.batCd > 0) e.batCd -= dt;
       // Contact damage
@@ -405,7 +424,7 @@ export class Game {
     for (const e of this.enemies) {
       if (!e.gun || e.dead) continue;
       if (e.muzzle > 0) e.muzzle -= dt;
-      const onScreen = Math.abs(e.x - p.x) < W / 2 - 10 && Math.abs(e.y - p.y) < H / 2 - 10;
+      const onScreen = Math.abs(e.x - p.x) < W / 2 - 10 && Math.abs(e.y - this.camY) < H / 2 - 10;
       // Only count down while in view and in range, so shots never come from off-screen.
       if (!onScreen || dist2(e, p) > range2) { e.gunCd = Math.max(e.gunCd, C.droneWarn); continue; }
       e.gunCd -= dt;
@@ -434,8 +453,7 @@ export class Game {
   }
 
   // ---------- Anti-aircraft guns ----------
-  // Guns live at fixed world x positions in the forest strip, which is always
-  // at the bottom of the screen, so their world y follows the camera.
+  // Guns live at fixed world positions in the forest strip on the ground.
   visibleGuns() {
     const p = this.player, out = [];
     const s0 = Math.floor((p.x - W / 2 - 40) / AA_SLOT), s1 = Math.floor((p.x + W / 2 + 40) / AA_SLOT);
@@ -447,7 +465,7 @@ export class Game {
           hp: C.aaHp, maxHp: C.aaHp, cd: rand(1, C.aaInterval), aim: -Math.PI / 2, flash: 0, hitFlash: 0, dead: false, spin: hash(slot, 993) * 6.28 };
         this.guns.set(slot, g);
       }
-      g.y = p.y + AA_Y - H / 2;
+      g.y = GROUND_Y - (H - AA_Y);
       g.sx = g.x - p.x + W / 2;
       if (g.sx > -30 && g.sx < W + 30) out.push(g);
     }
@@ -474,7 +492,7 @@ export class Game {
       let want = Math.atan2(p.y - g.y, p.x - g.x);
       want = Math.max(-Math.PI + 0.25, Math.min(-0.25, want));
       g.aim += (want - g.aim) * Math.min(1, dt * 5);
-      if (this.time < C.aaFrom || g.sx < 20 || g.sx > W - 20) continue;
+      if (this.time < C.aaFrom || g.sx < 20 || g.sx > W - 20 || AA_Y + this.groundOffset > H - 10) continue;
       g.cd -= dt;
       if (g.cd > 0) continue;
       g.cd = interval * rand(0.8, 1.2);
@@ -709,7 +727,7 @@ export class Game {
   drawGround(ctx) {
     const p = this.player;
     const x0 = Math.floor((p.x - W / 2) / TILE), x1 = Math.floor((p.x + W / 2) / TILE);
-    const y0 = Math.floor((p.y - H / 2) / TILE), y1 = Math.floor((p.y + H / 2) / TILE);
+    const y0 = Math.floor((this.camY - H / 2) / TILE), y1 = Math.floor((this.camY + H / 2) / TILE);
     for (let ty = y0; ty <= y1; ty++) {
       for (let tx = x0; tx <= x1; tx++) {
         const h = hash(tx, ty);
@@ -737,7 +755,7 @@ export class Game {
     const p = this.player;
     ctx.save();
     // World space: the camera is centred on the jet.
-    ctx.translate(Math.round(W / 2 - p.x), Math.round(H / 2 - p.y));
+    ctx.translate(Math.round(W / 2 - p.x), Math.round(H / 2 - this.camY));
     this.drawGround(ctx);
     // Danger Zone
     if (this.lv.aura > 0) {   // Danger Zone: tinted disc with a crisp rotating dashed ring
@@ -880,7 +898,13 @@ export class Game {
     }
     ctx.globalAlpha = 1;
     ctx.restore();
-    this.drawForest(ctx);
+    const oy = this.groundOffset;
+    if (oy < H) {             // forest strip, pushed down while the jet is high
+      ctx.save();
+      ctx.translate(0, Math.round(oy));
+      this.drawForest(ctx);
+      ctx.restore();
+    }
   }
 
   // Pine silhouettes along the bottom of the screen, in two parallax layers,
@@ -1000,7 +1024,18 @@ export class Game {
     xpGrad.addColorStop(0, NEON.magenta); xpGrad.addColorStop(1, NEON.cyan);
     ctx.fillStyle = xpGrad; ctx.fillRect(0, H - 8, W * (this.xp / this.xpToNext), 8);
     // Health bar under the jet (always at the screen centre)
-    const cx = W / 2, cy = H / 2;
+    const cx = W / 2, cy = H / 2 + (p.y - this.camY);
+    // Low-altitude warning when the jet nears the treetops
+    const alt = CRASH_Y - p.y;
+    if (!this.over && alt < C.pullUpWarning && Math.floor(this.time * 6) % 2 === 0) {
+      ctx.save();
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = 'italic 900 28px Impact, "Arial Black", sans-serif';
+      ctx.shadowColor = '#ff4d6d'; ctx.shadowBlur = 12;
+      ctx.fillStyle = '#ff4d6d';
+      ctx.fillText('PULL UP!', W / 2, H / 2 - 120);
+      ctx.restore();
+    }
     ctx.fillStyle = '#000'; const by = cy + Math.round(17 * this.aircraft.size);
     ctx.fillRect(cx - 16, by, 32, 4);
     ctx.fillStyle = p.hp / p.maxHp > 0.3 ? '#7ae582' : '#ff4d6d';

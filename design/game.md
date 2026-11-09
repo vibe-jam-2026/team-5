@@ -50,7 +50,7 @@ Losing during the boss keeps everything you scored before it. All boss numbers (
 
 - Arrow keys or WASD: fly
 - 1 / 2 / 3, or arrows + Enter: pick an upgrade or aircraft
-- P or Esc: pause · M: mute · R: fly again after game over
+- Esc: pause and resume · M: mute · Enter: fly again after game over
 
 ## Core loop
 
@@ -105,5 +105,6 @@ Plain HTML, JavaScript modules and canvas. No libraries, no build step. Gameplay
 - 2026-11-09: Merged the teammate's day cycle (moon, sunrise and blue daytime sky) with the boss: an in-game clock runs 6 PM → 6 AM over the 5 minutes before the boss, holds at 6 AM during the fight, and the sun rises when the boss is beaten. The boss now arrives at 5:00 instead of 6:00.
 - 2026-11-09 (from main): the Big Red Button shows up more often (50% of level-ups from level 3); the end screen title is now GAME OVER with the reason underneath.
 - 2026-11-09: Redesigned the moon to match the sun: a striped neon moon with a cyan glow that rises after sunset, arcs over the night and sets before dawn, with its lit side turned toward the sun.
+- 2026-11-09: Cleaned up the keys: only Esc pauses (P no longer does) and only Enter flies again after game over (R and Space no longer do).
 - 2026-11-09: Pressing the Big Red Button now plays a pilot-ejection animation (canopy off, seat rocket, parachute, jet explodes) before the high-score name entry and game-over screen.
 - 2026-11-09: The ejection animation is bigger, slower (about 7 s) and zoomed in, with the camera following the pilot.

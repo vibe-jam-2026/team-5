@@ -881,7 +881,7 @@ export class Game {
     cam.z += (wantZ - cam.z) * k; cam.x += (fx - cam.x) * k; cam.y += (fy - cam.y) * k;
     if (e.flash) e.flash = Math.max(0, e.flash - dt * 2);
     this.updateEffects(dt);
-    const skip = e.t > 1.2 && input.wasPressed('Enter', 'Space', 'NumpadEnter', 'Escape');
+    const skip = e.t > 1.2 && input.wasPressed('Enter', 'Space', 'NumpadEnter');
     if (e.t >= C.ejectDuration || skip) {
       this.player.hp = 0;
       this.over = true;

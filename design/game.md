@@ -12,7 +12,7 @@ Genre inspiration: "survivors-likes" / "bullet heaven" (e.g. Vampire Survivors).
 
 - Pick one of three aircraft before each round: Interceptor (fast, fragile), Striker (all-rounder) or Gunship (slow, tough, hits hard).
 - Drones swarm towards you: quadcopters, fast kamikaze darts and armoured hexacopters. Some drones carry guns and fire at you (they glow red first).
-- Anti-aircraft guns in the forest at the bottom of the screen fire flak at the jet. Your cannon can destroy them. Flying into the trees is a crash (game over); "PULL UP!" warns you.
+- Anti-aircraft guns in the forest at the bottom of the screen fire flak at the jet. Your cannon can destroy them. Flying into the trees is a crash (game over); "PULL UP!" warns you. When you crash, the jet explodes in the trees and the pilot ejects out of the fireball and floats down under the parachute (the same zoomed-in ejection scene as the Big Red Button, ENTER skips), then the game-over screen says "CRASHED INTO THE TREES".
 - Weapons fire automatically. Downed drones drop SSD cards (XP). Each level-up you pick 1 of 3 upgrades: new weapons or stronger ones. Trap: from level 3, each level-up has a 50% chance that one card is a **Big Red Button** ("Do not press"). Picking it ends the run: "EJECT! EJECT! EJECT!" flashes, the canopy blows off, the pilot rockets out on the ejection seat and floats down under a striped parachute while the empty jet spirals down and explodes. The camera zooms in to follow it. After about 7 seconds (ENTER skips) comes the high-score name entry / game-over screen ("YOU PRESSED THE BIG RED BUTTON"). Tunable in `js/config.js` (`redButtonFromLevel`, `redButtonChance`, `ejectDuration`).
 - The jet only moves while you hold WASD or the arrow keys; let go and it hovers in place. It can't climb more than 900 px above the ground ("MAX ALTITUDE" warns you).
 - From level 10, power-up crates sometimes drop and give a special weapon for 6 seconds: Scatter Cannon, Pulse Laser or Rocket Swarm.
@@ -108,3 +108,4 @@ Plain HTML, JavaScript modules and canvas. No libraries, no build step. Gameplay
 - 2026-11-09: Cleaned up the keys: only Esc pauses (P no longer does) and only Enter flies again after game over (R and Space no longer do).
 - 2026-11-09: Pressing the Big Red Button now plays a pilot-ejection animation (canopy off, seat rocket, parachute, jet explodes) before the high-score name entry and game-over screen.
 - 2026-11-09: The ejection animation is bigger, slower (about 7 s) and zoomed in, with the camera following the pilot.
+- 2026-11-09: Crashing into the ground now also plays the ejection: the jet explodes on impact and the pilot rockets out and parachutes down before game over.

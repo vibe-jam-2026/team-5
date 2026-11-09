@@ -313,12 +313,12 @@ export class Game {
       if (this.streakTimer <= 0) { this.streak = 0; this.multiplier = 1; }
     }
 
-    if (this.player.y >= CRASH_Y) {   // flew into the trees
+    if (this.player.y >= CRASH_Y) {   // flew into the trees: the jet blows up, the pilot ejects out of the fireball
       this.player.y = CRASH_Y;
       this.player.hp = 0;
       this.crashed = true;
-      this.burst(this.player.x, this.player.y, '#ffb703', 50);
-      this.burst(this.player.x, this.player.y, '#ff4d6d', 30);
+      this.startEject(true);
+      return;
     }
 
     if (this.player.hp <= 0) {
@@ -814,21 +814,31 @@ export class Game {
 
   // ---------- Big red button: ejection ----------
   // The canopy blows off, the seat rockets the pilot up, the chute opens and
-  // the empty jet spirals down and explodes. The camera stays put meanwhile.
-  startEject() {
+  // the empty jet spirals down and explodes. The camera zooms in and follows.
+  // crash = true: the jet hit the trees, so it explodes at once and the seat
+  // fires straight out of the fireball.
+  startEject(crash = false) {
     const p = this.player;
     // Point the jet roughly level so "up" out of the cockpit reads clearly.
     const h = Math.cos(p.heading) >= 0 ? 0 : Math.PI;
     this.eject = {
-      t: 0, done: false, exploded: false,
+      t: 0, done: false, exploded: crash, crash,
+      fireAt: crash ? 0.1 : 0.6,   // when the seat rocket fires
+      flash: crash ? 1 : 0,
       jet: { x: p.x, y: p.y, a: p.heading, va: 0, vx: Math.cos(p.heading) * 60, vy: 0, side: h },
-      canopy: { x: p.x, y: p.y - 4, vx: rand(-80, 80), vy: -260, a: 0, va: rand(-14, 14) },
+      canopy: { x: p.x, y: p.y - 4, vx: rand(-80, 80), vy: crash ? -380 : -260, a: 0, va: rand(-14, 14) },
       pilot: { x: p.x, y: p.y, vx: 0, vy: 0, fired: false },
       seat: null, chute: 0,
       cam: { x: p.x, y: this.camY, z: 1 },
     };
     this.bullets = []; this.shells = [];
     this.events.push('eject');
+    if (crash) {
+      this.burst(p.x, p.y, '#ffb703', 90);
+      this.burst(p.x, p.y, '#ff4d6d', 60);
+      this.burst(p.x, p.y, '#fff1c1', 40);
+      this.events.push('boom');
+    }
   }
 
   updateEject(dt, input) {
@@ -837,13 +847,13 @@ export class Game {
     // Canopy tumbles away
     c.x += c.vx * dt; c.y += c.vy * dt; c.vy += 500 * dt; c.a += c.va * dt;
     // Seat fires after a beat
-    if (!pi.fired && e.t >= 0.6) {
-      pi.fired = true; pi.vy = -340; pi.vx = j.vx * 0.3;
+    if (!pi.fired && e.t >= e.fireAt) {
+      pi.fired = true; pi.vy = e.crash ? -420 : -340; pi.vx = j.vx * 0.3;
       this.burst(pi.x, pi.y + 6, '#ffb703', 24);
       this.events.push('seatFire');
     }
     if (pi.fired) {
-      if (!e.seat && e.t >= 1.5) {     // seat drops away, chute opens
+      if (!e.seat && e.t >= e.fireAt + 0.9) {     // seat drops away, chute opens
         e.seat = { x: pi.x, y: pi.y + 6, vx: rand(-40, 40), vy: 0, a: 0 };
         this.events.push('chute');
       }
@@ -857,10 +867,11 @@ export class Game {
         if (Math.random() < 0.9) this.particles.push({ x: pi.x + rand(-2, 2), y: pi.y + 10, vx: rand(-30, 30), vy: rand(40, 120), life: rand(0.3, 0.6), color: Math.random() < 0.5 ? '#ffb703' : '#9a90a8' });
       }
       pi.x += pi.vx * dt; pi.y += pi.vy * dt;
+      if (pi.y > GROUND_Y - 14) { pi.y = GROUND_Y - 14; pi.vy = 0; pi.vx = 0; }   // touched down in the forest
     }
     // The empty jet loses control: nose drops, it spins and smokes, then blows up
     if (!e.exploded) {
-      if (e.t > 0.6) {
+      if (e.t > e.fireAt) {
         j.vy += 60 * dt; j.va += dt * 2 * (j.side ? -1 : 1);
         j.a += j.va * dt; j.x += j.vx * dt; j.y += j.vy * dt;
         if (Math.random() < 0.8) this.particles.push({ x: j.x, y: j.y, vx: rand(-20, 20), vy: rand(-40, 0), life: rand(0.4, 0.9), color: Math.random() < 0.3 ? '#ff4d6d' : '#6b5f7a' });
@@ -875,7 +886,7 @@ export class Game {
       }
     }
     // Camera: zoom in on the cockpit, frame pilot and jet together, then close in on the chute
-    const cam = e.cam, wantZ = e.t < 0.6 ? 2.2 : e.exploded ? 2.1 : 1.45;
+    const cam = e.cam, wantZ = e.t < e.fireAt ? 2.2 : e.exploded ? 2.1 : 1.45;
     const fx = e.exploded ? pi.x : pi.x * 0.6 + j.x * 0.4, fy = e.exploded ? pi.y - 30 : pi.y * 0.6 + j.y * 0.4 - 20;
     const k = Math.min(1, dt * 4);
     cam.z += (wantZ - cam.z) * k; cam.x += (fx - cam.x) * k; cam.y += (fy - cam.y) * k;
@@ -1377,7 +1388,7 @@ export class Game {
     ctx.strokeRect(bx + 0.5, 17.5, bw - 1, 9); ctx.strokeRect(bx + 0.5, 34.5, bw - 1, 7);
     // Low-altitude warning when the jet nears the treetops
     const alt = CRASH_Y - p.y;
-    if (!this.over && alt < C.pullUpWarning && Math.floor(this.time * 6) % 2 === 0) {
+    if (!this.over && !this.eject && alt < C.pullUpWarning && Math.floor(this.time * 6) % 2 === 0) {
       ctx.save();
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.font = 'italic 900 28px Impact, "Arial Black", sans-serif';
@@ -1428,7 +1439,7 @@ export class Game {
       if (this.eject.exploded) {
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.fillStyle = '#ffd166'; ctx.font = 'bold 16px monospace';
-        ctx.fillText('The pilot is fine. The jet is not.', W / 2, H - 70);
+        ctx.fillText(this.eject.crash ? 'The pilot got out. The jet is firewood.' : 'The pilot is fine. The jet is not.', W / 2, H - 70);
       }
     }
 

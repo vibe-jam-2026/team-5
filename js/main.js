@@ -29,8 +29,12 @@ function openSelect() {
   sfx.select();
 }
 
+// Testing: open the page with ?boss to start every run right at the final boss.
+const BOSS_TEST = new URLSearchParams(location.search).has('boss');
+
 function startGame() {
   game = new Game(CONFIG.aircraft[aircraftIndex]);
+  if (BOSS_TEST) game.skipToBoss();
   state = 'playing';
   lastRank = -1;
   sfx.unlock();
@@ -40,7 +44,7 @@ function startGame() {
 function endGame() {
   const score = Math.floor(game.score);
   isNewBest = score > highscores.best();
-  if (highscores.qualifies(score)) {
+  if (!game.testRun && highscores.qualifies(score)) {
     state = 'entry';
     entryName = '';
     input.takeTyped();
@@ -85,6 +89,9 @@ function update(dt) {
         if (e === 'pop' && soundBudget-- > 0) sfx.pop();
         if (e === 'levelup') sfx.levelUp();
         if (e === 'choose') sfx.choose();
+        if (e === 'bossWarn') sfx.bossWarn();
+        if (e === 'bossDown') { sfx.bossDown(); shake = Math.max(shake, 14); }
+        if (e === 'dawn') { sfx.dawn(); shake = Math.max(shake, 10); }
         if (e === 'over') { sfx.gameOver(); shake = 20; endGame(); }
       }
       break;
@@ -176,30 +183,35 @@ const STARS = Array.from({ length: 45 }, (_, i) => {
   return { x: r(1) * W, y: r(2) * H * 0.6, s: 0.6 + r(3) * 1.2, phase: r(4) * 6.28, speed: 0.6 + r(5) * 1.6 };
 });
 
-// In-game sky with a day cycle driven by the run's clock: sunset → night →
-// sunrise → day → sunset again. The horizon sits behind the forest and sinks
-// out of view as the jet climbs, so the sky darkens up high.
+// In-game sky with a day cycle driven by the in-game clock (game.hour):
+// each run starts at sunset, 6 PM. Night falls, and by 6 AM (when the final
+// boss arrives) the horizon glows with twilight. The sun only rises once the
+// boss is beaten; then it's day through Overtime, and sunset again at 6 PM.
+// The horizon sits behind the forest and sinks out of view as the jet climbs,
+// so the sky darkens up high.
 const SUNSET_SUN = { x: W * 0.68, r: 90 };
 const MOON = { x: W * 0.28, y: H * 0.22, r: 34 };
-const DAY_LENGTH = 180;   // seconds for one full cycle
 
 // Sky gradient stops (top → horizon) for each time of day.
 const SKIES = {
   sunset:  ['#07011a', '#2a0a52', '#8a1f78', '#e0407a', '#ff9e3d'],
   night:   ['#020008', '#0a0420', '#150a36', '#1f0f44', '#2a1650'],
+  twilight: ['#07031f', '#1d1450', '#5a2c74', '#a54a7c', '#e07a5c'],
   sunrise: ['#0e0b3c', '#3a2a7a', '#b8559c', '#ff8a80', '#ffd27a'],
   day:     ['#1b4fa6', '#3b7fd6', '#6fb2ec', '#a8d8f5', '#e8f6ff'],
 };
-// Keyframes over the cycle (u in 0..1): sky, sun height above the horizon
-// (in sun radii; negative = set), star brightness and moon brightness.
+// Keyframes over 24 hours starting at 6 PM (u = hours since 6 PM / 24, so
+// u 0.5 = 6 AM): sky, sun height above the horizon (in sun radii; negative =
+// set), star brightness and moon brightness.
 const CYCLE = [
-  { u: 0.00, sky: 'sunset',  sun: 0.2,  stars: 0.3, moon: 0 },
-  { u: 0.12, sky: 'night',   sun: -2.6, stars: 1,   moon: 1 },
-  { u: 0.40, sky: 'night',   sun: -2.6, stars: 1,   moon: 1 },
-  { u: 0.52, sky: 'sunrise', sun: 0.2,  stars: 0.3, moon: 0 },
-  { u: 0.64, sky: 'day',     sun: 2.6,  stars: 0,   moon: 0 },
-  { u: 0.88, sky: 'day',     sun: 2.6,  stars: 0,   moon: 0 },
-  { u: 1.00, sky: 'sunset',  sun: 0.2,  stars: 0.3, moon: 0 },
+  { u: 0.00, sky: 'sunset',   sun: 0.2,  stars: 0.3, moon: 0 },    // 6:00 PM, run starts
+  { u: 0.10, sky: 'night',    sun: -2.6, stars: 1,   moon: 1 },    // ~8:30 PM
+  { u: 0.44, sky: 'night',    sun: -2.6, stars: 1,   moon: 1 },    // ~4:30 AM
+  { u: 0.50, sky: 'twilight', sun: -1.1, stars: 0.5, moon: 0.3 },  // 6:00 AM, boss (clock holds here)
+  { u: 0.52, sky: 'sunrise',  sun: 0.2,  stars: 0.3, moon: 0 },    // ~6:30 AM, boss beaten: sunrise
+  { u: 0.60, sky: 'day',      sun: 2.6,  stars: 0,   moon: 0 },    // ~8:30 AM
+  { u: 0.88, sky: 'day',      sun: 2.6,  stars: 0,   moon: 0 },
+  { u: 1.00, sky: 'sunset',   sun: 0.2,  stars: 0.3, moon: 0 },    // 6:00 PM again
 ];
 
 const hexRgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
@@ -208,9 +220,9 @@ function mixHex(a, b, k) {
   return `rgb(${A.map((v, i) => Math.round(v + (B[i] - v) * k)).join(',')})`;
 }
 
-// Current time-of-day state from the run's clock.
-function timeOfDay(seconds) {
-  const u = ((seconds / DAY_LENGTH) % 1 + 1) % 1;
+// Current time-of-day state from the in-game clock (hours, 0..24).
+function timeOfDay(hour) {
+  const u = (((hour - 18) / 24) % 1 + 1) % 1;
   let i = 0;
   while (u > CYCLE[i + 1].u) i++;
   const a = CYCLE[i], b = CYCLE[i + 1];
@@ -226,7 +238,7 @@ function drawBackground() {
   const t = performance.now() / 1000;
   const inRun = game && state !== 'select';
   const horizon = H - 50 + (inRun ? game.groundOffset : 0);
-  const tod = timeOfDay(inRun ? game.time : 0);
+  const tod = timeOfDay(inRun ? game.hour : 18);
   const sky = ctx.createLinearGradient(0, horizon - H * 1.6, 0, horizon);
   [0, 0.5, 0.8, 0.93, 1].forEach((at, j) => sky.addColorStop(at, tod.stops[j]));
   ctx.fillStyle = sky;
@@ -287,8 +299,8 @@ function drawBackground() {
   ctx.fillStyle = sky;
   const gap = 12, drift = (t * 6) % gap;
   for (let i = 0; i < 7; i++) {
-    const y = horizon - r * 0.6 + i * gap + drift;
-    const h = 1 + ((y - (horizon - r * 0.6)) / (r * 0.6)) * 6;
+    const y = cy - r * 0.6 + i * gap + drift;
+    const h = 1 + ((y - (cy - r * 0.6)) / (r * 0.6)) * 6;
     ctx.fillRect(x - r, y, r * 2, h);
   }
   ctx.restore();
@@ -300,7 +312,11 @@ function drawHud() {
   // Top middle: score, high score and time. Top left holds the HP/XP bars (game.js).
   text(`SCORE ${String(score).padStart(7, '0')}`, W / 2, 22, 18, '#fff');
   neonText(`HI ${String(Math.max(score, highscores.best())).padStart(7, '0')}`, W / 2, 42, 14, NEON.cyan);
-  text(fmtTime(game.time), W / 2, 62, 16, '#fff');
+  // In-game clock (6 PM at the start, 6 AM at the boss) and time airborne.
+  const h = Math.floor(game.hour), m = Math.floor((game.hour % 1) * 60);
+  const clockStr = `${(h + 11) % 12 + 1}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
+  const held = game.boss && !game.cleared && Math.floor(clock * 2) % 2;   // blinks while the boss holds back dawn
+  text(`${held ? '' : clockStr}  ·  ${fmtTime(game.time)}`, W / 2, 62, 16, '#fff');
   neonText(`LV ${game.level}`, W - 16, 22, 18, NEON.magenta, 'right');
   text(`SPLASH ${game.kills}`, W - 16, 44, 14, NEON.ink, 'right');
   if (game.multiplier > 1) {
@@ -494,12 +510,13 @@ function drawTitle() {
     'Each level: pick 1 of 3 new or stronger weapons.',
     'AA guns in the forest fire flak. Dodge or destroy!',
     'Quick kills build a streak multiplier. Stay airborne!',
+    'Before sunrise the Mothership comes. Beat it for dawn!',
   ];
   how.forEach((l, i) => text('▸ ' + l, lx + 20, ly + 50 + i * 19, 13, NEON.ink, 'left', 'normal'));
 
   neonText('FLIGHT CONTROLS', lx + 20, ly + 196, 16, NEON.magenta, 'left');
   const cy = ly + 222;
-  controlRow('Steer', ['↑', '↓', '←', '→', 'or', 'W', 'A', 'S', 'D'], lx + 20, cy);
+  controlRow('Fly', ['↑', '↓', '←', '→', 'or', 'W', 'A', 'S', 'D'], lx + 20, cy);
   controlRow('Pick upgrade', ['1', '2', '3', 'or', '←', '→', 'Enter'], lx + 20, cy + 26);
   controlRow('Pause', ['P', 'or', 'Esc'], lx + 20, cy + 52);
   controlRow('Sound', ['M'], lx + 20, cy + 78);
@@ -646,8 +663,9 @@ function draw() {
   if (state === 'gameover') {
     overlay(0.82);
     chromeTitle('GAME OVER', W / 2, 46, 52);
-    neonText(game.pressedRed ? 'YOU PRESSED THE BIG RED BUTTON' : game.crashed ? 'CRASHED INTO THE TREES' : 'SHOT DOWN', W / 2, 86, 16, NEON.magenta);
+    neonText(game.pressedRed ? 'YOU PRESSED THE BIG RED BUTTON' : game.cleared ? 'NIGHT CLEARED · SURVIVED TO DAWN, DOWNED IN OVERTIME' : game.crashed ? 'CRASHED INTO THE TREES' : 'SHOT DOWN', W / 2, 86, 16, game.cleared && !game.pressedRed ? NEON.yellow : NEON.magenta);
     neonText(`Airborne ${fmtTime(game.time)}  ·  ${game.kills} bandits splashed  ·  level ${game.level}  ·  ${Math.floor(game.score)} pts`, W / 2, 110, 15, NEON.cyan);
+    if (game.testRun) text('TEST RUN · not logged in the high scores', W / 2, H - 56, 13, '#ffb703');
     const boardRows = Math.max(2, Math.min(highscores.list.length, CONFIG.highscoreCount));
     neonPanel(W / 2 - 220, 128, 440, 64 + boardRows * 20, NEON.magenta);
     drawPilotLog(W / 2 - 200, 150, 400);

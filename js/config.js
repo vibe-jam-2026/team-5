@@ -86,4 +86,38 @@ export const CONFIG = {
   // choices. Picking it ends the night on the spot.
   redButtonFromLevel: 3,         // first level-up it can appear on
   redButtonChance: 0.5,          // chance per level-up after that
+
+  // Final boss, just before sunrise: the Mothership, then its AI core.
+  // Beat the core and dawn breaks: big bonus, full heal, then Overtime.
+  // Testing: Shift+B jumps to the boss, Shift+N skips the current boss phase,
+  // or open the page with ?boss to start every run at the boss. Test runs
+  // aren't saved to the high scores.
+  boss: {
+    at: 300,                     // seconds into the run when the Mothership arrives. The in-game
+                                 // clock maps 6 PM (start) to 6 AM (boss) over this time.
+    warnTime: 3.5,               // seconds of WARNING banner while it descends
+    spawnScale: 0.2,             // normal drone spawns are cut to this during the fight
+    hullHp: 22000,
+    turretHp: 1500,
+    coreHp: 9000,
+    contactDps: 40,              // touching the Mothership hull
+    bulletSpeed: 190,
+    bulletDamage: 7,
+    turretEvery: 2.4,            // seconds between each turret's 3-shot bursts
+    barrageEvery: 7,             // seconds between rings of bullets from the hull
+    ringBullets: 18,
+    launchEvery: 8,              // seconds between drone launches from the hangar
+    launchCount: 5,
+    coreOrbit: 200,              // the core circles the jet at this distance...
+    coreFireEvery: 0.14,         // ...spraying a bullet spiral...
+    coreBulletSpeed: 160,
+    coreDashEvery: 3.2,          // ...and every so often charges straight at it
+    coreDashSpeed: 560,
+    coreContact: 20,             // damage when the core rams you
+    points: { turret: 2000, hull: 15000, core: 20000 },
+    dawnBonus: 25000,            // for clearing the night...
+    dawnHpBonus: 25000,          // ...plus up to this much for health left
+    dawnTime: 6,                 // seconds of sunrise celebration (no spawns)
+    overtimeMult: 2,             // all points are worth this much more after dawn
+  },
 };

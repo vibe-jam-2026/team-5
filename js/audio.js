@@ -31,8 +31,10 @@ export const sfx = {
     try { localStorage.setItem('team5.muted', muted ? '1' : '0'); } catch {}
   },
   unlock() { try { ac(); } catch {} },
-  pickup(mult = 1) { tone(440 + mult * 80, 0.08, 'square', 0.12, 200); },
+  pickup() { tone(880 + Math.random() * 200, 0.04, 'sine', 0.05, 300); },
+  kill(mult = 1) { tone(180 + mult * 40, 0.06, 'square', 0.06, -80); },
   hit() { tone(200, 0.3, 'sawtooth', 0.2, -160); },
+  choose() { tone(784, 0.08, 'square', 0.1); setTimeout(() => tone(1046, 0.12, 'square', 0.1), 70); },
   levelUp() { tone(523, 0.1); setTimeout(() => tone(784, 0.15), 100); },
   gameOver() { tone(300, 0.6, 'triangle', 0.2, -250); },
   select() { tone(660, 0.05, 'square', 0.08); },

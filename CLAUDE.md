@@ -20,3 +20,9 @@ We're a team building a web game in a few hours.
 
 - The team works only in the claude.ai/code web client. They can't install or run anything locally (no git clone, no local server).
 - To test, the team plays the live GitHub Pages site. Don't suggest running things on their machines. To get changes live, open a pull request; the team merges it on github.com.
+
+## Branch names
+
+- Name each branch after what it does: short, lowercase, words joined by hyphens, e.g. `add-score`, `fix-jump`, `branch-naming`.
+- No random or generated names (like `claude/admiring-euler-xobsbn`) and no `claude/` prefix. Keep it to two to four words.
+- If the session assigns a generated branch name, create a short descriptive branch instead and push to that.

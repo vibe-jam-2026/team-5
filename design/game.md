@@ -25,7 +25,7 @@ Every run builds towards a climax just before sunrise.
 
 An in-game clock under the score maps the run to one night: **6:00 PM at the start, 6:00 AM when the boss arrives at 5:00 of play** (12 in-game hours in 5 minutes; `CONFIG.boss.at`).
 
-1. **Sunset to night (6 PM):** each run starts at sunset. The striped neon sun sinks behind the forest, the sky fades to deep night by about 8:30 PM, and the stars and crescent moon come out.
+1. **Sunset to night (6 PM):** each run starts at sunset. The striped neon sun sinks behind the forest, the sky fades to deep night by about 8:30 PM, and the stars come out. The moon is the sun's night twin, striped in the same synthwave style but in white, lavender and cyan. It rises from the forest on the left at about 6:45 PM, arcs across the night and sets on the right around 5:30 AM, where the sun will later rise. Its lit side always faces the sun.
 2. **Twilight (4:30–6 AM):** the night sky starts to glow with twilight.
 3. **WARNING (6:00 AM):** at 5:00 of play a flashing warning banner and siren appear, and the **Mothership** descends: the hive carrier the drones have been coming from all night. Normal drone spawns drop to a trickle.
 4. **Mothership fight:** it hovers near the top of the screen and drifts over the jet.
@@ -104,3 +104,4 @@ Plain HTML, JavaScript modules and canvas. No libraries, no build step. Gameplay
 - 2026-11-09: Back to direct WASD/arrow flight: the jet only moves while a key is held (no more always flying forward).
 - 2026-11-09: Merged the teammate's day cycle (moon, sunrise and blue daytime sky) with the boss: an in-game clock runs 6 PM → 6 AM over the 5 minutes before the boss, holds at 6 AM during the fight, and the sun rises when the boss is beaten. The boss now arrives at 5:00 instead of 6:00.
 - 2026-11-09 (from main): the Big Red Button shows up more often (50% of level-ups from level 3); the end screen title is now GAME OVER with the reason underneath.
+- 2026-11-09: Redesigned the moon to match the sun: a striped neon moon with a cyan glow that rises after sunset, arcs over the night and sets before dawn, with its lit side turned toward the sun.

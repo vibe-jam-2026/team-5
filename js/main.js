@@ -1,5 +1,5 @@
 // Game shell: state machine (title / playing / paused / name entry / game over),
-// fixed-timestep loop, HUD, high scores and screen shake. Theme-agnostic.
+// fixed-timestep loop, HUD, high scores ("the diary") and screen shake.
 import { CONFIG } from './config.js';
 import { input } from './input.js';
 import { highscores } from './highscores.js';
@@ -17,8 +17,10 @@ let clock = 0;            // for blinking text
 let entryName = '';
 let lastRank = -1;
 let isNewBest = false;
+let soundBudget = 0;      // limits kill/pickup sounds per frame when many happen at once
 
 const START = ['Enter', 'Space', 'NumpadEnter'];
+const fmtTime = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
 function startGame() {
   game = new Game();
@@ -53,10 +55,13 @@ function update(dt) {
     case 'playing':
       if (input.wasPressed('KeyP', 'Escape')) { state = 'paused'; break; }
       game.update(dt, input);
+      soundBudget = 2;
       for (const e of game.events) {
-        if (e === 'pickup') sfx.pickup(game.multiplier);
-        if (e === 'hit') { sfx.hit(); shake = 12; }
-        if (e === 'level') sfx.levelUp();
+        if (e === 'kill' && soundBudget-- > 0) sfx.kill(game.multiplier);
+        if (e === 'pickup' && soundBudget-- > 0) sfx.pickup();
+        if (e === 'hit') { sfx.hit(); shake = Math.max(shake, 6); }
+        if (e === 'levelup') sfx.levelUp();
+        if (e === 'choose') sfx.choose();
         if (e === 'over') { sfx.gameOver(); shake = 20; endGame(); }
       }
       break;
@@ -70,7 +75,7 @@ function update(dt) {
       for (const k of input.takeTyped()) {
         if (k === 'Backspace') entryName = entryName.slice(0, -1);
         else if (k === 'Enter') {
-          lastRank = highscores.add(entryName.trim() || 'AAA', Math.floor(game.score), game.level);
+          lastRank = highscores.add(entryName.trim() || 'AAA', Math.floor(game.score), game.level, game.time, game.kills);
           sfx.select();
           state = 'gameover';
           input.endFrame(); // don't let this Enter also restart
@@ -89,9 +94,9 @@ function update(dt) {
   }
 }
 
-// ---------- Drawing ----------
-function text(str, x, y, size = 20, color = '#fff', align = 'center') {
-  ctx.font = `bold ${size}px monospace`;
+// ---------- Drawing helpers ----------
+function text(str, x, y, size = 20, color = '#fff', align = 'center', weight = 'bold') {
+  ctx.font = `${weight} ${size}px monospace`;
   ctx.textAlign = align;
   ctx.textBaseline = 'middle';
   ctx.fillStyle = color;
@@ -102,40 +107,122 @@ function blink(str, x, y, size, color) {
   if (Math.floor(clock * 2) % 2 === 0) text(str, x, y, size, color);
 }
 
+function panel(x, y, w, h) {
+  ctx.fillStyle = 'rgba(20,10,28,0.85)';
+  ctx.fillRect(x, y, w, h);
+  ctx.strokeStyle = '#4a2a4a';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(x, y, w, h);
+}
+
+// A keyboard key cap, returns its width.
+function keycap(label, x, y) {
+  ctx.font = 'bold 13px monospace';
+  const w = Math.max(24, ctx.measureText(label).width + 12);
+  ctx.fillStyle = '#2e1f3a';
+  ctx.fillRect(x, y - 12, w, 24);
+  ctx.strokeStyle = '#8a6aa0';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(x, y - 12, w, 24);
+  ctx.fillStyle = '#fff';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(label, x + w / 2, y + 1);
+  return w;
+}
+
+// One controls line: a label, then key caps. 'or' is drawn as plain text.
+function controlRow(label, keys, x, y) {
+  text(label, x, y, 14, '#d8cce6', 'left', 'normal');
+  let cx = x + 110;
+  for (const k of keys) {
+    if (k === 'or') { text('or', cx + 4, y, 12, '#8a7a9a', 'left', 'normal'); cx += 26; continue; }
+    cx += keycap(k, cx, y) + 4;
+  }
+}
+
 function drawBackground() {
-  ctx.fillStyle = '#12121f';
+  const g = ctx.createRadialGradient(W / 2, H / 2, 50, W / 2, H / 2, W * 0.7);
+  g.addColorStop(0, '#1d1028');
+  g.addColorStop(1, '#0a0610');
+  ctx.fillStyle = g;
   ctx.fillRect(0, 0, W, H);
-  ctx.strokeStyle = '#1c1c30';
-  ctx.lineWidth = 1;
-  for (let x = 0; x <= W; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
-  for (let y = 0; y <= H; y += 40) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+  // Moon
+  ctx.fillStyle = 'rgba(240,230,210,0.08)';
+  ctx.beginPath(); ctx.arc(W - 120, 90, 50, 0, Math.PI * 2); ctx.fill();
+  // Ground speckles (fixed pattern)
+  ctx.fillStyle = 'rgba(255,255,255,0.03)';
+  for (let i = 0; i < 80; i++) ctx.fillRect((i * 97) % W, (i * 53 + (i % 7) * 31) % H, 2, 2);
 }
 
 function drawHud() {
   const score = Math.floor(game.score);
   text(`SCORE ${String(score).padStart(7, '0')}`, 16, 22, 18, '#fff', 'left');
-  text(`HI ${String(Math.max(score, highscores.best())).padStart(7, '0')}`, W / 2, 22, 18, '#ffd166');
-  text(`LV ${game.level}`, W - 16, 22, 18, '#4cc9f0', 'right');
-  text('♥'.repeat(Math.max(0, game.lives)), W - 16, 48, 18, '#ff4d6d', 'right');
+  text(`HI ${String(Math.max(score, highscores.best())).padStart(7, '0')}`, W / 2, 22, 16, '#ffb3c1');
+  text(fmtTime(game.time), W / 2, 44, 18, '#fff');
+  text(`LV ${game.level}`, W - 16, 22, 18, '#ff4d6d', 'right');
+  text(`☠ ${game.kills}`, W - 16, 44, 14, '#b8a9c9', 'right');
   if (game.multiplier > 1) {
-    text(`x${game.multiplier}`, 16, 48, 18, '#ffd166', 'left');
-    ctx.fillStyle = '#ffd166';
-    ctx.fillRect(56, 44, 60 * (game.comboTimer / CONFIG.comboWindow), 6);
+    text(`x${game.multiplier} STREAK`, 16, 46, 16, '#ff4d6d', 'left');
+    ctx.fillStyle = '#ff4d6d';
+    ctx.fillRect(16, 58, 110 * (game.streakTimer / CONFIG.streakWindow), 4);
   }
 }
 
-function drawScoreTable(top) {
-  text('HIGH SCORES', W / 2, top, 20, '#ffd166');
-  if (!highscores.list.length) { text('no scores yet - be the first', W / 2, top + 34, 16, '#8a8aa0'); return; }
-  highscores.list.forEach((e, i) => {
-    const y = top + 30 + i * 22;
-    const color = i === lastRank ? '#4cc9f0' : '#ddd';
-    text(`${String(i + 1).padStart(2)}. ${e.name.padEnd(3)}  ${String(e.score).padStart(7)}  LV${e.level}`, W / 2, y, 16, color);
+function drawDiary(x, y, w, rows = CONFIG.highscoreCount) {
+  text('THE DIARY · BEST NIGHTS', x + w / 2, y, 16, '#ff4d6d');
+  if (!highscores.list.length) {
+    text('The pages are empty.', x + w / 2, y + 34, 14, '#8a7a9a', 'center', 'normal');
+    text('Survive a night to write the first entry.', x + w / 2, y + 54, 14, '#8a7a9a', 'center', 'normal');
+    return;
+  }
+  text('#  NAME    SCORE   TIME  LV', x + w / 2, y + 26, 12, '#8a7a9a');
+  highscores.list.slice(0, rows).forEach((e, i) => {
+    const color = i === lastRank ? '#ffd166' : i === 0 ? '#fff' : '#d8cce6';
+    const line = `${String(i + 1).padStart(2)} ${e.name.padEnd(3)} ${String(e.score).padStart(8)}  ${fmtTime(e.time ?? 0).padStart(5)} ${String(e.level).padStart(3)}`;
+    text(line, x + w / 2, y + 48 + i * 20, 14, color);
   });
 }
 
+function drawTitle() {
+  ctx.fillStyle = 'rgba(8,4,14,0.55)';
+  ctx.fillRect(0, 0, W, H);
+  text(CONFIG.title, W / 2, 62, 52, '#c1121f');
+  text(CONFIG.subtitle.toUpperCase(), W / 2, 104, 14, '#b8a9c9');
+
+  // Left: how to play + controls
+  const lx = 30, ly = 130, lw = 490, lh = 350;
+  panel(lx, ly, lw, lh);
+  text('HOW TO PLAY', lx + 20, ly + 24, 16, '#ff4d6d', 'left');
+  const how = [
+    'You are a vampire. Hunters swarm from every side.',
+    'Your powers attack by themselves: just move.',
+    'Kill hunters, collect their blood to level up.',
+    'Each level: pick 1 of 3 new or stronger powers.',
+    'Fast kills build a streak multiplier for points.',
+    'Hunters touching you drain health. Survive!',
+  ];
+  how.forEach((l, i) => text('• ' + l, lx + 20, ly + 52 + i * 20, 13, '#d8cce6', 'left', 'normal'));
+
+  text('CONTROLS', lx + 20, ly + 180, 16, '#ff4d6d', 'left');
+  const cy = ly + 206;
+  controlRow('Move', ['↑', '↓', '←', '→', 'or', 'W', 'A', 'S', 'D'], lx + 20, cy);
+  controlRow('Pick power', ['1', '2', '3', 'or', '←', '→', 'Enter'], lx + 20, cy + 28);
+  controlRow('Pause', ['P', 'or', 'Esc'], lx + 20, cy + 56);
+  controlRow('Sound', ['M'], lx + 20, cy + 84);
+  controlRow('Restart', ['R'], lx + 20, cy + 112);
+  text('(after game over)', lx + 160, cy + 112, 12, '#8a7a9a', 'left', 'normal');
+
+  // Right: high scores
+  const rx = 540, rw = 390;
+  panel(rx, ly, rw, lh);
+  drawDiary(rx, ly + 24, rw);
+
+  blink('PRESS ENTER TO BEGIN THE NIGHT', W / 2, H - 30, 20, '#fff');
+}
+
 function overlay(alpha = 0.6) {
-  ctx.fillStyle = `rgba(8,8,16,${alpha})`;
+  ctx.fillStyle = `rgba(8,4,14,${alpha})`;
   ctx.fillRect(0, 0, W, H);
 }
 
@@ -147,40 +234,37 @@ function draw() {
   ctx.restore();
 
   if (state === 'title') {
-    overlay(game ? 0.75 : 0.3);
-    text(CONFIG.title, W / 2, 90, 48, '#4cc9f0');
-    text('ARROWS / WASD move   ·   P pause   ·   M mute', W / 2, 140, 14, '#8a8aa0');
-    drawScoreTable(190);
-    blink('PRESS ENTER TO START', W / 2, H - 50, 22, '#fff');
-  } else {
-    if (game) drawHud();
+    drawTitle();
+  } else if (game) {
+    drawHud();
+    game.drawUi(ctx);
   }
 
   if (state === 'paused') {
     overlay();
     text('PAUSED', W / 2, H / 2 - 20, 40);
-    text('P resume  ·  Q quit to title', W / 2, H / 2 + 24, 16, '#8a8aa0');
+    text('P resume  ·  Q quit to title', W / 2, H / 2 + 24, 16, '#b8a9c9');
   }
 
   if (state === 'entry') {
-    overlay(0.75);
-    text(isNewBest ? 'NEW HIGH SCORE!' : 'TOP 10!', W / 2, 150, 40, '#ffd166');
-    text(String(Math.floor(game.score)), W / 2, 210, 32);
-    text('ENTER YOUR INITIALS', W / 2, 280, 18, '#8a8aa0');
+    overlay(0.8);
+    text(isNewBest ? 'BEST NIGHT EVER!' : 'A NIGHT FOR THE DIARY!', W / 2, 140, 36, '#ff4d6d');
+    text(String(Math.floor(game.score)), W / 2, 200, 32);
+    text('SIGN THE DIARY WITH YOUR INITIALS', W / 2, 270, 16, '#b8a9c9');
     const shown = (entryName + (Math.floor(clock * 3) % 2 ? '_' : ' ')).padEnd(3, ' ').slice(0, 3);
-    text(shown.split('').join(' '), W / 2, 330, 40, '#4cc9f0');
-    text('ENTER to confirm', W / 2, 390, 14, '#8a8aa0');
+    text(shown.split('').join(' '), W / 2, 325, 40, '#ffd166');
+    text('type letters · ENTER to confirm', W / 2, 385, 14, '#b8a9c9');
   }
 
   if (state === 'gameover') {
-    overlay(0.75);
-    text('GAME OVER', W / 2, 60, 44, '#ff4d6d');
-    text(`SCORE ${Math.floor(game.score)}   ·   LEVEL ${game.level}`, W / 2, 110, 18);
-    drawScoreTable(155);
+    overlay(0.82);
+    text('THE NIGHT IS OVER', W / 2, 50, 40, '#c1121f');
+    text(`Lasted ${fmtTime(game.time)}  ·  ${game.kills} hunters drained  ·  level ${game.level}  ·  ${Math.floor(game.score)} pts`, W / 2, 92, 15, '#fff', 'center', 'normal');
+    drawDiary(W / 2 - 200, 135, 400);
     blink('R / ENTER play again   ·   ESC title', W / 2, H - 30, 18, '#fff');
   }
 
-  if (sfx.muted) text('MUTED', W - 16, H - 16, 12, '#8a8aa0', 'right');
+  if (sfx.muted) text('MUTED', W - 16, H - 22, 12, '#8a7a9a', 'right');
 }
 
 // ---------- Fixed-timestep loop ----------
@@ -201,4 +285,5 @@ function frame(now) {
 // Auto-pause when the tab loses focus.
 addEventListener('blur', () => { if (state === 'playing') state = 'paused'; });
 canvas.focus();
+window.__debug = () => ({ state, game });
 requestAnimationFrame(frame);

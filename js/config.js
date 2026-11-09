@@ -48,6 +48,18 @@ export const CONFIG = {
   xpBase: 3,
   xpPerLevel: 3,
 
+  // Armed drones. Hexacopters always shoot; some quadcopters carry a gun too.
+  // Darts are kamikaze drones and never shoot.
+  armedQuadFrom: 45,             // seconds into the night before armed quads appear
+  armedQuadShare: 0.25,          // share of quad spawns that carry a gun after that
+  droneBulletSpeed: 170,
+  droneRange: 380,               // drones only fire when on screen and this close
+  droneWarn: 0.45,               // seconds of red glow before a drone fires
+  droneGuns: {
+    quad:  { interval: 2.8, damage: 6, shots: 1, spread: 0 },
+    heavy: { interval: 3.4, damage: 8, shots: 3, spread: 0.22 },
+  },
+
   // Anti-aircraft guns hidden in the forest at the bottom of the screen
   aaFrom: 20,                    // seconds into the night before they open fire
   aaInterval: 3.2,               // seconds between shots per gun at the start...

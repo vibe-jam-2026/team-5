@@ -2,8 +2,8 @@
 export const CONFIG = {
   width: 960,
   height: 540,
-  title: 'BLOOD DIARY',          // working title, see design/game.md
-  subtitle: 'survive the night',
+  title: 'MIDNIGHT AFTERBURNER', // shown on the start screen
+  subtitle: 'a neon night sortie',
   highscoreCount: 10,
   highscoreKey: 'team5.highscores.v2',
 
@@ -67,6 +67,6 @@ export const CONFIG = {
   aaShellSpeed: 300,
   aaDamage: 14,                  // flak burst damage to the jet
   aaBlast: 34,                   // flak burst radius (also hurts hunters!)
-  aaHp: 60,                      // Blood Bolts can destroy a gun
+  aaHp: 60,                      // cannon tracers can destroy a gun
   aaPoints: 250,
 };

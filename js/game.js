@@ -27,8 +27,8 @@ function hash(x, y) {
 // ---------- Hunter types ----------
 const ENEMIES = {
   villager: { r: 10, hp: 10, speed: 60, dps: 12, xp: 1, color: '#d98b3a', from: 0 },
-  hunter:   { r: 8,  hp: 8,  speed: 115, dps: 10, xp: 1, color: '#9fb4c7', from: 45 },
-  priest:   { r: 16, hp: 70, speed: 40, dps: 25, xp: 5, color: '#f2efe6', from: 100 },
+  hunter:   { r: 8,  hp: 8,  speed: 115, dps: 10, xp: 1, color: '#9fb4c7', from: 30 },
+  priest:   { r: 16, hp: 70, speed: 40, dps: 25, xp: 5, color: '#f2efe6', from: 80 },
 };
 
 // ---------- Upgrades ----------
@@ -115,17 +115,21 @@ export class Game {
   }
 
   spawn(dt) {
-    this.spawnAcc += (C.spawnBase + this.time / C.spawnRamp) * dt;
-    const types = Object.entries(ENEMIES).filter(([, t]) => this.time >= t.from);
-    const hpScale = 1 + this.time / C.hpScaleSeconds;
+    const T = this.time;
+    this.spawnAcc += (C.spawnBase + T / C.spawnRamp + (T / C.spawnCurve) ** 2) * dt;
+    const types = Object.entries(ENEMIES).filter(([, t]) => T >= t.from);
+    const hpScale = 1 + T / C.hpScaleSeconds;
+    const speedScale = Math.min(C.maxSpeedScale, 1 + T / C.speedScaleSeconds);
+    const dpsScale = 1 + T / C.dpsScaleSeconds;
+    // Plain villagers get rarer as the night goes on; tougher types take over.
+    const basic = C.basicShareStart + (C.basicShareEnd - C.basicShareStart) * Math.min(1, T / C.basicShareSeconds);
     while (this.spawnAcc >= 1) {
       this.spawnAcc--;
       if (this.enemies.length >= C.maxEnemies) continue;
-      // Weighted pick: later types are rarer.
-      const [kind, t] = types[Math.random() < 0.6 ? 0 : Math.floor(Math.random() * types.length)];
+      const [kind, t] = types[Math.random() < basic ? 0 : Math.floor(Math.random() * types.length)];
       const { x, y } = this.around(SPAWN_RADIUS + rand(0, 60));
       this.enemies.push({ kind, x, y, r: t.r, hp: t.hp * hpScale, maxHp: t.hp * hpScale,
-        speed: t.speed * rand(0.85, 1.15), dps: t.dps, xp: t.xp, color: t.color, flash: 0, batCd: 0 });
+        speed: t.speed * speedScale * rand(0.85, 1.15), dps: t.dps * dpsScale, xp: t.xp, color: t.color, flash: 0, batCd: 0 });
     }
   }
 

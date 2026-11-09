@@ -85,5 +85,5 @@ export const CONFIG = {
   // Big red button: a trap card that sometimes sneaks into the level-up
   // choices. Picking it ends the night on the spot.
   redButtonFromLevel: 3,         // first level-up it can appear on
-  redButtonChance: 0.3,          // chance per level-up after that
+  redButtonChance: 0.5,          // chance per level-up after that
 };

@@ -28,4 +28,14 @@ export const CONFIG = {
   // XP needed for next level = xpBase + (level - 1) * xpPerLevel
   xpBase: 3,
   xpPerLevel: 3,
+
+  // Anti-aircraft guns hidden in the forest at the bottom of the screen
+  aaFrom: 20,                    // seconds into the night before they open fire
+  aaInterval: 3.2,               // seconds between shots per gun at the start...
+  aaMinInterval: 1.3,            // ...shrinking to this as the night goes on
+  aaShellSpeed: 300,
+  aaDamage: 14,                  // flak burst damage to the jet
+  aaBlast: 34,                   // flak burst radius (also hurts hunters!)
+  aaHp: 60,                      // Blood Bolts can destroy a gun
+  aaPoints: 250,
 };

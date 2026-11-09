@@ -17,6 +17,13 @@ const SPAWN_RADIUS = Math.hypot(W, H) / 2 + 40;
 const DESPAWN_RADIUS = SPAWN_RADIUS * 1.8;   // hunters left this far behind respawn ahead
 const TILE = 64;                              // ground decoration grid
 
+// Foreground forest: a strip of pine silhouettes along the bottom of the
+// screen. It scrolls sideways with the camera; anti-aircraft guns sit in it.
+const FOREST_TOP = H - 78;                    // tallest trees reach about here
+const AA_SLOT = 520;                          // at most one gun per this many px of world x
+const AA_Y = H - 34;                          // screen y of a gun's turret
+const AA_CHANCE = 0.65;                       // share of slots that hold a gun
+
 // Deterministic per-tile noise so ground decoration stays put as you walk.
 function hash(x, y) {
   let h = (x * 374761393 + y * 668265263) | 0;
@@ -52,6 +59,9 @@ export class Game {
     this.gems = [];
     this.particles = [];
     this.floaters = [];
+    this.guns = new Map();    // anti-aircraft guns by forest slot
+    this.shells = [];
+    this.flak = [];           // flak bursts
     this.score = 0;
     this.time = 0;
     this.kills = 0;
@@ -85,6 +95,7 @@ export class Game {
     this.movePlayer(dt, input);
     this.spawn(dt);
     this.moveEnemies(dt);
+    this.antiAircraft(dt);
     this.weapons(dt);
     this.collectGems(dt);
     this.updateEffects(dt);
@@ -114,8 +125,9 @@ export class Game {
       d = Math.atan2(Math.sin(d), Math.cos(d));
       p.heading += d * Math.min(1, dt * 12);
     }
-    p.x += ax.x * speed * dt;
-    p.y += ax.y * speed * dt;
+    p.vx = ax.x * speed; p.vy = ax.y * speed;
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
     p.moving = !!(ax.x || ax.y);
     if (this.hurtCd > 0) this.hurtCd -= dt;
   }
@@ -193,16 +205,16 @@ export class Game {
   }
 
   weapons(dt) {
-    const p = this.player, m = this.might;
+    const p = this.player, m = this.might, guns = this.liveGuns();
 
     // Blood Bolt: fire at the nearest hunters.
     if (this.lv.bolt > 0) {
       this.boltTimer -= dt;
-      if (this.boltTimer <= 0 && this.enemies.length) {
+      if (this.boltTimer <= 0 && (this.enemies.length || guns.length)) {
         const l = this.lv.bolt;
         this.boltTimer = 0.65 * Math.pow(0.88, l - 1);
         const count = 1 + Math.floor(l / 3);
-        const targets = [...this.enemies].sort((a, b) => dist2(a, p) - dist2(b, p)).slice(0, count);
+        const targets = [...this.enemies, ...guns].sort((a, b) => dist2(a, p) - dist2(b, p)).slice(0, count);
         for (const t of targets) {
           const a = Math.atan2(t.y - p.y, t.x - p.x);
           this.bolts.push({ x: p.x, y: p.y, vx: Math.cos(a) * 480, vy: Math.sin(a) * 480,
@@ -216,6 +228,12 @@ export class Game {
         if (e.dead || b.life <= 0) continue;
         if (dist2(b, e) < (e.r + 4) ** 2) {
           this.damage(e, b.dmg);
+          if (b.pierce-- <= 0) b.life = 0;
+        }
+      }
+      for (const g of guns) {
+        if (b.life > 0 && dist2(b, g) < (g.r + 4) ** 2) {
+          this.damageGun(g, b.dmg);
           if (b.pierce-- <= 0) b.life = 0;
         }
       }
@@ -240,6 +258,93 @@ export class Game {
     }
 
     this.enemies = this.enemies.filter((e) => !e.dead);
+  }
+
+  // ---------- Anti-aircraft guns ----------
+  // Guns live at fixed world x positions in the forest strip, which is always
+  // at the bottom of the screen, so their world y follows the camera.
+  visibleGuns() {
+    const p = this.player, out = [];
+    const s0 = Math.floor((p.x - W / 2 - 40) / AA_SLOT), s1 = Math.floor((p.x + W / 2 + 40) / AA_SLOT);
+    for (let slot = s0; slot <= s1; slot++) {
+      if (hash(slot, 991) > AA_CHANCE) continue;
+      let g = this.guns.get(slot);
+      if (!g) {
+        g = { x: slot * AA_SLOT + 80 + hash(slot, 992) * (AA_SLOT - 160), y: 0, r: 14,
+          hp: C.aaHp, maxHp: C.aaHp, cd: rand(1, C.aaInterval), aim: -Math.PI / 2, flash: 0, hitFlash: 0, dead: false };
+        this.guns.set(slot, g);
+      }
+      g.y = p.y + AA_Y - H / 2;
+      g.sx = g.x - p.x + W / 2;
+      if (g.sx > -30 && g.sx < W + 30) out.push(g);
+    }
+    return out;
+  }
+
+  liveGuns() { return this.visibleGuns().filter((g) => !g.dead && g.sx > 10 && g.sx < W - 10); }
+
+  antiAircraft(dt) {
+    const p = this.player;
+    const interval = Math.max(C.aaMinInterval, C.aaInterval - (this.time - C.aaFrom) / 60);
+    for (const g of this.visibleGuns()) {
+      if (g.flash > 0) g.flash -= dt;
+      if (g.hitFlash > 0) g.hitFlash -= dt;
+      if (g.dead) continue;
+      // Track the jet, barrels always pointing upwards.
+      let want = Math.atan2(p.y - g.y, p.x - g.x);
+      want = Math.max(-Math.PI + 0.25, Math.min(-0.25, want));
+      g.aim += (want - g.aim) * Math.min(1, dt * 5);
+      if (this.time < C.aaFrom || g.sx < 20 || g.sx > W - 20) continue;
+      g.cd -= dt;
+      if (g.cd > 0) continue;
+      g.cd = interval * rand(0.8, 1.2);
+      g.flash = 0.12;
+      // Aim where the jet is heading, a little imperfectly.
+      const sp = C.aaShellSpeed, d = Math.hypot(p.x - g.x, p.y - g.y);
+      const lead = (d / sp) * rand(0.4, 0.9);
+      const tx = p.x + (p.vx || 0) * lead + rand(-12, 12), ty = p.y + (p.vy || 0) * lead + rand(-12, 12);
+      const a = Math.atan2(ty - g.y, tx - g.x), td = Math.hypot(tx - g.x, ty - g.y);
+      const mx = g.x + Math.cos(g.aim) * 18, my = g.y + Math.sin(g.aim) * 18;
+      this.shells.push({ x: mx, y: my, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, fuse: td / sp });
+      this.events.push('flak');
+    }
+
+    for (const s of this.shells) {
+      s.x += s.vx * dt; s.y += s.vy * dt; s.fuse -= dt;
+      if (s.fuse <= 0 || dist2(s, p) < (p.r + 3) ** 2) { s.done = true; this.explode(s.x, s.y); }
+    }
+    this.shells = this.shells.filter((s) => !s.done);
+    for (const f of this.flak) f.t += dt;
+    this.flak = this.flak.filter((f) => f.t < 0.9);
+  }
+
+  explode(x, y) {
+    const p = this.player, r = C.aaBlast;
+    this.flak.push({ x, y, t: 0, r });
+    this.events.push('boom');
+    if (dist2({ x, y }, p) < (r + p.r) ** 2) {
+      p.hp -= C.aaDamage;
+      this.hurtCd = 0.4;
+      this.events.push('hit');
+    }
+    // Flak doesn't care whose side you're on.
+    for (const e of this.enemies) if (!e.dead && dist2({ x, y }, e) < (r + e.r) ** 2) this.damage(e, 25);
+  }
+
+  damageGun(g, amount) {
+    g.hp -= amount;
+    g.hitFlash = 0.08;
+    if (g.hp > 0 || g.dead) return;
+    g.dead = true;
+    const pts = C.aaPoints * this.multiplier;
+    this.score += pts;
+    this.kills++;
+    this.floaters.push({ x: g.x, y: g.y - 24, text: `+${pts}`, life: 1 });
+    this.burst(g.x, g.y, '#ffb703', 24);
+    this.burst(g.x, g.y, '#c1121f', 12);
+    // Its blood drops tumble up out of the trees towards the jet.
+    for (let i = 0; i < 3; i++) this.gems.push({ x: g.x + rand(-20, 20), y: g.y - 30 - i * 14, v: 5, big: true });
+    this.events.push('boom', 'kill');
   }
 
   batPositions() {
@@ -420,6 +525,28 @@ export class Game {
       ctx.beginPath(); ctx.ellipse(5, 0, 4, 1.8, 0, 0, Math.PI * 2); ctx.fill();
       ctx.restore();
     }
+    // Flak shells and bursts
+    ctx.fillStyle = '#ffe8a3';
+    for (const s of this.shells) {
+      ctx.globalAlpha = 0.35;
+      ctx.fillRect(s.x - s.vx * 0.03 - 1, s.y - s.vy * 0.03 - 1, 2, 2);
+      ctx.globalAlpha = 1;
+      ctx.beginPath(); ctx.arc(s.x, s.y, 2.5, 0, Math.PI * 2); ctx.fill();
+    }
+    for (const f of this.flak) {
+      const k = f.t / 0.9;
+      if (f.t < 0.12) {       // bright flash
+        ctx.fillStyle = '#fff1c1';
+        ctx.beginPath(); ctx.arc(f.x, f.y, f.r * (0.4 + f.t * 5), 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.fillStyle = `rgba(70,60,80,${(0.55 * (1 - k)).toFixed(3)})`;
+      for (let i = 0; i < 5; i++) {
+        const a = i * 1.26 + f.x;
+        ctx.beginPath();
+        ctx.arc(f.x + Math.cos(a) * f.r * 0.45, f.y + Math.sin(a) * f.r * 0.45 - f.t * 10, f.r * (0.35 + k * 0.35), 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
     // Particles
     for (const q of this.particles) {
       ctx.globalAlpha = Math.max(0, q.life * 2);
@@ -436,6 +563,93 @@ export class Game {
     }
     ctx.globalAlpha = 1;
     ctx.restore();
+    this.drawForest(ctx);
+  }
+
+  // Pine silhouettes along the bottom of the screen, in two parallax layers,
+  // with the anti-aircraft guns standing in clearings between them.
+  drawForest(ctx) {
+    const p = this.player, guns = this.visibleGuns();
+    const pine = (x, base, h, w) => {
+      ctx.beginPath();
+      for (let t = 0; t < 3; t++) {       // three stacked tiers
+        const ty = base - h * (0.3 + t * 0.3), tw = w * (1 - t * 0.25);
+        ctx.moveTo(x - tw / 2, base - h * t * 0.28); ctx.lineTo(x, ty - h * 0.12); ctx.lineTo(x + tw / 2, base - h * t * 0.28);
+      }
+      ctx.fill();
+    };
+    const layer = (parallax, spacing, minH, maxH, color, seed, clearings) => {
+      ctx.fillStyle = color;
+      const cam = p.x * parallax, i0 = Math.floor((cam - W / 2) / spacing) - 1, i1 = Math.floor((cam + W / 2) / spacing) + 1;
+      for (let i = i0; i <= i1; i++) {
+        const x = i * spacing + hash(i, seed) * spacing * 0.6 - cam + W / 2;
+        if (clearings && guns.some((g) => Math.abs(g.sx - x) < 30)) continue;
+        const h = minH + hash(i, seed + 1) * (maxH - minH);
+        pine(x, H, h, h * 0.55);
+      }
+    };
+    // A faint moonlit haze where the forest starts
+    const haze = ctx.createLinearGradient(0, FOREST_TOP - 30, 0, H);
+    haze.addColorStop(0, 'rgba(10,6,16,0)');
+    haze.addColorStop(1, 'rgba(10,6,16,0.85)');
+    ctx.fillStyle = haze;
+    ctx.fillRect(0, FOREST_TOP - 30, W, H - FOREST_TOP + 30);
+    layer(0.5, 22, 40, 78, '#1a0f26', 31, false);
+    for (const g of guns) this.drawGun(ctx, g);
+    layer(1, 30, 22, 50, '#06030a', 57, true);
+    ctx.fillStyle = '#06030a';
+    ctx.fillRect(0, H - 10, W, 10);
+  }
+
+  drawGun(ctx, g) {
+    // Drawn 1.4x around its turret so it reads clearly against the trees.
+    ctx.save();
+    ctx.translate(g.sx, AA_Y); ctx.scale(1.4, 1.4); ctx.translate(-g.sx, -AA_Y);
+    this.drawGunShape(ctx, g);
+    ctx.restore();
+  }
+
+  drawGunShape(ctx, g) {
+    const x = g.sx, y = AA_Y;
+    if (g.dead) {             // burnt-out wreck with a trail of smoke
+      ctx.fillStyle = '#1c1620';
+      ctx.fillRect(x - 18, y + 4, 36, 10);
+      ctx.beginPath(); ctx.arc(x - 2, y + 4, 8, Math.PI, 0); ctx.fill();
+      for (let i = 0; i < 4; i++) {
+        const t = (this.time * 0.6 + i / 4) % 1;
+        ctx.fillStyle = `rgba(90,80,100,${(0.3 * (1 - t)).toFixed(3)})`;
+        ctx.beginPath(); ctx.arc(x + Math.sin(t * 6 + i) * 4, y - t * 50, 4 + t * 8, 0, Math.PI * 2); ctx.fill();
+      }
+      return;
+    }
+    const lit = g.hitFlash > 0;
+    // Twin barrels
+    ctx.save();
+    ctx.translate(x, y); ctx.rotate(g.aim);
+    ctx.fillStyle = lit ? '#fff' : '#6b745e';
+    ctx.fillRect(0, -4, 20, 2.5); ctx.fillRect(0, 1.5, 20, 2.5);
+    if (g.flash > 0) {
+      ctx.fillStyle = '#ffd166';
+      ctx.beginPath(); ctx.moveTo(20, -6); ctx.lineTo(30, 0); ctx.lineTo(20, 6); ctx.fill();
+    }
+    ctx.restore();
+    // Turret and tracked body
+    ctx.fillStyle = lit ? '#fff' : '#4a5240';
+    ctx.beginPath(); ctx.arc(x, y + 2, 9, Math.PI, 0); ctx.fill();
+    ctx.fillRect(x - 18, y + 2, 36, 10);
+    ctx.fillStyle = '#15171a';
+    ctx.fillRect(x - 20, y + 10, 40, 6);
+    // Moonlight on the edge, and a warning light that blinks before it fires
+    ctx.fillStyle = 'rgba(200,190,230,0.25)';
+    ctx.fillRect(x - 18, y + 2, 36, 1.5);
+    const armed = this.time >= C.aaFrom;
+    ctx.fillStyle = armed && g.cd < 0.5 && Math.floor(this.time * 12) % 2 ? '#ff4d6d' : armed ? '#5a1020' : '#222';
+    ctx.fillRect(x + 10, y + 4, 3, 3);
+    // Damage bar once hit
+    if (g.hp < g.maxHp) {
+      ctx.fillStyle = '#000'; ctx.fillRect(x - 14, y - 16, 28, 3);
+      ctx.fillStyle = '#ffb703'; ctx.fillRect(x - 14, y - 16, 28 * (g.hp / g.maxHp), 3);
+    }
   }
 
   // Bars and the level-up picker, drawn above the HUD.

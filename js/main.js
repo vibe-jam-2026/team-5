@@ -190,7 +190,8 @@ const STARS = Array.from({ length: 45 }, (_, i) => {
 // The horizon sits behind the forest and sinks out of view as the jet climbs,
 // so the sky darkens up high.
 const SUNSET_SUN = { x: W * 0.68, r: 90 };
-const MOON = { x: W * 0.28, y: H * 0.22, r: 34 };
+// The moon rises at 6:45 PM and sets at 5:30 AM, just before the boss's twilight.
+const MOON = { r: 52, rise: 18.75, span: 10.75, fromX: W * 0.1, toX: SUNSET_SUN.x + 40, peak: H * 0.62 };
 
 // Sky gradient stops (top → horizon) for each time of day.
 const SKIES = {
@@ -204,7 +205,7 @@ const SKIES = {
 // u 0.5 = 6 AM): sky, sun height above the horizon (in sun radii; negative =
 // set), star brightness and moon brightness.
 const CYCLE = [
-  { u: 0.00, sky: 'sunset',   sun: 0.2,  stars: 0.3, moon: 0 },    // 6:00 PM, run starts
+  { u: 0.00, sky: 'sunset',   sun: 0.2,  stars: 0.3, moon: 0.6 },  // 6:00 PM, run starts (moon rises at 6:45)
   { u: 0.10, sky: 'night',    sun: -2.6, stars: 1,   moon: 1 },    // ~8:30 PM
   { u: 0.44, sky: 'night',    sun: -2.6, stars: 1,   moon: 1 },    // ~4:30 AM
   { u: 0.50, sky: 'twilight', sun: -1.1, stars: 0.5, moon: 0.3 },  // 6:00 AM, boss (clock holds here)
@@ -253,25 +254,13 @@ function drawBackground() {
     ctx.fillRect(st.x, st.y, st.s, st.s);
   }
 
-  // Moon: a pale crescent that shows up at night.
-  if (tod.moon > 0.01) {
-    const my = MOON.y + (horizon - (H - 50)) * 0.3;
-    ctx.save();
-    ctx.globalAlpha = tod.moon;
-    const mg = ctx.createRadialGradient(MOON.x, my, MOON.r * 0.8, MOON.x, my, MOON.r * 3);
-    mg.addColorStop(0, 'rgba(200,210,255,0.25)');
-    mg.addColorStop(1, 'rgba(200,210,255,0)');
-    ctx.fillStyle = mg;
-    ctx.fillRect(MOON.x - MOON.r * 3, my - MOON.r * 3, MOON.r * 6, MOON.r * 6);
-    // Crescent: the moon disc minus an offset disc (even-odd fill inside the moon).
-    ctx.beginPath(); ctx.arc(MOON.x, my, MOON.r, 0, Math.PI * 2); ctx.clip();
-    ctx.fillStyle = '#e8e6ff';
-    ctx.beginPath();
-    ctx.arc(MOON.x, my, MOON.r, 0, Math.PI * 2);
-    ctx.arc(MOON.x + MOON.r * 0.45, my - MOON.r * 0.2, MOON.r * 0.9, 0, Math.PI * 2);
-    ctx.fill('evenodd');
-    ctx.restore();
-  }
+  // Moon: the sun's night twin, drawn in the same striped synthwave style.
+  // It rises from the forest on the left just after sunset, arcs over the
+  // night and sets on the right (where the sun will come up) before dawn.
+  // Its lit side always faces the sun, wherever that is below the horizon.
+  const sunPos = { x: SUNSET_SUN.x, y: horizon - tod.sun * SUNSET_SUN.r };
+  const mp = (((inRun ? game.hour : 18) - MOON.rise + 24) % 24) / MOON.span;   // 0 rise .. 1 set
+  if (tod.moon > 0.01 && mp >= 0 && mp <= 1) drawMoon(mp, horizon, sunPos, tod.moon, sky, t);
 
   const { x, r } = SUNSET_SUN;
   const cy = horizon - tod.sun * r;                 // sun centre
@@ -305,6 +294,58 @@ function drawBackground() {
   }
   ctx.restore();
   // Ground detail scrolls with the camera; it's drawn in game.js.
+}
+
+// Striped neon moon at path position p (0 = rising, 1 = setting).
+function drawMoon(p, horizon, sunPos, alpha, sky, t) {
+  const { r } = MOON;
+  const x = MOON.fromX + (MOON.toX - MOON.fromX) * p;
+  const y = horizon + r * 0.9 - Math.sin(Math.PI * p) * (MOON.peak + r * 0.9);   // starts and ends below the trees
+  if (y - r > H) return;
+  // The lit side faces the sun: the shadow disc sits on the opposite side.
+  const ang = Math.atan2(sunPos.y - y, sunPos.x - x);
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.beginPath(); ctx.rect(0, 0, W, horizon); ctx.clip();   // set behind the horizon like the sun
+  // Cool cyan-violet halo, the night version of the sun's pink glow.
+  const halo = ctx.createRadialGradient(x, y, r * 0.7, x, y, r * 3);
+  halo.addColorStop(0, 'rgba(120,200,255,0.30)');
+  halo.addColorStop(0.5, 'rgba(185,103,255,0.10)');
+  halo.addColorStop(1, 'rgba(185,103,255,0)');
+  ctx.fillStyle = halo;
+  ctx.fillRect(x - r * 3, y - r * 3, r * 6, r * 6);
+  // Neon rim
+  glow(NEON.cyan, 18, () => {
+    ctx.strokeStyle = 'rgba(5,217,232,0.55)';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(x, y, r + 1, 0, Math.PI * 2); ctx.stroke();
+  });
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.clip();
+  // Disc: white-lavender on top to cyan at the bottom (the sun goes yellow to pink).
+  const mg = ctx.createLinearGradient(0, y - r, 0, y + r);
+  mg.addColorStop(0, '#ffffff');
+  mg.addColorStop(0.45, '#c9b8ff');
+  mg.addColorStop(1, NEON.cyan);
+  ctx.fillStyle = mg;
+  ctx.fillRect(x - r, y - r, r * 2, r * 2);
+  // A few soft craters
+  ctx.fillStyle = 'rgba(120,90,200,0.25)';
+  for (const [cx, cy, cr] of [[-0.3, -0.25, 0.18], [0.25, 0.1, 0.12], [-0.05, 0.35, 0.1], [0.35, -0.4, 0.08]]) {
+    ctx.beginPath(); ctx.arc(x + cx * r, y + cy * r, cr * r, 0, Math.PI * 2); ctx.fill();
+  }
+  // Shadow side: a dark disc offset away from the sun, with faint earthshine.
+  ctx.fillStyle = 'rgba(14,6,40,0.72)';
+  ctx.beginPath();
+  ctx.arc(x - Math.cos(ang) * r * 0.85, y - Math.sin(ang) * r * 0.85, r * 0.98, 0, Math.PI * 2);
+  ctx.fill();
+  // Slats like the sun's, slowly sinking through the lower half.
+  ctx.fillStyle = sky;
+  const gap = 10, drift = (t * 5) % gap;
+  for (let i = 0; i < 6; i++) {
+    const sy = y + r * 0.1 + i * gap + drift;
+    ctx.fillRect(x - r, sy, r * 2, 1 + ((sy - y) / r) * 5);
+  }
+  ctx.restore();
 }
 
 function drawHud() {

@@ -13,8 +13,9 @@ Genre inspiration: "survivors-likes" / "bullet heaven" (e.g. Vampire Survivors).
 - Pick one of three aircraft before each round: Interceptor (fast, fragile), Striker (all-rounder) or Gunship (slow, tough, hits hard).
 - Drones swarm towards you: quadcopters, fast kamikaze darts and armoured hexacopters. Some drones carry guns and fire at you (they glow red first).
 - Anti-aircraft guns in the forest at the bottom of the screen fire flak at the jet. Your cannon can destroy them. Flying into the trees is a crash (game over); "PULL UP!" warns you.
-- Weapons fire automatically. Downed drones drop pickups (XP). Each level-up you pick 1 of 3 upgrades: new weapons or stronger ones.
-- Power-up crates sometimes drop and give a special weapon for 10 seconds: Scatter Cannon, Pulse Laser or Rocket Swarm.
+- Weapons fire automatically. Downed drones drop pickups (XP). Each level-up you pick 1 of 3 upgrades: new weapons or stronger ones. Watch out for the big red button trap card: picking it ends the run on the spot.
+- The jet always flies forward at full speed; you steer it. It can't climb more than 900 px above the ground ("MAX ALTITUDE" warns you).
+- From level 10, power-up crates sometimes drop and give a special weapon for 6 seconds: Scatter Cannon, Pulse Laser or Rocket Swarm.
 - Health at 0 ends the run. The longer you survive, the more and tougher the drones.
 - Score comes from kills (with a kill-streak multiplier), destroyed guns, pickups and survival time.
 
@@ -45,7 +46,7 @@ Losing during the boss keeps everything you scored before it. All boss numbers (
 
 ## Controls
 
-- Arrow keys or WASD: fly
+- Arrow keys or WASD: steer
 - 1 / 2 / 3, or arrows + Enter: pick an upgrade or aircraft
 - P or Esc: pause · M: mute · R: fly again after game over
 
@@ -97,3 +98,4 @@ Plain HTML, JavaScript modules and canvas. No libraries, no build step. Gameplay
 - 2026-11-09: Theme changed to an 80s neon night sortie, "Midnight Afterburner": fighter jet, drones, anti-aircraft guns, forest you can crash into, aircraft selection, power-ups, 80s music.
 - 2026-11-09: New requirement: a final final boss. To fit the endless genre, it's a timed climax just before sunrise (Mothership, then its AI core). Beating it gives a dawn bonus and Overtime at double points, so the high-score chase continues. Test shortcuts: Shift+B, Shift+N, `?boss`.
 - 2026-11-09: The in-game sky became a neon sunset (from main). Merged with the dawn concept: runs start at sunset, the sun sinks into night, and it rises again on the other side when the boss is beaten.
+- 2026-11-09 (from main): the jet always flies forward and you steer it, with a max altitude; power-ups last 6 s and only drop from level 10; big red button trap card added to the level-ups.

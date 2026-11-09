@@ -19,8 +19,8 @@ export const highscores = {
     return score > 0 && (this.list.length < CONFIG.highscoreCount || score > this.list[this.list.length - 1].score);
   },
   // Returns the 0-based rank of the inserted entry.
-  add(name, score, level) {
-    const entry = { name: name || '???', score, level, date: new Date().toISOString().slice(0, 10) };
+  add(name, score, level, time = 0, kills = 0) {
+    const entry = { name: name || '???', score, level, time: Math.floor(time), kills, date: new Date().toISOString().slice(0, 10) };
     this.list.push(entry);
     this.list.sort((a, b) => b.score - a.score);
     this.list = this.list.slice(0, CONFIG.highscoreCount);

@@ -425,7 +425,7 @@ export class Game {
       let g = this.guns.get(slot);
       if (!g) {
         g = { x: slot * AA_SLOT + 80 + hash(slot, 992) * (AA_SLOT - 160), y: 0, r: 14,
-          hp: C.aaHp, maxHp: C.aaHp, cd: rand(1, C.aaInterval), aim: -Math.PI / 2, flash: 0, hitFlash: 0, dead: false };
+          hp: C.aaHp, maxHp: C.aaHp, cd: rand(1, C.aaInterval), aim: -Math.PI / 2, flash: 0, hitFlash: 0, dead: false, spin: hash(slot, 993) * 6.28 };
         this.guns.set(slot, g);
       }
       g.y = p.y + AA_Y - H / 2;
@@ -444,6 +444,13 @@ export class Game {
       if (g.flash > 0) g.flash -= dt;
       if (g.hitFlash > 0) g.hitFlash -= dt;
       if (g.dead) continue;
+      // Radar dish sweeps round and round; just before firing it snaps to
+      // face the jet's side of the screen.
+      if (this.time >= C.aaFrom && g.cd < 0.6) {
+        const lock = p.x >= g.x ? 0 : Math.PI;
+        let d = lock - g.spin; d = Math.atan2(Math.sin(d), Math.cos(d));
+        g.spin += d * Math.min(1, dt * 12);
+      } else g.spin = (g.spin + dt * 2.2) % (Math.PI * 2);
       // Track the jet, barrels always pointing upwards.
       let want = Math.atan2(p.y - g.y, p.x - g.x);
       want = Math.max(-Math.PI + 0.25, Math.min(-0.25, want));
@@ -774,6 +781,7 @@ export class Game {
       return;
     }
     const lit = g.hitFlash > 0;
+    this.drawRadar(ctx, x - 12, y - 10, g.spin, lit);
     // Twin barrels
     ctx.save();
     ctx.translate(x, y); ctx.rotate(g.aim);
@@ -798,9 +806,30 @@ export class Game {
     ctx.fillRect(x + 10, y + 4, 3, 3);
     // Damage bar once hit
     if (g.hp < g.maxHp) {
-      ctx.fillStyle = '#000'; ctx.fillRect(x - 14, y - 16, 28, 3);
-      ctx.fillStyle = '#ffb703'; ctx.fillRect(x - 14, y - 16, 28 * (g.hp / g.maxHp), 3);
+      ctx.fillStyle = '#000'; ctx.fillRect(x - 14, y - 25, 28, 3);
+      ctx.fillStyle = '#ffb703'; ctx.fillRect(x - 14, y - 25, 28 * (g.hp / g.maxHp), 3);
     }
+  }
+
+  // Radar dish on a short mast at the back of the gun. It's seen side-on:
+  // squashing the dish by cos(spin) makes it look like it turns, and its
+  // darker back shows while it faces away.
+  drawRadar(ctx, x, y, spin, lit) {
+    ctx.fillStyle = lit ? '#fff' : '#3a4034';
+    ctx.fillRect(x - 1, y, 2, 13);                    // mast
+    const c = Math.cos(spin), sx = Math.sign(c || 1) * Math.max(0.12, Math.abs(c));
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(sx, 1);
+    ctx.fillStyle = lit ? '#fff' : c >= 0 ? '#a3ad92' : '#4f5845';
+    ctx.strokeStyle = '#07040b'; ctx.lineWidth = 0.8;
+    ctx.beginPath(); ctx.ellipse(0, 0, 4.5, 9, 0, -Math.PI / 2, Math.PI / 2); ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    // Feed horn on struts in front of the dish, with a red tip
+    ctx.strokeStyle = lit ? '#fff' : '#6b745e'; ctx.lineWidth = 0.9;
+    ctx.beginPath(); ctx.moveTo(0, -6); ctx.lineTo(8, 0); ctx.lineTo(0, 6); ctx.stroke();
+    ctx.fillStyle = '#ff4d6d'; ctx.fillRect(7, -1.2, 2.5, 2.5);
+    ctx.restore();
   }
 
   // Bars and the level-up picker, drawn above the HUD.

@@ -10,7 +10,7 @@ export const CONFIG = {
   // Player
   playerSpeed: 190,
   playerMaxHp: 100,
-  magnetRange: 90,               // blood drops fly to you inside this range
+  magnetRange: 90,               // SSD cards fly to you inside this range
   crashHeight: 40,               // flying lower than this above the ground crashes into the trees
   pullUpWarning: 90,
   maxAltitude: 900,              // the jet can't climb higher than this above the ground

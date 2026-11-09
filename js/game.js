@@ -1069,13 +1069,20 @@ export class Game {
   // Bars and the level-up picker, drawn above the HUD.
   drawUi(ctx) {
     const p = this.player;
-    // XP bar along the bottom
-    ctx.fillStyle = '#1a0838'; ctx.fillRect(0, H - 8, W, 8);
-    const xpGrad = ctx.createLinearGradient(0, 0, W, 0);
+    // Health and XP bars, top left (the score sits top middle, the streak below the bars)
+    const bx = 44, bw = 170;
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.font = 'bold 12px monospace';
+    const hpK = Math.max(0, p.hp / p.maxHp), low = hpK <= 0.3;
+    ctx.fillStyle = NEON.ink; ctx.fillText('HP', 16, 22);
+    ctx.fillStyle = '#1a0838'; ctx.fillRect(bx, 17, bw, 10);
+    ctx.fillStyle = low ? '#ff4d6d' : '#7ae582'; ctx.fillRect(bx, 17, bw * hpK, 10);
+    ctx.fillStyle = NEON.ink; ctx.fillText('XP', 16, 38);
+    ctx.fillStyle = '#1a0838'; ctx.fillRect(bx, 34, bw, 8);
+    const xpGrad = ctx.createLinearGradient(bx, 0, bx + bw, 0);
     xpGrad.addColorStop(0, NEON.magenta); xpGrad.addColorStop(1, NEON.cyan);
-    ctx.fillStyle = xpGrad; ctx.fillRect(0, H - 8, W * (this.xp / this.xpToNext), 8);
-    // Health bar under the jet (always at the screen centre)
-    const cx = W / 2, cy = H / 2 + (p.y - this.camY);
+    ctx.fillStyle = xpGrad; ctx.fillRect(bx, 34, bw * Math.min(1, this.xp / this.xpToNext), 8);
+    ctx.strokeStyle = 'rgba(232,220,255,0.35)'; ctx.lineWidth = 1;
+    ctx.strokeRect(bx + 0.5, 17.5, bw - 1, 9); ctx.strokeRect(bx + 0.5, 34.5, bw - 1, 7);
     // Low-altitude warning when the jet nears the treetops
     const alt = CRASH_Y - p.y;
     if (!this.over && alt < C.pullUpWarning && Math.floor(this.time * 6) % 2 === 0) {
@@ -1107,10 +1114,10 @@ export class Game {
       if (k > 0.25 || Math.floor(this.time * 8) % 2) {
         ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
         ctx.fillStyle = pu.color; ctx.font = 'bold 16px monospace';
-        ctx.fillText(pu.name, W / 2, 72);
+        ctx.fillText(pu.name, W / 2, 92);
       }
-      ctx.fillStyle = '#000'; ctx.fillRect(W / 2 - 70, 80, 140, 5);
-      ctx.fillStyle = pu.color; ctx.fillRect(W / 2 - 70, 80, 140 * k, 5);
+      ctx.fillStyle = '#000'; ctx.fillRect(W / 2 - 70, 100, 140, 5);
+      ctx.fillStyle = pu.color; ctx.fillRect(W / 2 - 70, 100, 140 * k, 5);
     }
 
     if (!this.choosing) return;
@@ -1123,25 +1130,242 @@ export class Game {
     ctx.restore();
     ctx.fillStyle = NEON.cyan; ctx.font = 'bold 14px monospace';
     ctx.fillText('Arm your jet:  1 / 2 / 3   or   ← → and ENTER', W / 2, 160);
-    const n = this.choosing.length, cw = 240, gap = 24, x0 = W / 2 - (n * cw + (n - 1) * gap) / 2;
+    const n = this.choosing.length, cw = 240, ch = 230, gap = 26, x0 = W / 2 - (n * cw + (n - 1) * gap) / 2;
     this.choosing.forEach((key, i) => {
-      const x = x0 + i * (cw + gap), y = 200, sel = i === this.choiceIndex;
-      ctx.fillStyle = sel ? 'rgba(60,10,70,0.92)' : 'rgba(9,2,28,0.88)'; ctx.fillRect(x, y, cw, 170);
-      ctx.save();
-      if (sel) { ctx.shadowColor = NEON.magenta; ctx.shadowBlur = 16; }
-      ctx.strokeStyle = sel ? NEON.magenta : 'rgba(5,217,232,0.45)'; ctx.lineWidth = sel ? 3 : 1.5; ctx.strokeRect(x, y, cw, 170);
-      ctx.restore();
-      const u = UPGRADES[key], l = this.lv[key] ?? 0;
-      ctx.fillStyle = NEON.dim; ctx.font = 'bold 14px monospace'; ctx.fillText(`[${i + 1}]`, x + cw / 2, y + 24);
-      ctx.fillStyle = '#fff'; ctx.font = 'bold 20px monospace';
-      ctx.fillText(u ? u.name : FLYBY.name, x + cw / 2, y + 62);
-      ctx.fillStyle = l === 0 && u ? NEON.yellow : NEON.cyan; ctx.font = 'bold 14px monospace';
-      ctx.fillText(u ? (l === 0 ? 'NEW' : `Lv ${l} → ${l + 1}`) : 'All upgrades maxed', x + cw / 2, y + 92);
-      ctx.fillStyle = NEON.ink; ctx.font = '13px monospace';
-      ctx.fillText(u ? u.desc(l) : FLYBY.desc, x + cw / 2, y + 125);
+      const sel = i === this.choiceIndex;
+      const x = x0 + i * (cw + gap), y = 196 - (sel ? 6 : 0);
+      drawUpgradeCard(ctx, key, i, x, y, cw, ch, sel, this.lv[key] ?? 0, performance.now() / 1000);
     });
   }
 }
 
+// ---------- Level-up cards ----------
+// Card outline with two cut corners (top-left, bottom-right), like an 80s arcade panel.
+function cardPath(ctx, x, y, w, h, c) {
+  ctx.beginPath();
+  ctx.moveTo(x + c, y); ctx.lineTo(x + w, y); ctx.lineTo(x + w, y + h - c);
+  ctx.lineTo(x + w - c, y + h); ctx.lineTo(x, y + h); ctx.lineTo(x, y + c);
+  ctx.closePath();
+}
+
+// Shared neon card frame (also used by the aircraft picker in main.js):
+// body, synthwave grid, scanlines, light sweep, header band, border and a key badge.
+function drawNeonCard(ctx, x, y, w, h, sel, t, keyLabel) {
+  const accent = sel ? NEON.magenta : NEON.cyan;
+  const pulse = 0.5 + 0.5 * Math.sin(t * 5);
+  ctx.save();
+  // Body: deep purple gradient with a soft neon glow round the edge
+  const bg = ctx.createLinearGradient(0, y, 0, y + h);
+  bg.addColorStop(0, sel ? '#3a0a52' : '#1a0838');
+  bg.addColorStop(0.6, sel ? '#1c0636' : '#0e0424');
+  bg.addColorStop(1, '#09021c');
+  cardPath(ctx, x, y, w, h, 18);
+  ctx.shadowColor = accent; ctx.shadowBlur = sel ? 18 + pulse * 10 : 6;
+  ctx.fillStyle = bg; ctx.fill();
+  ctx.shadowBlur = 0;
+  // Clip the inner details to the card shape
+  ctx.save();
+  cardPath(ctx, x, y, w, h, 18); ctx.clip();
+  // Synthwave grid fading up from the bottom
+  ctx.strokeStyle = sel ? 'rgba(255,113,206,0.22)' : 'rgba(5,217,232,0.12)'; ctx.lineWidth = 1;
+  const gy = y + h * 0.62, cx = x + w / 2;
+  for (let k = -6; k <= 6; k++) {
+    ctx.beginPath(); ctx.moveTo(cx + k * 14, gy); ctx.lineTo(cx + k * 60, y + h); ctx.stroke();
+  }
+  const scroll = (t * 18) % 12;
+  for (let k = 0; k < 6; k++) {
+    const yy = gy + Math.pow((k * 12 + scroll) / 72, 1.7) * (h * 0.38);
+    ctx.beginPath(); ctx.moveTo(x, yy); ctx.lineTo(x + w, yy); ctx.stroke();
+  }
+  // CRT scanlines
+  ctx.fillStyle = 'rgba(0,0,0,0.18)';
+  for (let yy = y; yy < y + h; yy += 3) ctx.fillRect(x, yy, w, 1);
+  // Light sweep across the selected card
+  if (sel) {
+    const sx = x - 80 + ((t * 160) % (w + 220));
+    const sw = ctx.createLinearGradient(sx, 0, sx + 60, 0);
+    sw.addColorStop(0, 'rgba(255,255,255,0)'); sw.addColorStop(0.5, 'rgba(255,255,255,0.10)'); sw.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = sw;
+    ctx.beginPath(); ctx.moveTo(sx, y); ctx.lineTo(sx + 60, y); ctx.lineTo(sx + 20, y + h); ctx.lineTo(sx - 40, y + h); ctx.fill();
+  }
+  // Header band
+  const hb = ctx.createLinearGradient(x, 0, x + w, 0);
+  hb.addColorStop(0, sel ? 'rgba(255,113,206,0.55)' : 'rgba(5,217,232,0.30)');
+  hb.addColorStop(1, 'rgba(185,103,255,0.05)');
+  ctx.fillStyle = hb; ctx.fillRect(x, y, w, 30);
+  ctx.restore();
+  // Neon border (double line)
+  ctx.lineJoin = 'miter';
+  ctx.shadowColor = accent; ctx.shadowBlur = sel ? 14 : 6;
+  ctx.strokeStyle = accent; ctx.lineWidth = sel ? 2.5 : 1.5;
+  cardPath(ctx, x, y, w, h, 18); ctx.stroke();
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = sel ? 'rgba(255,113,206,0.35)' : 'rgba(5,217,232,0.2)'; ctx.lineWidth = 1;
+  cardPath(ctx, x + 5, y + 5, w - 10, h - 10, 14); ctx.stroke();
+
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  // Keycap badge, top right
+  const kx = x + w - 34, ky = y + 6;
+  ctx.fillStyle = sel ? NEON.magenta : '#1a0838'; ctx.fillRect(kx, ky, 24, 20);
+  ctx.strokeStyle = sel ? '#fff' : NEON.cyan; ctx.lineWidth = 1.2; ctx.strokeRect(kx, ky, 24, 20);
+  ctx.fillStyle = sel ? '#1a0838' : '#fff'; ctx.font = 'bold 13px monospace';
+  ctx.fillText(keyLabel, kx + 12, ky + 11);
+  ctx.restore();
+}
+
+function drawUpgradeCard(ctx, key, i, x, y, w, h, sel, l, t) {
+  const u = UPGRADES[key];
+  const accent = sel ? NEON.magenta : NEON.cyan;
+  const pulse = 0.5 + 0.5 * Math.sin(t * 5);
+  drawNeonCard(ctx, x, y, w, h, sel, t, String(i + 1));
+  ctx.save();
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  // Status tag, top left
+  ctx.textAlign = 'left'; ctx.font = 'bold 12px monospace';
+  const tag = !u ? 'BONUS' : l === 0 ? '★ NEW' : `LV ${l} → ${l + 1}`;
+  ctx.shadowColor = NEON.yellow; ctx.shadowBlur = l === 0 || !u ? 8 : 0;
+  ctx.fillStyle = l === 0 || !u ? NEON.yellow : '#fff';
+  ctx.fillText(tag, x + 22, y + 16);
+  ctx.shadowBlur = 0;
+  // Icon in a glowing ring
+  const ix = x + w / 2, iy = y + 72;
+  ctx.save();
+  ctx.translate(ix, iy);
+  if (sel) ctx.scale(1 + pulse * 0.06, 1 + pulse * 0.06);
+  const ring = ctx.createRadialGradient(0, 0, 4, 0, 0, 30);
+  ring.addColorStop(0, sel ? 'rgba(255,113,206,0.35)' : 'rgba(5,217,232,0.18)'); ring.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = ring; ctx.beginPath(); ctx.arc(0, 0, 30, 0, Math.PI * 2); ctx.fill();
+  ctx.shadowColor = accent; ctx.shadowBlur = 10;
+  ctx.strokeStyle = accent; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(0, 0, 26, 0, Math.PI * 2); ctx.stroke();
+  drawUpgradeIcon(ctx, key, t, sel);
+  ctx.restore();
+  // Name: chrome gradient on the selected card
+  ctx.textAlign = 'center';
+  ctx.font = 'italic 900 21px Impact, "Arial Black", sans-serif';
+  const name = (u ? u.name : FLYBY.name).toUpperCase();
+  if (sel) {
+    const chrome = ctx.createLinearGradient(0, y + 114, 0, y + 136);
+    chrome.addColorStop(0, '#f4fdff'); chrome.addColorStop(0.45, '#5fd3ff');
+    chrome.addColorStop(0.55, '#ff71ce'); chrome.addColorStop(1, '#fff0fa');
+    ctx.shadowColor = NEON.pink; ctx.shadowBlur = 12; ctx.fillStyle = chrome;
+  } else ctx.fillStyle = '#fff';
+  ctx.fillText(name, x + w / 2, y + 125);
+  ctx.shadowBlur = 0;
+  // Description, wrapped
+  ctx.fillStyle = NEON.ink; ctx.font = '13px monospace';
+  wrapText(ctx, u ? u.desc(l) : FLYBY.desc, x + w / 2, y + 154, w - 30, 16);
+  // Level pips along the bottom: filled = owned, blinking = the level you'd get
+  if (u) {
+    const pw = 14, pg = 6, total = u.max * pw + (u.max - 1) * pg;
+    let px = x + w / 2 - total / 2;
+    const py = y + h - 26;
+    for (let k = 0; k < u.max; k++, px += pw + pg) {
+      ctx.beginPath();
+      ctx.moveTo(px + 3, py); ctx.lineTo(px + pw, py); ctx.lineTo(px + pw - 3, py + 8); ctx.lineTo(px, py + 8); ctx.closePath();
+      if (k < l) { ctx.fillStyle = NEON.cyan; ctx.shadowColor = NEON.cyan; ctx.shadowBlur = 6; ctx.fill(); }
+      else if (k === l) {
+        ctx.fillStyle = `rgba(255,251,150,${(0.35 + 0.65 * pulse).toFixed(3)})`;
+        ctx.shadowColor = NEON.yellow; ctx.shadowBlur = 8; ctx.fill();
+      } else { ctx.shadowBlur = 0; ctx.strokeStyle = 'rgba(154,134,196,0.6)'; ctx.lineWidth = 1; ctx.stroke(); }
+      ctx.shadowBlur = 0;
+    }
+  }
+  ctx.restore();
+}
+
+function wrapText(ctx, str, x, y, maxW, lh) {
+  const words = str.split(' '), lines = [];
+  let line = '';
+  for (const wd of words) {
+    const test = line ? line + ' ' + wd : wd;
+    if (ctx.measureText(test).width > maxW && line) { lines.push(line); line = wd; } else line = test;
+  }
+  lines.push(line);
+  lines.forEach((ln, k) => ctx.fillText(ln, x, y + k * lh));
+}
+
+// Neon line-art icon for each upgrade, centred on the origin (about 40px across).
+function drawUpgradeIcon(ctx, key, t, sel) {
+  const c = sel ? NEON.yellow : '#fff';
+  ctx.strokeStyle = c; ctx.fillStyle = c; ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.shadowColor = sel ? NEON.yellow : NEON.cyan; ctx.shadowBlur = 8;
+  const line = (a, b, cc, d) => { ctx.beginPath(); ctx.moveTo(a, b); ctx.lineTo(cc, d); ctx.stroke(); };
+  switch (key) {
+    case 'bolt': {      // three tracer rounds
+      for (let k = -1; k <= 1; k++) {
+        const o = ((t * 30 + k * 7) % 14) - 7;
+        line(-14 + o, k * 7, -2 + o, k * 7);
+        ctx.beginPath(); ctx.arc(2 + o, k * 7, 2.2, 0, Math.PI * 2); ctx.fill();
+      }
+      break;
+    }
+    case 'bats': {      // missile circling the ring
+      ctx.setLineDash([2, 4]); ctx.beginPath(); ctx.arc(0, 0, 15, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+      const a = t * 2.5;
+      ctx.save(); ctx.translate(Math.cos(a) * 15, Math.sin(a) * 15); ctx.rotate(a + Math.PI / 2);
+      line(-7, 0, 6, 0); line(6, 0, 9, 0);
+      line(-7, 0, -10, -3); line(-7, 0, -10, 3);
+      ctx.restore();
+      ctx.beginPath(); ctx.arc(0, 0, 3, 0, Math.PI * 2); ctx.fill();
+      break;
+    }
+    case 'aura': {      // pulsing danger rings
+      for (let k = 0; k < 3; k++) {
+        const r = 5 + ((t * 12 + k * 6) % 18);
+        ctx.globalAlpha = 1 - (r - 5) / 18;
+        ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+      ctx.beginPath(); ctx.arc(0, 0, 3, 0, Math.PI * 2); ctx.fill();
+      break;
+    }
+    case 'might': {     // crosshair
+      ctx.beginPath(); ctx.arc(0, 0, 11, 0, Math.PI * 2); ctx.stroke();
+      line(0, -18, 0, -6); line(0, 6, 0, 18); line(-18, 0, -6, 0); line(6, 0, 18, 0);
+      ctx.beginPath(); ctx.arc(0, 0, 2, 0, Math.PI * 2); ctx.fill();
+      break;
+    }
+    case 'speed': {     // afterburner chevrons
+      for (let k = 0; k < 3; k++) {
+        ctx.globalAlpha = 0.4 + 0.6 * ((Math.sin(t * 8 - k) + 1) / 2);
+        const ox = -10 + k * 8;
+        ctx.beginPath(); ctx.moveTo(ox, -10); ctx.lineTo(ox + 8, 0); ctx.lineTo(ox, 10); ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+      break;
+    }
+    case 'vigor': {     // shield with a plus
+      ctx.beginPath();
+      ctx.moveTo(0, -16); ctx.lineTo(13, -10); ctx.lineTo(11, 6); ctx.lineTo(0, 16); ctx.lineTo(-11, 6); ctx.lineTo(-13, -10); ctx.closePath();
+      ctx.stroke();
+      ctx.lineWidth = 3; line(0, -7, 0, 7); line(-7, 0, 7, 0);
+      break;
+    }
+    case 'magnet': {    // radar sweep
+      ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.arc(0, 0, 16, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, 0, 9, 0, Math.PI * 2); ctx.stroke();
+      const a = t * 3;
+      ctx.lineWidth = 2; line(0, 0, Math.cos(a) * 16, Math.sin(a) * 16);
+      ctx.globalAlpha = 0.25;
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, 16, a - 0.9, a); ctx.closePath(); ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.beginPath(); ctx.arc(7, -6, 2, 0, Math.PI * 2); ctx.fill();
+      break;
+    }
+    default: {          // flyby bonus: star
+      ctx.beginPath();
+      for (let k = 0; k < 10; k++) {
+        const r = k % 2 ? 7 : 17, a = -Math.PI / 2 + k * Math.PI / 5;
+        ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+      }
+      ctx.closePath(); ctx.stroke();
+    }
+  }
+  ctx.shadowBlur = 0; ctx.lineCap = 'butt';
+}
+
 // main.js uses this to preview aircraft on the selection screen.
 Game.drawJet = drawJet;
+Game.drawNeonCard = drawNeonCard;

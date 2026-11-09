@@ -234,15 +234,16 @@ function drawBackground() {
 
 function drawHud() {
   const score = Math.floor(game.score);
-  text(`SCORE ${String(score).padStart(7, '0')}`, 16, 22, 18, '#fff', 'left');
-  neonText(`HI ${String(Math.max(score, highscores.best())).padStart(7, '0')}`, W / 2, 22, 16, NEON.cyan);
-  text(fmtTime(game.time), W / 2, 44, 18, '#fff');
+  // Top middle: score, high score and time. Top left holds the HP/XP bars (game.js).
+  text(`SCORE ${String(score).padStart(7, '0')}`, W / 2, 22, 18, '#fff');
+  neonText(`HI ${String(Math.max(score, highscores.best())).padStart(7, '0')}`, W / 2, 42, 14, NEON.cyan);
+  text(fmtTime(game.time), W / 2, 62, 16, '#fff');
   neonText(`LV ${game.level}`, W - 16, 22, 18, NEON.magenta, 'right');
   text(`SPLASH ${game.kills}`, W - 16, 44, 14, NEON.ink, 'right');
   if (game.multiplier > 1) {
-    neonText(`x${game.multiplier} STREAK`, 16, 46, 16, NEON.yellow, 'left');
+    neonText(`x${game.multiplier} STREAK`, 16, 62, 16, NEON.yellow, 'left');
     ctx.fillStyle = NEON.yellow;
-    ctx.fillRect(16, 58, 110 * (game.streakTimer / CONFIG.streakWindow), 4);
+    ctx.fillRect(16, 74, 110 * (game.streakTimer / CONFIG.streakWindow), 4);
   }
 }
 
@@ -463,34 +464,72 @@ function drawSelect() {
   const x0 = W / 2 - (list.length * cw + (list.length - 1) * gap) / 2;
   const stats = [['SPEED', 'speed'], ['HEALTH', 'health'], ['DAMAGE', 'damage']];
   const maxOf = (k) => Math.max(...list.map((a) => a[k]));
+  const roles = ['RECON', 'MULTIROLE', 'HEAVY'];
   list.forEach((a, i) => {
-    const x = x0 + i * (cw + gap), y = 140, sel = i === aircraftIndex;
-    if (sel) neonPanel(x, y, cw, ch, NEON.magenta);
-    else {
-      ctx.fillStyle = 'rgba(9,2,28,0.78)'; ctx.fillRect(x, y, cw, ch);
-      ctx.strokeStyle = 'rgba(5,217,232,0.45)'; ctx.lineWidth = 1.5; ctx.strokeRect(x, y, cw, ch);
-    }
-    text(`[${i + 1}]`, x + cw / 2, y + 22, 14, NEON.dim);
-    // Preview, gently bobbing when selected
+    const sel = i === aircraftIndex;
+    const x = x0 + i * (cw + gap), y = 140 - (sel ? 6 : 0);
+    const pulse = 0.5 + 0.5 * Math.sin(t * 5);
+    Game.drawNeonCard(ctx, x, y, cw, ch, sel, t, String(i + 1));
+    // Class tag in the header band
+    text(roles[i] ?? 'AIRCRAFT', x + 22, y + 16, 12, sel ? NEON.yellow : '#fff', 'left');
+    // Preview on a glowing launch pad, gently bobbing when selected
+    const px = x + cw / 2, py = y + 92;
+    const pad = ctx.createRadialGradient(px, py, 6, px, py, 62);
+    pad.addColorStop(0, sel ? 'rgba(255,113,206,0.35)' : 'rgba(5,217,232,0.18)');
+    pad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = pad; ctx.beginPath(); ctx.arc(px, py, 62, 0, Math.PI * 2); ctx.fill();
+    glow(sel ? NEON.magenta : NEON.cyan, 10, () => {
+      ctx.strokeStyle = sel ? NEON.magenta : NEON.cyan; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(px, py, 48, 0, Math.PI * 2); ctx.stroke();
+      // Rotating targeting ticks round the ring
+      ctx.save(); ctx.translate(px, py); ctx.rotate(t * (sel ? 1.2 : 0.3));
+      for (let k = 0; k < 4; k++) {
+        ctx.rotate(Math.PI / 2);
+        ctx.beginPath(); ctx.arc(0, 0, 54, -0.25, 0.25); ctx.stroke();
+      }
+      ctx.restore();
+    });
     ctx.save();
-    ctx.translate(x + cw / 2, y + 85 + (sel ? Math.sin(clock * 4) * 3 : 0));
+    ctx.translate(px, py + (sel ? Math.sin(clock * 4) * 3 : 0));
     ctx.rotate(-Math.PI / 2);
     ctx.scale(2.4, 2.4);
     Game.drawJet(ctx, a, (sel ? 6 : 4.5) + Math.sin(clock * 50 + i) * 2);
     ctx.restore();
-    if (sel) neonText(a.name.toUpperCase(), x + cw / 2, y + 150, 20, NEON.magenta);
-    else text(a.name.toUpperCase(), x + cw / 2, y + 150, 20, '#fff');
-    text(a.desc, x + cw / 2, y + 174, 13, NEON.ink, 'center', 'normal');
+    // Name: chrome on the selected card
+    cardName(a.name.toUpperCase(), x + cw / 2, y + 166, sel);
+    text(a.desc, x + cw / 2, y + 190, 13, NEON.ink, 'center', 'normal');
+    // Stat bars: segmented neon meters
     stats.forEach(([label, k], j) => {
-      const sy = y + 206 + j * 28;
-      text(label, x + 18, sy, 12, NEON.ink, 'left');
-      const bx = x + 96, bw = cw - 150;
-      ctx.fillStyle = '#1a0838'; ctx.fillRect(bx, sy - 5, bw, 10);
-      ctx.fillStyle = a[k] > 1 ? NEON.cyan : a[k] < 1 ? NEON.pink : NEON.yellow;
-      ctx.fillRect(bx, sy - 5, bw * (a[k] / maxOf(k)), 10);
-      text(`${Math.round(a[k] * 100)}%`, x + cw - 14, sy, 12, NEON.ink, 'right', 'normal');
+      const sy = y + 220 + j * 24;
+      text(label, x + 20, sy, 12, NEON.ink, 'left');
+      const segs = 10, bx = x + 92, bw = cw - 148, sw = bw / segs;
+      const filled = Math.round(segs * a[k] / maxOf(k));
+      const col = a[k] > 1 ? NEON.cyan : a[k] < 1 ? NEON.pink : NEON.yellow;
+      for (let s = 0; s < segs; s++) {
+        const sx = bx + s * sw;
+        ctx.beginPath();
+        ctx.moveTo(sx + 2, sy - 5); ctx.lineTo(sx + sw - 1, sy - 5); ctx.lineTo(sx + sw - 3, sy + 5); ctx.lineTo(sx, sy + 5); ctx.closePath();
+        if (s < filled) {
+          const lit = sel && s === filled - 1 ? 0.6 + 0.4 * pulse : 1;
+          ctx.globalAlpha = lit;
+          glow(col, sel ? 8 : 4, () => { ctx.fillStyle = col; ctx.fill(); });
+          ctx.globalAlpha = 1;
+        } else { ctx.strokeStyle = 'rgba(154,134,196,0.45)'; ctx.lineWidth = 1; ctx.stroke(); }
+      }
+      text(`${Math.round(a[k] * 100)}%`, x + cw - 18, sy, 12, sel ? '#fff' : NEON.ink, 'right', 'normal');
     });
   });
+}
+
+// Aircraft name; chrome gradient (like the big titles) on the selected card.
+function cardName(str, x, y, sel) {
+  ctx.font = 'italic 900 22px Impact, "Arial Black", sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const g = ctx.createLinearGradient(0, y - 11, 0, y + 11);
+  g.addColorStop(0, '#f4fdff'); g.addColorStop(0.45, '#5fd3ff');
+  g.addColorStop(0.55, '#ff71ce'); g.addColorStop(1, '#fff0fa');
+  if (!sel) { ctx.fillStyle = '#fff'; ctx.fillText(str, x, y); return; }
+  glow(NEON.pink, 12, () => { ctx.fillStyle = g; ctx.fillText(str, x, y); });
 }
 
 function overlay(alpha = 0.6) {

@@ -126,23 +126,29 @@ function blink(str, x, y, size, color) {
   if (Math.floor(clock * 2) % 2 === 0) text(str, x, y, size, color);
 }
 
-function panel(x, y, w, h) {
-  ctx.fillStyle = 'rgba(20,10,28,0.85)';
-  ctx.fillRect(x, y, w, h);
-  ctx.strokeStyle = '#4a2a4a';
-  ctx.lineWidth = 2;
-  ctx.strokeRect(x, y, w, h);
+// 80s neon palette for the title screen.
+const NEON = { pink: '#ff2a6d', magenta: '#ff71ce', cyan: '#05d9e8', purple: '#b967ff', yellow: '#fffb96', ink: '#e8dcff', dim: '#9a86c4' };
+
+// Draw with a neon glow.
+function glow(color, blur, fn) {
+  ctx.save();
+  ctx.shadowColor = color;
+  ctx.shadowBlur = blur;
+  fn();
+  ctx.restore();
 }
 
 // A keyboard key cap, returns its width.
 function keycap(label, x, y) {
   ctx.font = 'bold 13px monospace';
   const w = Math.max(24, ctx.measureText(label).width + 12);
-  ctx.fillStyle = '#2e1f3a';
+  ctx.fillStyle = '#1a0838';
   ctx.fillRect(x, y - 12, w, 24);
-  ctx.strokeStyle = '#8a6aa0';
-  ctx.lineWidth = 1.5;
-  ctx.strokeRect(x, y - 12, w, 24);
+  glow(NEON.cyan, 6, () => {
+    ctx.strokeStyle = NEON.cyan;
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(x, y - 12, w, 24);
+  });
   ctx.fillStyle = '#fff';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -152,10 +158,10 @@ function keycap(label, x, y) {
 
 // One controls line: a label, then key caps. 'or' is drawn as plain text.
 function controlRow(label, keys, x, y) {
-  text(label, x, y, 14, '#d8cce6', 'left', 'normal');
+  text(label, x, y, 14, NEON.ink, 'left', 'normal');
   let cx = x + 110;
   for (const k of keys) {
-    if (k === 'or') { text('or', cx + 4, y, 12, '#8a7a9a', 'left', 'normal'); cx += 26; continue; }
+    if (k === 'or') { text('or', cx + 4, y, 12, NEON.dim, 'left', 'normal'); cx += 26; continue; }
     cx += keycap(k, cx, y) + 4;
   }
 }
@@ -228,14 +234,18 @@ function drawHud() {
   }
 }
 
-function drawDiary(x, y, w, rows = CONFIG.highscoreCount) {
-  text('THE DIARY · BEST NIGHTS', x + w / 2, y, 16, '#ff4d6d');
+const DIARY_LOOK = {
+  heading: 'THE DIARY · BEST NIGHTS', color: '#ff4d6d', dim: '#8a7a9a',
+  empty: ['The pages are empty.', 'Survive a night to write the first entry.'],
+};
+
+function drawDiary(x, y, w, rows = CONFIG.highscoreCount, look = DIARY_LOOK) {
+  text(look.heading, x + w / 2, y, 16, look.color);
   if (!highscores.list.length) {
-    text('The pages are empty.', x + w / 2, y + 34, 14, '#8a7a9a', 'center', 'normal');
-    text('Survive a night to write the first entry.', x + w / 2, y + 54, 14, '#8a7a9a', 'center', 'normal');
+    look.empty.forEach((l, i) => text(l, x + w / 2, y + 34 + i * 20, 14, look.dim, 'center', 'normal'));
     return;
   }
-  text('#  NAME    SCORE   TIME  LV', x + w / 2, y + 26, 12, '#8a7a9a');
+  text('#  NAME    SCORE   TIME  LV', x + w / 2, y + 26, 12, look.dim);
   highscores.list.slice(0, rows).forEach((e, i) => {
     const color = i === lastRank ? '#ffd166' : i === 0 ? '#fff' : '#d8cce6';
     const line = `${String(i + 1).padStart(2)} ${e.name.padEnd(3)} ${String(e.score).padStart(8)}  ${fmtTime(e.time ?? 0).padStart(5)} ${String(e.level).padStart(3)}`;
@@ -243,57 +253,216 @@ function drawDiary(x, y, w, rows = CONFIG.highscoreCount) {
   });
 }
 
+// ---------- Title screen: a neon night sortie, 1980s style ----------
+const HORIZON = 124;
+const SUN = { x: W / 2, r: 104 };
+
+function drawSynthwaveSky(t) {
+  const sky = ctx.createLinearGradient(0, 0, 0, HORIZON);
+  sky.addColorStop(0, '#07011a');
+  sky.addColorStop(0.55, '#2a0a52');
+  sky.addColorStop(1, '#8a1f78');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, W, HORIZON);
+
+  for (const st of STARS) {
+    const y = st.y * (HORIZON / (H * 0.6));
+    const a = 0.25 + 0.5 * (0.5 + 0.5 * Math.sin(t * st.speed + st.phase));
+    ctx.fillStyle = `rgba(255,235,255,${a.toFixed(3)})`;
+    ctx.fillRect(st.x, y, st.s, st.s);
+  }
+
+  // Sun glow, then the striped sun sitting on the horizon.
+  const halo = ctx.createRadialGradient(SUN.x, HORIZON, SUN.r * 0.6, SUN.x, HORIZON, SUN.r * 2.2);
+  halo.addColorStop(0, 'rgba(255,42,109,0.45)');
+  halo.addColorStop(1, 'rgba(255,42,109,0)');
+  ctx.fillStyle = halo;
+  ctx.fillRect(0, 0, W, HORIZON);
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(SUN.x, HORIZON, SUN.r, Math.PI, 0);
+  ctx.clip();
+  const sg = ctx.createLinearGradient(0, HORIZON - SUN.r, 0, HORIZON);
+  sg.addColorStop(0, NEON.yellow);
+  sg.addColorStop(0.45, '#ff9e3d');
+  sg.addColorStop(1, NEON.pink);
+  ctx.fillStyle = sg;
+  ctx.fillRect(SUN.x - SUN.r, HORIZON - SUN.r, SUN.r * 2, SUN.r);
+  // Slats cut through the lower sun, thicker towards the horizon, slowly sinking.
+  ctx.fillStyle = sky;
+  const gap = 13, drift = (t * 6) % gap;
+  for (let i = 0; i < 7; i++) {
+    const y = HORIZON - SUN.r * 0.6 + i * gap + drift;
+    const h = 1 + ((y - (HORIZON - SUN.r * 0.6)) / (SUN.r * 0.6)) * 6;
+    ctx.fillRect(SUN.x - SUN.r, y, SUN.r * 2, h);
+  }
+  ctx.restore();
+
+  // A fighter jet streaks across the sky.
+  const span = W + 240;
+  const jx = ((t * 110) % span) - 120;
+  drawJetSilhouette(jx, 40 + Math.sin(t * 1.3) * 6, t);
+}
+
+function drawJetSilhouette(x, y, t) {
+  ctx.save();
+  ctx.translate(x, y);
+  // Neon afterburner trail.
+  const trail = ctx.createLinearGradient(-90, 0, -16, 0);
+  trail.addColorStop(0, 'rgba(5,217,232,0)');
+  trail.addColorStop(1, 'rgba(5,217,232,0.8)');
+  ctx.fillStyle = trail;
+  ctx.fillRect(-90, -1.5, 74, 3);
+  glow(NEON.magenta, 10, () => {
+    ctx.fillStyle = NEON.magenta;
+    ctx.beginPath(); ctx.arc(-17, 0, 2.5 + Math.sin(t * 30), 0, Math.PI * 2); ctx.fill();
+  });
+  // Body, swept wings and tail fin, in black against the sky.
+  ctx.fillStyle = '#05010f';
+  ctx.beginPath();
+  ctx.moveTo(26, 0); ctx.lineTo(4, -4); ctx.lineTo(-6, -16); ctx.lineTo(-11, -16); ctx.lineTo(-6, -4);
+  ctx.lineTo(-14, -4); ctx.lineTo(-20, -11); ctx.lineTo(-23, -11); ctx.lineTo(-19, -2);
+  ctx.lineTo(-19, 2); ctx.lineTo(-6, 4); ctx.lineTo(-11, 12); ctx.lineTo(-6, 12); ctx.lineTo(4, 4);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+// Neon perspective grid rushing towards you.
+function drawSynthwaveGround(t) {
+  const g = ctx.createLinearGradient(0, HORIZON, 0, H);
+  g.addColorStop(0, '#1b0638');
+  g.addColorStop(1, '#07011a');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, HORIZON, W, H - HORIZON);
+
+  glow(NEON.pink, 8, () => {
+    ctx.lineWidth = 1.5;
+    for (let i = -16; i <= 16; i++) {
+      ctx.strokeStyle = 'rgba(255,42,109,0.55)';
+      ctx.beginPath();
+      ctx.moveTo(SUN.x + i * 14, HORIZON);
+      ctx.lineTo(SUN.x + i * 150, H);
+      ctx.stroke();
+    }
+    const n = 12, scroll = (t * 0.9) % 1;
+    for (let k = 0; k < n; k++) {
+      const p = (k + scroll) / n;
+      const y = HORIZON + (H - HORIZON) * p * p;
+      ctx.strokeStyle = `rgba(255,42,109,${(0.15 + 0.6 * p).toFixed(3)})`;
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+    }
+    ctx.strokeStyle = NEON.magenta;
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0, HORIZON); ctx.lineTo(W, HORIZON); ctx.stroke();
+  });
+}
+
+// Chrome-and-neon logo text.
+function chromeTitle(str, x, y, size) {
+  ctx.font = `italic 900 ${size}px Impact, "Arial Black", sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const top = y - size / 2, bottom = y + size / 2;
+  const chrome = ctx.createLinearGradient(0, top, 0, bottom);
+  chrome.addColorStop(0, '#f4fdff');
+  chrome.addColorStop(0.45, '#5fd3ff');
+  chrome.addColorStop(0.5, '#1a0838');
+  chrome.addColorStop(0.55, '#ff71ce');
+  chrome.addColorStop(1, '#fff0fa');
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = 6;
+  ctx.strokeStyle = '#12032b';
+  ctx.strokeText(str, x + 3, y + 3);
+  glow(NEON.pink, 22, () => { ctx.fillStyle = chrome; ctx.fillText(str, x, y); });
+  ctx.lineWidth = 1.2;
+  ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+  ctx.strokeText(str, x, y);
+}
+
+function neonPanel(x, y, w, h, color) {
+  ctx.fillStyle = 'rgba(9,2,28,0.82)';
+  ctx.fillRect(x, y, w, h);
+  glow(color, 14, () => {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x, y, w, h);
+  });
+}
+
+function neonText(str, x, y, size, color, align = 'center') {
+  glow(color, 10, () => text(str, x, y, size, color, align));
+}
+
+const PILOT_LOG = {
+  heading: 'TOP PILOTS · BEST SORTIES', color: NEON.cyan, dim: NEON.dim,
+  empty: ['No sorties logged yet.', 'Survive a night flight to make the board.'],
+};
+
 function drawTitle() {
-  ctx.fillStyle = 'rgba(8,4,14,0.55)';
-  ctx.fillRect(0, 0, W, H);
-  text(CONFIG.title, W / 2, 62, 52, '#c1121f');
-  text(CONFIG.subtitle.toUpperCase(), W / 2, 104, 14, '#b8a9c9');
+  const t = performance.now() / 1000;
+  drawSynthwaveSky(t);
+  drawSynthwaveGround(t);
 
-  // Left: how to play + controls
-  const lx = 30, ly = 130, lw = 490, lh = 350;
-  panel(lx, ly, lw, lh);
-  text('HOW TO PLAY', lx + 20, ly + 24, 16, '#ff4d6d', 'left');
+  chromeTitle(CONFIG.title, W / 2, 58, 58);
+  ctx.fillStyle = 'rgba(9,2,28,0.85)';
+  ctx.fillRect(W / 2 - 150, 94, 300, 24);
+  neonText(`★  ${CONFIG.subtitle.toUpperCase()}  ★`, W / 2, 106, 14, NEON.cyan);
+
+  // Left: mission briefing + controls
+  const lx = 30, ly = 136, lw = 490, lh = 344;
+  neonPanel(lx, ly, lw, lh, NEON.magenta);
+  neonText('MISSION BRIEFING', lx + 20, ly + 24, 16, NEON.magenta, 'left');
   const how = [
-    'You are a vampire. Hunters swarm from every side.',
-    'Your powers attack by themselves: just move.',
-    'Kill hunters, collect their blood to level up.',
-    'Each level: pick 1 of 3 new or stronger powers.',
-    'Fast kills build a streak multiplier for points.',
-    'Hunters touching you drain health. Survive!',
+    'Pick your jet, then fly it through the neon night.',
+    'Hostiles swarm in from every side of the sky.',
+    'Your weapons fire on their own: you just fly.',
+    'Shoot them down, grab the drops to level up.',
+    'Each level: pick 1 of 3 new or stronger weapons.',
+    'AA guns in the forest fire flak. Dodge or destroy!',
+    'Quick kills build a streak multiplier. Stay airborne!',
   ];
-  how.forEach((l, i) => text('• ' + l, lx + 20, ly + 52 + i * 20, 13, '#d8cce6', 'left', 'normal'));
+  how.forEach((l, i) => text('▸ ' + l, lx + 20, ly + 50 + i * 19, 13, NEON.ink, 'left', 'normal'));
 
-  text('CONTROLS', lx + 20, ly + 180, 16, '#ff4d6d', 'left');
-  const cy = ly + 206;
-  controlRow('Move', ['↑', '↓', '←', '→', 'or', 'W', 'A', 'S', 'D'], lx + 20, cy);
-  controlRow('Pick power', ['1', '2', '3', 'or', '←', '→', 'Enter'], lx + 20, cy + 28);
-  controlRow('Pause', ['P', 'or', 'Esc'], lx + 20, cy + 56);
-  controlRow('Sound', ['M'], lx + 20, cy + 84);
-  controlRow('Restart', ['R'], lx + 20, cy + 112);
-  text('(after game over)', lx + 160, cy + 112, 12, '#8a7a9a', 'left', 'normal');
+  neonText('FLIGHT CONTROLS', lx + 20, ly + 196, 16, NEON.magenta, 'left');
+  const cy = ly + 222;
+  controlRow('Fly', ['↑', '↓', '←', '→', 'or', 'W', 'A', 'S', 'D'], lx + 20, cy);
+  controlRow('Pick upgrade', ['1', '2', '3', 'or', '←', '→', 'Enter'], lx + 20, cy + 26);
+  controlRow('Pause', ['P', 'or', 'Esc'], lx + 20, cy + 52);
+  controlRow('Sound', ['M'], lx + 20, cy + 78);
+  controlRow('Fly again', ['R'], lx + 20, cy + 104);
+  text('(after you go down)', lx + 160, cy + 104, 12, NEON.dim, 'left', 'normal');
 
   // Right: high scores
   const rx = 540, rw = 390;
-  panel(rx, ly, rw, lh);
-  drawDiary(rx, ly + 24, rw);
+  neonPanel(rx, ly, rw, lh, NEON.cyan);
+  drawDiary(rx, ly + 24, rw, CONFIG.highscoreCount, PILOT_LOG);
 
-  blink('PRESS ENTER TO CHOOSE YOUR AIRCRAFT', W / 2, H - 30, 20, '#fff');
+  if (Math.floor(clock * 2) % 2 === 0) neonText('PRESS ENTER TO CHOOSE YOUR AIRCRAFT', W / 2, H - 28, 22, NEON.yellow);
 }
 
-// Aircraft selection: three cards with a preview and stat bars.
+// Aircraft selection: three cards with a preview and stat bars, on the same neon backdrop.
 function drawSelect() {
-  overlay(0.7);
-  text('CHOOSE YOUR AIRCRAFT', W / 2, 70, 34, '#ff4d6d');
-  text('1 / 2 / 3   or   ← → and ENTER   ·   ESC back', W / 2, 108, 14, '#b8a9c9');
+  const t = performance.now() / 1000;
+  drawSynthwaveSky(t);
+  drawSynthwaveGround(t);
+  chromeTitle('CHOOSE YOUR AIRCRAFT', W / 2, 62, 42);
+  ctx.fillStyle = 'rgba(9,2,28,0.85)';
+  ctx.fillRect(W / 2 - 210, 96, 420, 24);
+  neonText('1 / 2 / 3   or   ← → and ENTER   ·   ESC back', W / 2, 108, 14, NEON.cyan);
   const list = CONFIG.aircraft, cw = 260, ch = 300, gap = 24;
   const x0 = W / 2 - (list.length * cw + (list.length - 1) * gap) / 2;
   const stats = [['SPEED', 'speed'], ['HEALTH', 'health'], ['DAMAGE', 'damage']];
   const maxOf = (k) => Math.max(...list.map((a) => a[k]));
   list.forEach((a, i) => {
     const x = x0 + i * (cw + gap), y = 140, sel = i === aircraftIndex;
-    ctx.fillStyle = sel ? '#3a1530' : '#1c1226'; ctx.fillRect(x, y, cw, ch);
-    ctx.strokeStyle = sel ? '#ff4d6d' : '#4a3a5a'; ctx.lineWidth = sel ? 3 : 1.5; ctx.strokeRect(x, y, cw, ch);
-    text(`[${i + 1}]`, x + cw / 2, y + 22, 14, '#8a7a9a');
+    if (sel) neonPanel(x, y, cw, ch, NEON.magenta);
+    else {
+      ctx.fillStyle = 'rgba(9,2,28,0.78)'; ctx.fillRect(x, y, cw, ch);
+      ctx.strokeStyle = 'rgba(5,217,232,0.45)'; ctx.lineWidth = 1.5; ctx.strokeRect(x, y, cw, ch);
+    }
+    text(`[${i + 1}]`, x + cw / 2, y + 22, 14, NEON.dim);
     // Preview, gently bobbing when selected
     ctx.save();
     ctx.translate(x + cw / 2, y + 85 + (sel ? Math.sin(clock * 4) * 3 : 0));
@@ -301,16 +470,17 @@ function drawSelect() {
     ctx.scale(2.4, 2.4);
     Game.drawJet(ctx, a, sel ? 6 + Math.sin(clock * 50) * 2 : 0);
     ctx.restore();
-    text(a.name.toUpperCase(), x + cw / 2, y + 150, 20, '#fff');
-    text(a.desc, x + cw / 2, y + 174, 13, '#b8a9c9', 'center', 'normal');
+    if (sel) neonText(a.name.toUpperCase(), x + cw / 2, y + 150, 20, NEON.magenta);
+    else text(a.name.toUpperCase(), x + cw / 2, y + 150, 20, '#fff');
+    text(a.desc, x + cw / 2, y + 174, 13, NEON.ink, 'center', 'normal');
     stats.forEach(([label, k], j) => {
       const sy = y + 206 + j * 28;
-      text(label, x + 18, sy, 12, '#d8cce6', 'left');
+      text(label, x + 18, sy, 12, NEON.ink, 'left');
       const bx = x + 96, bw = cw - 150;
-      ctx.fillStyle = '#2a1a33'; ctx.fillRect(bx, sy - 5, bw, 10);
-      ctx.fillStyle = a[k] > 1 ? '#7ae582' : a[k] < 1 ? '#ff4d6d' : '#ffd166';
+      ctx.fillStyle = '#1a0838'; ctx.fillRect(bx, sy - 5, bw, 10);
+      ctx.fillStyle = a[k] > 1 ? NEON.cyan : a[k] < 1 ? NEON.pink : NEON.yellow;
       ctx.fillRect(bx, sy - 5, bw * (a[k] / maxOf(k)), 10);
-      text(`${Math.round(a[k] * 100)}%`, x + cw - 14, sy, 12, '#d8cce6', 'right', 'normal');
+      text(`${Math.round(a[k] * 100)}%`, x + cw - 14, sy, 12, NEON.ink, 'right', 'normal');
     });
   });
 }

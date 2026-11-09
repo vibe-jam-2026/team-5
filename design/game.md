@@ -37,7 +37,7 @@ Move to dodge the swarm → powers kill hunters → collect blood → level up �
 
 **Must have:** the smallest version that's playable and fun.
 
-- Vampire moves; hunters chase from all sides
+- Vampire always in the centre of the screen, walking around an endless scrolling world; hunters always chase from all sides
 - Auto-attacking powers: Blood Bolt (shoots nearest hunter), Bat Swarm (orbiting bats), Mist Aura (damage around you)
 - Blood drops (XP), level-up with a choice of 3 upgrades
 - Health bar, game over, score with kill-streak multiplier
@@ -49,7 +49,6 @@ Move to dodge the swarm → powers kill hunters → collect blood → level up �
 - Dawn: surviving to a set time ends the night with a big bonus
 - Diary-style game-over screen ("Night 12: lasted 4:32, drained 210 hunters")
 - Nicer graphics (sprites), music
-- Scrolling world bigger than the screen
 
 **Out of scope:** things we've decided not to do.
 
@@ -64,3 +63,4 @@ Plain HTML, JavaScript modules and canvas. No libraries, no build step. Gameplay
 ## Decisions and changes
 
 - 2026-11-09: Arcade, high-score focused, survivors-like genre. Vampire theme with a diary framing; working title "Blood Diary" (not "The Vampire Diaries", which is an existing TV series).
+- 2026-11-09: Camera follows the vampire, who stays centred while the world scrolls (like Vampire Survivors). Hunters spawn just off-screen and always chase.

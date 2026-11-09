@@ -11,6 +11,19 @@ const W = C.width, H = C.height;
 const rand = (a, b) => a + Math.random() * (b - a);
 const dist2 = (a, b) => (a.x - b.x) ** 2 + (a.y - b.y) ** 2;
 
+// Camera: the world is endless and the vampire always stays in the centre of
+// the screen. Hunters spawn just outside the view, in every direction.
+const SPAWN_RADIUS = Math.hypot(W, H) / 2 + 40;
+const DESPAWN_RADIUS = SPAWN_RADIUS * 1.8;   // hunters left this far behind respawn ahead
+const TILE = 64;                              // ground decoration grid
+
+// Deterministic per-tile noise so ground decoration stays put as you walk.
+function hash(x, y) {
+  let h = (x * 374761393 + y * 668265263) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+
 // ---------- Hunter types ----------
 const ENEMIES = {
   villager: { r: 10, hp: 10, speed: 60, dps: 12, xp: 1, color: '#d98b3a', from: 0 },
@@ -32,7 +45,7 @@ const UPGRADES = {
 
 export class Game {
   constructor() {
-    this.player = { x: W / 2, y: H / 2, r: 11, hp: C.playerMaxHp, maxHp: C.playerMaxHp, face: 1 };
+    this.player = { x: 0, y: 0, r: 11, hp: C.playerMaxHp, maxHp: C.playerMaxHp, face: 1 };
     this.lv = { bolt: 1, bats: 0, aura: 0, might: 0, speed: 0, vigor: 0, magnet: 0 };
     this.enemies = [];
     this.bolts = [];
@@ -95,8 +108,9 @@ export class Game {
     const p = this.player, ax = input.axis();
     const speed = C.playerSpeed * (1 + this.lv.speed * 0.1);
     if (ax.x) p.face = Math.sign(ax.x);
-    p.x = Math.max(p.r, Math.min(W - p.r, p.x + ax.x * speed * dt));
-    p.y = Math.max(p.r, Math.min(H - p.r, p.y + ax.y * speed * dt));
+    p.x += ax.x * speed * dt;
+    p.y += ax.y * speed * dt;
+    p.moving = !!(ax.x || ax.y);
     if (this.hurtCd > 0) this.hurtCd -= dt;
   }
 
@@ -109,18 +123,26 @@ export class Game {
       if (this.enemies.length >= C.maxEnemies) continue;
       // Weighted pick: later types are rarer.
       const [kind, t] = types[Math.random() < 0.6 ? 0 : Math.floor(Math.random() * types.length)];
-      const side = Math.floor(Math.random() * 4);
-      const x = side === 0 ? -20 : side === 1 ? W + 20 : rand(0, W);
-      const y = side === 2 ? -20 : side === 3 ? H + 20 : rand(0, H);
+      const { x, y } = this.around(SPAWN_RADIUS + rand(0, 60));
       this.enemies.push({ kind, x, y, r: t.r, hp: t.hp * hpScale, maxHp: t.hp * hpScale,
         speed: t.speed * rand(0.85, 1.15), dps: t.dps, xp: t.xp, color: t.color, flash: 0, batCd: 0 });
     }
   }
 
+  // Random point on a ring of radius d around the player.
+  around(d) {
+    const a = rand(0, Math.PI * 2), p = this.player;
+    return { x: p.x + Math.cos(a) * d, y: p.y + Math.sin(a) * d };
+  }
+
   moveEnemies(dt) {
     const p = this.player;
     for (const e of this.enemies) {
-      const dx = p.x - e.x, dy = p.y - e.y, d = Math.hypot(dx, dy) || 1;
+      let dx = p.x - e.x, dy = p.y - e.y, d = Math.hypot(dx, dy) || 1;
+      if (d > DESPAWN_RADIUS) {   // outran it: bring it back from just off-screen
+        Object.assign(e, this.around(SPAWN_RADIUS));
+        dx = p.x - e.x; dy = p.y - e.y; d = Math.hypot(dx, dy);
+      }
       e.x += (dx / d) * e.speed * dt;
       e.y += (dy / d) * e.speed * dt;
       if (e.flash > 0) e.flash -= dt;
@@ -192,7 +214,7 @@ export class Game {
         }
       }
     }
-    this.bolts = this.bolts.filter((b) => b.life > 0 && b.x > -20 && b.x < W + 20 && b.y > -20 && b.y < H + 20);
+    this.bolts = this.bolts.filter((b) => b.life > 0 && dist2(b, p) < SPAWN_RADIUS ** 2);
 
     // Bat Swarm: bats orbit the player.
     this.batAngle += dt * (2.5 + this.lv.bats * 0.3);
@@ -242,7 +264,8 @@ export class Game {
         }
       }
     }
-    this.gems = this.gems.filter((g) => !g.taken);
+    // Drop blood left far behind so the list doesn't grow forever.
+    this.gems = this.gems.filter((g) => !g.taken && dist2(g, p) < (DESPAWN_RADIUS * 2) ** 2);
   }
 
   // ---------- Level-up choice ----------
@@ -292,8 +315,40 @@ export class Game {
   }
 
   // ---------- Drawing ----------
+  // Scrolling ground: grass tufts, stones and graves fixed in the world.
+  drawGround(ctx) {
+    const p = this.player;
+    const x0 = Math.floor((p.x - W / 2) / TILE), x1 = Math.floor((p.x + W / 2) / TILE);
+    const y0 = Math.floor((p.y - H / 2) / TILE), y1 = Math.floor((p.y + H / 2) / TILE);
+    for (let ty = y0; ty <= y1; ty++) {
+      for (let tx = x0; tx <= x1; tx++) {
+        const h = hash(tx, ty);
+        if (h < 0.55) continue;
+        const x = tx * TILE + hash(tx + 7, ty) * TILE, y = ty * TILE + hash(tx, ty + 7) * TILE;
+        if (h < 0.8) {            // speckles
+          ctx.fillStyle = 'rgba(255,255,255,0.04)';
+          ctx.fillRect(x, y, 2, 2); ctx.fillRect(x + 9, y + 5, 2, 2);
+        } else if (h < 0.93) {    // grass tuft
+          ctx.fillStyle = 'rgba(120,90,160,0.18)';
+          ctx.fillRect(x, y, 2, 6); ctx.fillRect(x + 4, y + 1, 2, 5); ctx.fillRect(x - 4, y + 2, 2, 4);
+        } else if (h < 0.98) {    // stone
+          ctx.fillStyle = 'rgba(150,130,170,0.14)';
+          ctx.beginPath(); ctx.ellipse(x, y, 6, 4, 0, 0, Math.PI * 2); ctx.fill();
+        } else {                  // gravestone
+          ctx.fillStyle = 'rgba(150,130,170,0.2)';
+          ctx.beginPath(); ctx.arc(x, y - 8, 8, Math.PI, 0); ctx.fill();
+          ctx.fillRect(x - 8, y - 8, 16, 16);
+        }
+      }
+    }
+  }
+
   draw(ctx) {
     const p = this.player;
+    ctx.save();
+    // World space: the camera is centred on the vampire.
+    ctx.translate(Math.round(W / 2 - p.x), Math.round(H / 2 - p.y));
+    this.drawGround(ctx);
     // Mist aura
     if (this.lv.aura > 0) {
       ctx.fillStyle = 'rgba(180,160,220,0.12)';
@@ -349,6 +404,7 @@ export class Game {
       ctx.fillText(f.text, f.x, f.y);
     }
     ctx.globalAlpha = 1;
+    ctx.restore();
   }
 
   // Bars and the level-up picker, drawn above the HUD.
@@ -357,10 +413,11 @@ export class Game {
     // XP bar along the bottom
     ctx.fillStyle = '#2a1a33'; ctx.fillRect(0, H - 8, W, 8);
     ctx.fillStyle = '#c1121f'; ctx.fillRect(0, H - 8, W * (this.xp / this.xpToNext), 8);
-    // Health bar under the vampire
-    ctx.fillStyle = '#000'; ctx.fillRect(p.x - 16, p.y + 17, 32, 4);
+    // Health bar under the vampire (always at the screen centre)
+    const cx = W / 2, cy = H / 2;
+    ctx.fillStyle = '#000'; ctx.fillRect(cx - 16, cy + 17, 32, 4);
     ctx.fillStyle = p.hp / p.maxHp > 0.3 ? '#7ae582' : '#ff4d6d';
-    ctx.fillRect(p.x - 16, p.y + 17, 32 * (p.hp / p.maxHp), 4);
+    ctx.fillRect(cx - 16, cy + 17, 32 * (p.hp / p.maxHp), 4);
 
     if (!this.choosing) return;
     ctx.fillStyle = 'rgba(8,4,14,0.75)'; ctx.fillRect(0, 0, W, H);

@@ -150,9 +150,7 @@ function drawBackground() {
   // Moon
   ctx.fillStyle = 'rgba(240,230,210,0.08)';
   ctx.beginPath(); ctx.arc(W - 120, 90, 50, 0, Math.PI * 2); ctx.fill();
-  // Ground speckles (fixed pattern)
-  ctx.fillStyle = 'rgba(255,255,255,0.03)';
-  for (let i = 0; i < 80; i++) ctx.fillRect((i * 97) % W, (i * 53 + (i % 7) * 31) % H, 2, 2);
+  // Ground detail scrolls with the camera; it's drawn in game.js.
 }
 
 function drawHud() {

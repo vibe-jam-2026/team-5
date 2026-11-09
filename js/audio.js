@@ -209,5 +209,8 @@ export const sfx = {
   flak() { tone(90, 0.12, 'square', 0.08, -40); },
   zap() { tone(1200, 0.07, 'square', 0.04, -700); },
   boom() { tone(140, 0.25, 'sawtooth', 0.1, -110); },
+  power() { tone(440, 0.08, 'square', 0.1); setTimeout(() => tone(660, 0.08, 'square', 0.1), 60); setTimeout(() => tone(990, 0.15, 'square', 0.1), 120); },
+  rocket() { tone(500, 0.1, 'sawtooth', 0.03, 400); },
+  pop() { tone(110, 0.12, 'square', 0.05, -60); },
   select() { tone(660, 0.05, 'square', 0.08); },
 };

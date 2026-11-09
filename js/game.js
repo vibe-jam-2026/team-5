@@ -113,6 +113,15 @@ const UPGRADES = {
   vigor:  { name: 'Wingman',        max: 5, desc: () => 'Got your six: +25 HP, heal 25' },
   magnet: { name: 'Radar Lock',     max: 4, desc: () => '+40% pickup range' },
 };
+// ---------- Power-ups ----------
+// Temporary special weapons, picked up from crates that kills sometimes drop.
+const POWERUPS = {
+  spread: { name: 'SCATTER CANNON', letter: 'S', color: '#ffd166' },  // rings of tracers in every direction
+  laser:  { name: 'PULSE LASER',    letter: 'L', color: '#4cc9f0' },  // twin beams sweeping round the jet
+  rocket: { name: 'ROCKET SWARM',   letter: 'R', color: '#ff4d6d' },  // homing rockets that blow up on impact
+};
+const LASER_LEN = 260;
+
 // Shown when every upgrade is maxed.
 const FLYBY = { name: 'Tower Flyby', desc: 'Heal 30, +500 points' };
 
@@ -177,6 +186,11 @@ export class Game {
     this.shells = [];
     this.flak = [];           // flak bursts
     this.bullets = [];        // shots from armed drones
+    this.crates = [];         // power-up pickups lying in the world
+    this.power = null;        // active special weapon: { kind, t }
+    this.powerCd = 0;
+    this.powerSpin = 0;
+    this.rockets = [];
     this.score = 0;
     this.time = 0;
     this.kills = 0;
@@ -214,6 +228,7 @@ export class Game {
     this.antiAircraft(dt);
     this.weapons(dt);
     this.collectGems(dt);
+    this.powerups(dt);
     this.updateEffects(dt);
 
     if (this.streakTimer > 0) {
@@ -322,6 +337,7 @@ export class Game {
       this.score += pts;
       if (e.xp > 1 || this.multiplier > 1) this.floaters.push({ x: e.x, y: e.y - 10, text: `+${pts}`, life: 0.7 });
       this.gems.push({ x: e.x, y: e.y, v: e.xp, big: e.xp > 1 });
+      if (Math.random() < (e.kind === 'heavy' ? C.powerupChanceHeavy : C.powerupChance)) this.dropCrate(e.x, e.y);
       this.burst(e.x, e.y, '#c1121f', 6);
       this.events.push('kill');
     }
@@ -508,8 +524,107 @@ export class Game {
     this.burst(g.x, g.y, '#c1121f', 12);
     // Its blood drops tumble up out of the trees towards the jet.
     for (let i = 0; i < 3; i++) this.gems.push({ x: g.x + rand(-20, 20), y: g.y - 30 - i * 14, v: 5, big: true });
+    if (Math.random() < C.powerupFromGun) this.dropCrate(g.x, g.y - 70);
     this.events.push('boom', 'kill');
   }
+
+  // ---------- Power-ups ----------
+  dropCrate(x, y) {
+    const kinds = Object.keys(POWERUPS);
+    this.crates.push({ x, y, kind: kinds[Math.floor(Math.random() * kinds.length)], life: C.powerupLife });
+  }
+
+  powerups(dt) {
+    const p = this.player, m = this.might;
+    // Pick up crates (they drift towards you a little, like blood).
+    for (const c of this.crates) {
+      c.life -= dt;
+      const dx = p.x - c.x, dy = p.y - c.y, d = Math.hypot(dx, dy) || 1;
+      if (d < 60) { const s = 200 * dt; c.x += (dx / d) * s; c.y += (dy / d) * s; }
+      if (d < p.r + 12) {
+        c.life = 0;
+        this.power = { kind: c.kind, t: C.powerupDuration };
+        this.powerCd = 0;
+        this.floaters.push({ x: p.x, y: p.y - 30, text: POWERUPS[c.kind].name + '!', life: 1.4 });
+        this.burst(p.x, p.y, POWERUPS[c.kind].color, 20);
+        this.events.push('power');
+      }
+    }
+    this.crates = this.crates.filter((c) => c.life > 0 && dist2(c, p) < (DESPAWN_RADIUS * 2) ** 2);
+
+    if (this.power) {
+      const pw = this.power;
+      pw.t -= dt;
+      this.powerCd -= dt;
+      this.powerSpin += dt * 2.4;
+      if (pw.kind === 'spread' && this.powerCd <= 0) {
+        // A ring of 12 tracers, rotating a little each volley.
+        this.powerCd = 0.16;
+        for (let i = 0; i < 12; i++) {
+          const a = this.powerSpin + (i / 12) * Math.PI * 2;
+          this.bolts.push({ x: p.x, y: p.y, vx: Math.cos(a) * 520, vy: Math.sin(a) * 520, dmg: 12 * m, pierce: 1, life: 1.1 });
+        }
+      } else if (pw.kind === 'laser') {
+        // Two opposite beams sweep round, burning everything they touch.
+        const dps = 70 * m;
+        for (const a of this.laserAngles()) {
+          const ux = Math.cos(a), uy = Math.sin(a);
+          for (const e of this.enemies) {
+            if (e.dead) continue;
+            const rx = e.x - p.x, ry = e.y - p.y, along = rx * ux + ry * uy;
+            if (along > 0 && along < LASER_LEN && Math.abs(rx * uy - ry * ux) < e.r + 5) this.damage(e, dps * dt);
+          }
+          for (const g of this.liveGuns()) {
+            const rx = g.x - p.x, ry = g.y - p.y, along = rx * ux + ry * uy;
+            if (along > 0 && along < LASER_LEN && Math.abs(rx * uy - ry * ux) < g.r + 5) this.damageGun(g, dps * dt);
+          }
+        }
+      } else if (pw.kind === 'rocket' && this.powerCd <= 0) {
+        // Two rockets every volley, each locking onto a random nearby target.
+        this.powerCd = 0.22;
+        const near = [...this.enemies, ...this.liveGuns()].filter((e) => dist2(e, p) < 420 ** 2);
+        for (let i = 0; i < 2; i++) {
+          const a = rand(0, Math.PI * 2);
+          this.rockets.push({ x: p.x, y: p.y, vx: Math.cos(a) * 160, vy: Math.sin(a) * 160, life: 2.5,
+            target: near.length ? near[Math.floor(Math.random() * near.length)] : null });
+        }
+        this.events.push('rocket');
+      }
+      if (pw.t <= 0) this.power = null;
+    }
+
+    for (const r of this.rockets) {
+      r.life -= dt;
+      if (r.target && r.target.dead) r.target = null;
+      if (!r.target) {
+        let best = 300 ** 2;
+        for (const e of this.enemies) { const d = dist2(e, r); if (!e.dead && d < best) { best = d; r.target = e; } }
+      }
+      if (r.target) {
+        const a = Math.atan2(r.target.y - r.y, r.target.x - r.x);
+        r.vx += Math.cos(a) * 1400 * dt; r.vy += Math.sin(a) * 1400 * dt;
+      }
+      const sp = Math.hypot(r.vx, r.vy), max = 460;
+      if (sp > max) { r.vx *= max / sp; r.vy *= max / sp; }
+      r.x += r.vx * dt; r.y += r.vy * dt;
+      if (Math.random() < 0.6) this.particles.push({ x: r.x, y: r.y, vx: rand(-20, 20), vy: rand(-20, 20), life: 0.25, color: '#8a7a9a' });
+      const hit = this.enemies.some((e) => !e.dead && dist2(e, r) < (e.r + 5) ** 2)
+        || this.liveGuns().some((g) => dist2(g, r) < (g.r + 5) ** 2);
+      if (hit || r.life <= 0) {
+        r.done = true;
+        const blast = 48, dmg = 22 * m;
+        this.flak.push({ x: r.x, y: r.y, t: 0, r: blast * 0.7 });
+        this.burst(r.x, r.y, '#ffb703', 8);
+        for (const e of this.enemies) if (!e.dead && dist2(e, r) < (blast + e.r) ** 2) this.damage(e, dmg);
+        for (const g of this.liveGuns()) if (dist2(g, r) < (blast + g.r) ** 2) this.damageGun(g, dmg);
+        this.events.push('pop');
+      }
+    }
+    this.rockets = this.rockets.filter((r) => !r.done);
+    this.enemies = this.enemies.filter((e) => !e.dead);
+  }
+
+  laserAngles() { return [this.powerSpin, this.powerSpin + Math.PI]; }
 
   batPositions() {
     const n = this.lv.bats, p = this.player, out = [];
@@ -640,6 +755,23 @@ export class Game {
       const s = g.big ? 6 : 4;
       ctx.beginPath(); ctx.moveTo(g.x, g.y - s * 1.6); ctx.lineTo(g.x + s, g.y); ctx.arc(g.x, g.y, s, 0, Math.PI); ctx.lineTo(g.x - s, g.y); ctx.fill();
     }
+    // Power-up crates: spinning glowing boxes with a letter, blinking before they fade
+    for (const c of this.crates) {
+      if (c.life < 3 && Math.floor(c.life * 8) % 2) continue;
+      const pu = POWERUPS[c.kind], bob = Math.sin(this.time * 4 + c.x) * 3;
+      ctx.save();
+      ctx.translate(c.x, c.y + bob);
+      ctx.fillStyle = pu.color; ctx.globalAlpha = 0.25 + 0.15 * Math.sin(this.time * 8);
+      ctx.beginPath(); ctx.arc(0, 0, 18, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.rotate(Math.sin(this.time * 2) * 0.3);
+      ctx.fillStyle = '#1c1226'; ctx.fillRect(-10, -10, 20, 20);
+      ctx.strokeStyle = pu.color; ctx.lineWidth = 2; ctx.strokeRect(-10, -10, 20, 20);
+      ctx.fillStyle = pu.color; ctx.font = 'bold 14px monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(pu.letter, 0, 1);
+      ctx.restore();
+    }
+    ctx.textBaseline = 'alphabetic';
     // Drones, facing the jet
     for (const e of this.enemies) {
       ctx.save();
@@ -668,6 +800,30 @@ export class Game {
       poly(ctx, [-7, 2, -10, 5.5, -4, 2], '#c1121f', 0.8);
       poly(ctx, [-7, -2, 4, -2, 4, 2, -7, 2], '#d8d8e4', 0.8);
       poly(ctx, [4, -2, 10, 0, 4, 2], '#c1121f', 0.8);
+      ctx.restore();
+    }
+    // Pulse laser beams
+    if (this.power && this.power.kind === 'laser') {
+      ctx.lineCap = 'round';
+      for (const a of this.laserAngles()) {
+        const ex = p.x + Math.cos(a) * LASER_LEN, ey = p.y + Math.sin(a) * LASER_LEN;
+        const flick = 1 + Math.sin(this.time * 60) * 0.25;
+        ctx.strokeStyle = 'rgba(76,201,240,0.3)'; ctx.lineWidth = 14 * flick;
+        ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(ex, ey); ctx.stroke();
+        ctx.strokeStyle = '#4cc9f0'; ctx.lineWidth = 5;
+        ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(ex, ey); ctx.stroke();
+        ctx.strokeStyle = '#e8fbff'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(ex, ey); ctx.stroke();
+      }
+      ctx.lineCap = 'butt';
+    }
+    // Homing rockets
+    for (const r of this.rockets) {
+      ctx.save();
+      ctx.translate(r.x, r.y); ctx.rotate(Math.atan2(r.vy, r.vx));
+      ctx.fillStyle = '#ffb703';
+      ctx.beginPath(); ctx.moveTo(-5, -1.5); ctx.lineTo(-10 - Math.random() * 4, 0); ctx.lineTo(-5, 1.5); ctx.fill();
+      poly(ctx, [-5, -1.5, 4, -1.5, 7, 0, 4, 1.5, -5, 1.5], '#ff4d6d', 0.8);
       ctx.restore();
     }
     // Fighter jet, pointing where it flies
@@ -849,6 +1005,17 @@ export class Game {
     ctx.fillRect(cx - 16, by, 32, 4);
     ctx.fillStyle = p.hp / p.maxHp > 0.3 ? '#7ae582' : '#ff4d6d';
     ctx.fillRect(cx - 16, by, 32 * (p.hp / p.maxHp), 4);
+    // Active power-up: name and time left, top centre
+    if (this.power) {
+      const pu = POWERUPS[this.power.kind], k = this.power.t / C.powerupDuration;
+      if (k > 0.25 || Math.floor(this.time * 8) % 2) {
+        ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+        ctx.fillStyle = pu.color; ctx.font = 'bold 16px monospace';
+        ctx.fillText(pu.name, W / 2, 72);
+      }
+      ctx.fillStyle = '#000'; ctx.fillRect(W / 2 - 70, 80, 140, 5);
+      ctx.fillStyle = pu.color; ctx.fillRect(W / 2 - 70, 80, 140 * k, 5);
+    }
 
     if (!this.choosing) return;
     ctx.fillStyle = 'rgba(9,2,28,0.78)'; ctx.fillRect(0, 0, W, H);

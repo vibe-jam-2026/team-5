@@ -69,4 +69,11 @@ export const CONFIG = {
   aaBlast: 34,                   // flak burst radius (also hurts hunters!)
   aaHp: 60,                      // cannon tracers can destroy a gun
   aaPoints: 250,
+
+  // Power-ups: glowing crates that grant a special weapon for a short time.
+  powerupChance: 0.015,          // drop chance per drone kill...
+  powerupChanceHeavy: 0.12,      // ...per hexacopter kill
+  powerupFromGun: 0.5,           // ...per destroyed anti-aircraft gun
+  powerupLife: 14,               // seconds a crate stays before it fades
+  powerupDuration: 10,           // seconds the special weapon lasts
 };

@@ -80,6 +80,9 @@ function update(dt) {
         if (e === 'flak') sfx.flak();
         if (e === 'zap' && soundBudget-- > 0) sfx.zap();
         if (e === 'boom') { sfx.boom(); shake = Math.max(shake, 3); }
+        if (e === 'power') sfx.power();
+        if (e === 'rocket' && soundBudget-- > 0) sfx.rocket();
+        if (e === 'pop' && soundBudget-- > 0) sfx.pop();
         if (e === 'levelup') sfx.levelUp();
         if (e === 'choose') sfx.choose();
         if (e === 'over') { sfx.gameOver(); shake = 20; endGame(); }

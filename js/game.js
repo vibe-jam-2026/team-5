@@ -950,22 +950,44 @@ export class Game {
       ctx.fillStyle = '#3a3a4a'; ctx.fillRect(-4, -6, 8, 12);
       ctx.restore();
     }
-    // Parachute: lines and a striped neon canopy that blooms open
+    // Parachute in the synthwave style: a dome like the striped sunset sun
+    // (yellow -> orange -> pink, slats across the lower half), neon glow edges and cyan lines.
     ctx.save();
     ctx.translate(pi.x, pi.y);
     ctx.rotate(e.seat ? Math.sin(e.t * 2) * 0.12 : 0);
     if (e.chute > 0) {
-      const r = 36 * e.chute, top = -18 - 44 * e.chute;
-      ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 0.8;
-      for (const dx of [-1, -0.4, 0.4, 1]) { ctx.beginPath(); ctx.moveTo(0, -6); ctx.lineTo(dx * r, top); ctx.stroke(); }
-      const cols = ['#ff2a6d', '#fdfdfd', '#05d9e8', '#fdfdfd', '#ff2a6d'];
-      for (let i = 0; i < 5; i++) {
-        const a0 = Math.PI + (i / 5) * Math.PI, a1 = Math.PI + ((i + 1) / 5) * Math.PI;
-        ctx.fillStyle = cols[i];
-        ctx.beginPath(); ctx.moveTo(0, top); ctx.ellipse(0, top, r, r * 0.7, 0, a0, a1); ctx.closePath(); ctx.fill();
+      const r = 36 * e.chute, ry = r * 0.7, top = -18 - 44 * e.chute;
+      // Shroud lines, glowing cyan
+      ctx.save();
+      ctx.shadowColor = NEON.cyan; ctx.shadowBlur = 6;
+      ctx.strokeStyle = 'rgba(5,217,232,0.85)'; ctx.lineWidth = 0.8;
+      for (const dx of [-1, -0.5, 0, 0.5, 1]) { ctx.beginPath(); ctx.moveTo(0, -6); ctx.lineTo(dx * r, top - (dx ? 0 : ry * 0.25)); ctx.stroke(); }
+      ctx.restore();
+      // Canopy: sunset gradient dome with a magenta glow
+      const dome = () => { ctx.beginPath(); ctx.ellipse(0, top, r, ry, 0, Math.PI, Math.PI * 2); ctx.quadraticCurveTo(0, top - ry * 0.25, -r, top); ctx.closePath(); };
+      ctx.save();
+      ctx.shadowColor = NEON.magenta; ctx.shadowBlur = 18;
+      const g = ctx.createLinearGradient(0, top - ry, 0, top);
+      g.addColorStop(0, NEON.yellow); g.addColorStop(0.45, '#ff9e3d'); g.addColorStop(1, '#ff2a6d');
+      ctx.fillStyle = g; dome(); ctx.fill();
+      ctx.restore();
+      // Sun slats across the lower dome, thicker towards the hem, and gore seams
+      ctx.save();
+      dome(); ctx.clip();
+      ctx.fillStyle = '#1a0838';
+      for (let i = 0; i < 4; i++) {
+        const y = top - ry * 0.5 + i * ry * 0.15;
+        ctx.fillRect(-r, y, r * 2, 0.6 + i * 0.9 * e.chute);
       }
-      ctx.strokeStyle = '#1c1226'; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.ellipse(0, top, r, r * 0.7, 0, Math.PI, Math.PI * 2); ctx.closePath(); ctx.stroke();
+      ctx.strokeStyle = 'rgba(26,8,56,0.5)'; ctx.lineWidth = 0.7;
+      for (const dx of [-0.5, 0, 0.5]) { ctx.beginPath(); ctx.moveTo(dx * r * 0.35, top - ry); ctx.lineTo(dx * r, top); ctx.stroke(); }
+      ctx.restore();
+      // Neon rim
+      ctx.save();
+      ctx.shadowColor = NEON.magenta; ctx.shadowBlur = 10;
+      ctx.strokeStyle = NEON.magenta; ctx.lineWidth = 1.4;
+      dome(); ctx.stroke();
+      ctx.restore();
     }
     ctx.scale(1.4, 1.4);   // pilot drawn a bit larger so they read when zoomed
     // Seat (until it drops) and the pilot

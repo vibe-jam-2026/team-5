@@ -13,6 +13,7 @@ Genre inspiration: "survivors-likes" / "bullet heaven" (e.g. Vampire Survivors).
 - You are the vampire. Hunters (villagers with torches, fast hunters, tough priests) swarm towards you.
 - Your powers attack automatically. Killed hunters drop blood drops (XP).
 - Collect blood to level up. Each level-up you pick 1 of 3 random upgrades: new powers or stronger ones.
+- Trap: from level 3, each level-up has a 50% chance that one card is a **Big Red Button** ("Do not press"). Picking it ends the run at once ("YOU PRESSED THE BIG RED BUTTON" on the game-over screen). Tunable in `js/config.js` (`redButtonFromLevel`, `redButtonChance`).
 - Hunters touching you drain your health. Health at 0 ends the night (game over).
 - The longer you survive, the more and tougher the hunters.
 - Goal: highest score. Score comes from kills (with a kill-streak multiplier) and survival time.
@@ -64,3 +65,4 @@ Plain HTML, JavaScript modules and canvas. No libraries, no build step. Gameplay
 
 - 2026-11-09: Arcade, high-score focused, survivors-like genre. Vampire theme with a diary framing; working title "Blood Diary" (not "The Vampire Diaries", which is an existing TV series).
 - 2026-11-09: Camera follows the vampire, who stays centred while the world scrolls (like Vampire Survivors). Hunters spawn just off-screen and always chase.
+- 2026-11-09: Added the Big Red Button trap card to level-ups: a joke temptation that ends the run if picked.

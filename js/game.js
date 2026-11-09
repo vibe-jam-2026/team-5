@@ -226,6 +226,9 @@ export class Game {
     this.powerCd = 0;
     this.powerSpin = 0;
     this.rockets = [];
+    this.shieldT = 0;         // seconds of flare shield left
+    this.flareCd = 0;         // seconds until flares can be used again
+    this.flares = [];         // flare particles falling behind the jet
     this.score = 0;
     this.time = 0;
     this.kills = 0;
@@ -258,6 +261,7 @@ export class Game {
     return pts;
   }
 
+  get shielded() { return this.shieldT > 0; }
   get hour() { return Boss.hour(this); }
   get floorY() { return CRASH_Y; }
 
@@ -296,6 +300,7 @@ export class Game {
     }
 
     this.time += dt;
+    this.updateFlares(dt, input);
     this.score += C.survivalPointsPerSecond * dt * (this.boss?.phase === 'overtime' ? C.boss.overtimeMult : 1);
     this.movePlayer(dt, input);
     this.spawn(dt);
@@ -406,7 +411,7 @@ export class Game {
       if (e.flash > 0) e.flash -= dt;
       if (e.batCd > 0) e.batCd -= dt;
       // Contact damage
-      if (d < e.r + p.r) {
+      if (d < e.r + p.r && !this.shielded) {
         p.hp -= e.dps * dt;
         if (this.hurtCd <= 0) { this.hurtCd = 0.4; this.events.push('hit'); }
       }
@@ -534,7 +539,10 @@ export class Game {
     for (const b of this.bullets) {
       b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
       if (b.life <= 0) b.done = true;
-      else if (dist2(b, p) < (p.r + 3) ** 2) {
+      else if (this.shielded && dist2(b, p) < C.flareShieldRadius ** 2) {   // burns up on the flare shield
+        b.done = true;
+        this.burst(b.x, b.y, NEON.cyan, 3);
+      } else if (dist2(b, p) < (p.r + 3) ** 2) {
         b.done = true;
         p.hp -= b.dmg;
         this.hurtCd = 0.4;
@@ -612,7 +620,7 @@ export class Game {
     const p = this.player, r = C.aaBlast;
     this.flak.push({ x, y, t: 0, r });
     this.events.push('boom');
-    if (dist2({ x, y }, p) < (r + p.r) ** 2) {
+    if (!this.shielded && dist2({ x, y }, p) < (r + p.r) ** 2) {
       p.hp -= C.aaDamage;
       this.hurtCd = 0.4;
       this.events.push('hit');
@@ -964,6 +972,24 @@ export class Game {
     }
   }
 
+  // Flares: F or Space pops a spray of flares and a short shield that blocks all damage.
+  updateFlares(dt, input) {
+    if (this.flareCd > 0) this.flareCd = Math.max(0, this.flareCd - dt);
+    if (this.shieldT > 0) this.shieldT = Math.max(0, this.shieldT - dt);
+    if (this.flareCd <= 0 && input.wasPressed('KeyF', 'Space')) {
+      this.shieldT = C.flareShield;
+      this.flareCd = C.flareCooldown;
+      const p = this.player, back = p.heading + Math.PI;
+      for (let i = 0; i < 14; i++) {
+        const a = back + rand(-1.1, 1.1), s = rand(120, 260);
+        this.flares.push({ x: p.x, y: p.y, vx: Math.cos(a) * s + p.vx * 0.3, vy: Math.sin(a) * s - 60, life: rand(1.6, 2.6) });
+      }
+      this.events.push('flare');
+    }
+    for (const f of this.flares) { f.x += f.vx * dt; f.y += f.vy * dt; f.vx *= 0.96; f.vy = f.vy * 0.96 + 140 * dt; f.life -= dt; }
+    this.flares = this.flares.filter((f) => f.life > 0);
+  }
+
   updateEffects(dt) {
     for (const q of this.particles) { q.x += q.vx * dt; q.y += q.vy * dt; q.vx *= 0.92; q.vy *= 0.92; q.life -= dt; }
     if (this.particles.length > 600) this.particles.splice(0, this.particles.length - 600);
@@ -974,6 +1000,38 @@ export class Game {
 
   // ---------- Drawing ----------
   // Scrolling ground: grass tufts and stones fixed in the world.
+  // Flare sparks and the shield bubble round the jet.
+  drawFlares(ctx) {
+    const p = this.player;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    for (const f of this.flares) {
+      const k = Math.min(1, f.life / 1.5), fl = 0.7 + Math.random() * 0.3;
+      ctx.fillStyle = `rgba(255,140,60,${(0.25 * k).toFixed(3)})`;
+      ctx.beginPath(); ctx.arc(f.x, f.y, 9 * k * fl, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = `rgba(255,245,200,${k.toFixed(3)})`;
+      ctx.beginPath(); ctx.arc(f.x, f.y, 2.5 * fl, 0, Math.PI * 2); ctx.fill();
+    }
+    if (this.shielded && !this.eject) {
+      const r = C.flareShieldRadius, t = this.time;
+      // Flickers in the last half second to warn it's about to drop.
+      const vis = this.shieldT > 0.6 || Math.floor(t * 16) % 2 ? 1 : 0.3;
+      const g = ctx.createRadialGradient(p.x, p.y, r * 0.4, p.x, p.y, r);
+      g.addColorStop(0, 'rgba(5,217,232,0)');
+      g.addColorStop(1, `rgba(5,217,232,${(0.35 * vis).toFixed(3)})`);
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = `rgba(150,245,255,${(0.9 * vis).toFixed(3)})`; ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (let i = 0; i <= 6; i++) {   // rotating hexagon
+        const a = t * 1.5 + (i * Math.PI) / 3;
+        ctx[i ? 'lineTo' : 'moveTo'](p.x + Math.cos(a) * r, p.y + Math.sin(a) * r);
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   drawGround(ctx) {
     const p = this.player;
     const x0 = Math.floor((p.x - W / 2) / TILE), x1 = Math.floor((p.x + W / 2) / TILE);
@@ -1126,6 +1184,7 @@ export class Game {
       drawJet(ctx, this.aircraft, p.moving ? 6 + Math.sin(this.time * 50) * 2 : 2.5 + Math.sin(this.time * 40) * 0.5);
       ctx.restore();
     }
+    this.drawFlares(ctx);
     // Drone bullets: red tracers
     for (const b of this.bullets) {
       ctx.strokeStyle = 'rgba(255,77,109,0.45)'; ctx.lineWidth = 2;
@@ -1386,6 +1445,20 @@ export class Game {
     ctx.fillStyle = xpGrad; ctx.fillRect(bx, 34, bw * Math.min(1, this.xp / this.xpToNext), 8);
     ctx.strokeStyle = 'rgba(232,220,255,0.35)'; ctx.lineWidth = 1;
     ctx.strokeRect(bx + 0.5, 17.5, bw - 1, 9); ctx.strokeRect(bx + 0.5, 34.5, bw - 1, 7);
+    // Flares: shield time left, cooldown, or READY
+    ctx.fillStyle = NEON.ink; ctx.fillText('FL', 16, 52);
+    ctx.fillStyle = '#1a0838'; ctx.fillRect(bx, 48, bw, 8);
+    if (this.shielded) {
+      ctx.fillStyle = '#96f5ff'; ctx.fillRect(bx, 48, bw * (this.shieldT / C.flareShield), 8);
+      ctx.fillText('SHIELD', bx + bw + 8, 52);
+    } else if (this.flareCd > 0) {
+      ctx.fillStyle = '#ff8c3c'; ctx.fillRect(bx, 48, bw * (1 - this.flareCd / C.flareCooldown), 8);
+      ctx.fillStyle = NEON.ink; ctx.fillText(`${Math.ceil(this.flareCd)}s`, bx + bw + 8, 52);
+    } else {
+      ctx.fillStyle = '#ffb703'; ctx.fillRect(bx, 48, bw, 8);
+      if (Math.floor(this.time * 2) % 2) ctx.fillText('READY [F]', bx + bw + 8, 52);
+    }
+    ctx.strokeStyle = 'rgba(232,220,255,0.35)'; ctx.strokeRect(bx + 0.5, 48.5, bw - 1, 7);
     // Low-altitude warning when the jet nears the treetops
     const alt = CRASH_Y - p.y;
     if (!this.over && !this.eject && alt < C.pullUpWarning && Math.floor(this.time * 6) % 2 === 0) {

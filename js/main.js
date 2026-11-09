@@ -92,6 +92,7 @@ function update(dt) {
         if (e === 'eject') { sfx.bossWarn(); shake = Math.max(shake, 8); }
         if (e === 'seatFire') { sfx.seatFire(); shake = Math.max(shake, 6); }
         if (e === 'chute') sfx.chute();
+        if (e === 'flare') sfx.flare();
         if (e === 'bossWarn') sfx.bossWarn();
         if (e === 'bossDown') { sfx.bossDown(); shake = Math.max(shake, 14); }
         if (e === 'dawn') { sfx.dawn(); shake = Math.max(shake, 10); }
@@ -364,9 +365,9 @@ function drawHud() {
   neonText(`LV ${game.level}`, W - 16, 22, 18, NEON.magenta, 'right');
   text(`SPLASH ${game.kills}`, W - 16, 44, 14, NEON.ink, 'right');
   if (game.multiplier > 1) {
-    neonText(`x${game.multiplier} STREAK`, 16, 62, 16, NEON.yellow, 'left');
+    neonText(`x${game.multiplier} STREAK`, 16, 76, 16, NEON.yellow, 'left');
     ctx.fillStyle = NEON.yellow;
-    ctx.fillRect(16, 74, 110 * (game.streakTimer / CONFIG.streakWindow), 4);
+    ctx.fillRect(16, 88, 110 * (game.streakTimer / CONFIG.streakWindow), 4);
   }
 }
 
@@ -562,8 +563,10 @@ function drawTitle() {
   const cy = ly + 222;
   controlRow('Fly', ['↑', '↓', '←', '→', 'or', 'W', 'A', 'S', 'D'], lx + 20, cy);
   controlRow('Pick upgrade', ['1', '2', '3', 'or', '←', '→', 'Enter'], lx + 20, cy + 26);
-  controlRow('Pause', ['Esc'], lx + 20, cy + 52);
-  controlRow('Sound', ['M'], lx + 20, cy + 78);
+  controlRow('Flares', ['F', 'or', 'Space'], lx + 20, cy + 52);
+  text('(3 s shield, every 60 s)', lx + 270, cy + 52, 12, NEON.dim, 'left', 'normal');
+  controlRow('Pause', ['Esc'], lx + 20, cy + 78);
+  controlRow('Sound', ['M'], lx + 240, cy + 78);
   controlRow('Fly again', ['Enter'], lx + 20, cy + 104);
   text('(after you go down)', lx + 160, cy + 104, 12, NEON.dim, 'left', 'normal');
 

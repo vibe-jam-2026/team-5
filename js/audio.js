@@ -214,6 +214,7 @@ export const sfx = {
   pop() { tone(110, 0.12, 'square', 0.05, -60); },
   // Big red button: a rocket-seat whoosh, then a soft pop as the chute opens.
   seatFire() { tone(160, 0.5, 'sawtooth', 0.14, 900); },
+  flare() { for (let i = 0; i < 4; i++) setTimeout(() => tone(1400 - i * 200, 0.12, 'sawtooth', 0.05, -900), i * 50); tone(660, 0.4, 'triangle', 0.08, 500); },
   chute() { tone(240, 0.18, 'triangle', 0.1, -120); },
   select() { tone(660, 0.05, 'square', 0.08); },
   // Boss: a two-tone siren, a big crunch, and a rising fanfare at dawn.

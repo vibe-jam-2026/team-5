@@ -87,7 +87,12 @@ export const CONFIG = {
   // choices. Picking it ends the night on the spot.
   redButtonFromLevel: 3,         // first level-up it can appear on
   redButtonChance: 0.5,          // chance per level-up after that
-  ejectDuration: 7,            // seconds of the pilot-ejecting animation before game over (ENTER skips)
+  ejectDuration: 7,
+  // Flares (F or Space): pop a spray of flares and a shield that blocks all damage.
+  flareShield: 3,                // seconds the shield lasts
+  flareCooldown: 60,             // seconds before flares can be used again
+  flareShieldRadius: 30,         // enemy bullets inside this range of the jet burn up on the shield
+            // seconds of the pilot-ejecting animation before game over (ENTER skips)
 
   // Final boss, just before sunrise: the Mothership, then its AI core.
   // Beat the core and dawn breaks: big bonus, full heal, then Overtime.

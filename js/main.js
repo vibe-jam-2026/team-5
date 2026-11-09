@@ -176,51 +176,114 @@ const STARS = Array.from({ length: 45 }, (_, i) => {
   return { x: r(1) * W, y: r(2) * H * 0.6, s: 0.6 + r(3) * 1.2, phase: r(4) * 6.28, speed: 0.6 + r(5) * 1.6 };
 });
 
-// In-game sky: the same neon sunset as the title screen. The horizon sits
-// behind the forest and sinks out of view as the jet climbs, so the sky
-// darkens to deep purple up high and glows pink and orange near the ground.
+// In-game sky with a day cycle driven by the run's clock: sunset → night →
+// sunrise → day → sunset again. The horizon sits behind the forest and sinks
+// out of view as the jet climbs, so the sky darkens up high.
 const SUNSET_SUN = { x: W * 0.68, r: 90 };
+const MOON = { x: W * 0.28, y: H * 0.22, r: 34 };
+const DAY_LENGTH = 180;   // seconds for one full cycle
+
+// Sky gradient stops (top → horizon) for each time of day.
+const SKIES = {
+  sunset:  ['#07011a', '#2a0a52', '#8a1f78', '#e0407a', '#ff9e3d'],
+  night:   ['#020008', '#0a0420', '#150a36', '#1f0f44', '#2a1650'],
+  sunrise: ['#0e0b3c', '#3a2a7a', '#b8559c', '#ff8a80', '#ffd27a'],
+  day:     ['#1b4fa6', '#3b7fd6', '#6fb2ec', '#a8d8f5', '#e8f6ff'],
+};
+// Keyframes over the cycle (u in 0..1): sky, sun height above the horizon
+// (in sun radii; negative = set), star brightness and moon brightness.
+const CYCLE = [
+  { u: 0.00, sky: 'sunset',  sun: 0.2,  stars: 0.3, moon: 0 },
+  { u: 0.12, sky: 'night',   sun: -2.6, stars: 1,   moon: 1 },
+  { u: 0.40, sky: 'night',   sun: -2.6, stars: 1,   moon: 1 },
+  { u: 0.52, sky: 'sunrise', sun: 0.2,  stars: 0.3, moon: 0 },
+  { u: 0.64, sky: 'day',     sun: 2.6,  stars: 0,   moon: 0 },
+  { u: 0.88, sky: 'day',     sun: 2.6,  stars: 0,   moon: 0 },
+  { u: 1.00, sky: 'sunset',  sun: 0.2,  stars: 0.3, moon: 0 },
+];
+
+const hexRgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+function mixHex(a, b, k) {
+  const A = hexRgb(a), B = hexRgb(b);
+  return `rgb(${A.map((v, i) => Math.round(v + (B[i] - v) * k)).join(',')})`;
+}
+
+// Current time-of-day state from the run's clock.
+function timeOfDay(seconds) {
+  const u = ((seconds / DAY_LENGTH) % 1 + 1) % 1;
+  let i = 0;
+  while (u > CYCLE[i + 1].u) i++;
+  const a = CYCLE[i], b = CYCLE[i + 1];
+  const k0 = (u - a.u) / (b.u - a.u), k = k0 * k0 * (3 - 2 * k0);   // smoothstep
+  const lerp = (f) => a[f] + (b[f] - a[f]) * k;
+  return {
+    stops: SKIES[a.sky].map((c, j) => mixHex(c, SKIES[b.sky][j], k)),
+    sun: lerp('sun'), stars: lerp('stars'), moon: lerp('moon'),
+  };
+}
 
 function drawBackground() {
   const t = performance.now() / 1000;
-  const horizon = H - 50 + (game && state !== 'select' ? game.groundOffset : 0);
+  const inRun = game && state !== 'select';
+  const horizon = H - 50 + (inRun ? game.groundOffset : 0);
+  const tod = timeOfDay(inRun ? game.time : 0);
   const sky = ctx.createLinearGradient(0, horizon - H * 1.6, 0, horizon);
-  sky.addColorStop(0, '#07011a');
-  sky.addColorStop(0.5, '#2a0a52');
-  sky.addColorStop(0.8, '#8a1f78');
-  sky.addColorStop(0.93, '#e0407a');
-  sky.addColorStop(1, '#ff9e3d');
+  [0, 0.5, 0.8, 0.93, 1].forEach((at, j) => sky.addColorStop(at, tod.stops[j]));
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, W, H);
 
-  // Stars fade in towards the top, where the sky is darkest.
+  // Stars fade in towards the top, where the sky is darkest, and only at night.
   for (const st of STARS) {
-    const fade = Math.max(0, Math.min(1, (horizon - st.y - H * 0.55) / (H * 0.5)));
+    const fade = tod.stars * Math.max(0, Math.min(1, (horizon - st.y - H * 0.2) / (H * 0.5)));
     if (fade <= 0) continue;
     const a = fade * (0.2 + 0.4 * (0.5 + 0.5 * Math.sin(t * st.speed + st.phase)));
     ctx.fillStyle = `rgba(255,235,255,${a.toFixed(3)})`;
     ctx.fillRect(st.x, st.y, st.s, st.s);
   }
 
-  if (horizon - SUNSET_SUN.r * 2.4 > H) return;   // sun is far below the screen
-  const { x, r } = SUNSET_SUN;
-  const halo = ctx.createRadialGradient(x, horizon, r * 0.6, x, horizon, r * 2.4);
-  halo.addColorStop(0, 'rgba(255,42,109,0.45)');
-  halo.addColorStop(1, 'rgba(255,42,109,0)');
-  ctx.fillStyle = halo;
-  ctx.fillRect(x - r * 2.4, horizon - r * 2.4, r * 4.8, r * 2.4);
+  // Moon: a pale crescent that shows up at night.
+  if (tod.moon > 0.01) {
+    const my = MOON.y + (horizon - (H - 50)) * 0.3;
+    ctx.save();
+    ctx.globalAlpha = tod.moon;
+    const mg = ctx.createRadialGradient(MOON.x, my, MOON.r * 0.8, MOON.x, my, MOON.r * 3);
+    mg.addColorStop(0, 'rgba(200,210,255,0.25)');
+    mg.addColorStop(1, 'rgba(200,210,255,0)');
+    ctx.fillStyle = mg;
+    ctx.fillRect(MOON.x - MOON.r * 3, my - MOON.r * 3, MOON.r * 6, MOON.r * 6);
+    // Crescent: the moon disc minus an offset disc (even-odd fill inside the moon).
+    ctx.beginPath(); ctx.arc(MOON.x, my, MOON.r, 0, Math.PI * 2); ctx.clip();
+    ctx.fillStyle = '#e8e6ff';
+    ctx.beginPath();
+    ctx.arc(MOON.x, my, MOON.r, 0, Math.PI * 2);
+    ctx.arc(MOON.x + MOON.r * 0.45, my - MOON.r * 0.2, MOON.r * 0.9, 0, Math.PI * 2);
+    ctx.fill('evenodd');
+    ctx.restore();
+  }
 
+  const { x, r } = SUNSET_SUN;
+  const cy = horizon - tod.sun * r;                 // sun centre
+  if (cy - r > H || tod.sun < -1.05) return;        // sun is below the horizon or the screen
+  // Pink glow when the sun is low, a soft white one when it's high.
+  const low = Math.max(0, Math.min(1, 1 - tod.sun / 2));
+  const halo = ctx.createRadialGradient(x, cy, r * 0.6, x, cy, r * 2.4);
+  halo.addColorStop(0, low > 0.5 ? `rgba(255,42,109,${(0.45 * low).toFixed(3)})` : `rgba(255,250,220,${(0.35 * (1 - low)).toFixed(3)})`);
+  halo.addColorStop(1, 'rgba(255,42,109,0)');
   ctx.save();
+  ctx.beginPath(); ctx.rect(0, 0, W, horizon); ctx.clip();   // nothing below the horizon
+  ctx.fillStyle = halo;
+  ctx.fillRect(x - r * 2.4, cy - r * 2.4, r * 4.8, r * 4.8);
+
   ctx.beginPath();
-  ctx.arc(x, horizon, r, Math.PI, 0);
+  ctx.arc(x, cy, r, 0, Math.PI * 2);
   ctx.clip();
-  const sg = ctx.createLinearGradient(0, horizon - r, 0, horizon);
+  const sg = ctx.createLinearGradient(0, cy - r, 0, cy + r);
   sg.addColorStop(0, NEON.yellow);
-  sg.addColorStop(0.45, '#ff9e3d');
-  sg.addColorStop(1, NEON.pink);
+  sg.addColorStop(0.45, low > 0.5 ? '#ff9e3d' : '#fff3b0');
+  sg.addColorStop(1, low > 0.5 ? NEON.pink : '#ffd166');
   ctx.fillStyle = sg;
-  ctx.fillRect(x - r, horizon - r, r * 2, r);
-  // Slats cut through the lower sun, thicker towards the horizon, slowly sinking.
+  ctx.fillRect(x - r, cy - r, r * 2, r * 2);
+  // Slats cut through the sun near the horizon, thicker lower down, slowly sinking.
   ctx.fillStyle = sky;
   const gap = 12, drift = (t * 6) % gap;
   for (let i = 0; i < 7; i++) {

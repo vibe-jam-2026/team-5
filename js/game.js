@@ -298,10 +298,12 @@ export class Game {
       d = Math.atan2(Math.sin(d), Math.cos(d));
       p.heading += d * Math.min(1, dt * 12);
     }
-    p.vx = ax.x * speed; p.vy = ax.y * speed;
+    // The jet never stops: it always flies forward along its heading, and
+    // the arrow keys only steer it.
+    p.vx = Math.cos(p.heading) * speed; p.vy = Math.sin(p.heading) * speed;
     p.x += p.vx * dt;
     p.y += p.vy * dt;
-    p.moving = !!(ax.x || ax.y);
+    p.moving = true;
     // Neon exhaust trail left behind the nozzle.
     const back = 12 * this.aircraft.size;
     p.trail = (p.trail || []).filter((q) => (q.life -= dt) > 0);

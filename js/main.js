@@ -435,7 +435,7 @@ function drawTitle() {
 
   neonText('FLIGHT CONTROLS', lx + 20, ly + 196, 16, NEON.magenta, 'left');
   const cy = ly + 222;
-  controlRow('Fly', ['↑', '↓', '←', '→', 'or', 'W', 'A', 'S', 'D'], lx + 20, cy);
+  controlRow('Steer', ['↑', '↓', '←', '→', 'or', 'W', 'A', 'S', 'D'], lx + 20, cy);
   controlRow('Pick upgrade', ['1', '2', '3', 'or', '←', '→', 'Enter'], lx + 20, cy + 26);
   controlRow('Pause', ['P', 'or', 'Esc'], lx + 20, cy + 52);
   controlRow('Sound', ['M'], lx + 20, cy + 78);

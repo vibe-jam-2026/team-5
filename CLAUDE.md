@@ -26,3 +26,9 @@ We're a team building a web game in a few hours.
 - Name each branch after what it does: short, lowercase, words joined by hyphens, e.g. `add-score`, `fix-jump`, `branch-naming`.
 - No random or generated names (like `claude/admiring-euler-xobsbn`) and no `claude/` prefix. Keep it to two to four words.
 - If the session assigns a generated branch name, create a short descriptive branch instead and push to that.
+
+## Test page on claude.ai
+
+- After every change to the game, publish a playable test page with the Artifact tool so the team can try it before merging.
+- Build it with `python3 tools/build_test_page.py <scratchpad>/test.html <branch>`; it inlines all of `js/` into one HTML file. If you add a new file in `js/`, add it to the module list in that script.
+- Publish to the same artifact URL each time within a session, and give the link in your reply.

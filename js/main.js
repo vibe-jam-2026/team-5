@@ -226,15 +226,16 @@ function drawBackground() {
 
 function drawHud() {
   const score = Math.floor(game.score);
-  text(`SCORE ${String(score).padStart(7, '0')}`, 16, 22, 18, '#fff', 'left');
-  neonText(`HI ${String(Math.max(score, highscores.best())).padStart(7, '0')}`, W / 2, 22, 16, NEON.cyan);
-  text(fmtTime(game.time), W / 2, 44, 18, '#fff');
+  // Top middle: score, high score and time. Top left holds the HP/XP bars (game.js).
+  text(`SCORE ${String(score).padStart(7, '0')}`, W / 2, 22, 18, '#fff');
+  neonText(`HI ${String(Math.max(score, highscores.best())).padStart(7, '0')}`, W / 2, 42, 14, NEON.cyan);
+  text(fmtTime(game.time), W / 2, 62, 16, '#fff');
   neonText(`LV ${game.level}`, W - 16, 22, 18, NEON.magenta, 'right');
   text(`SPLASH ${game.kills}`, W - 16, 44, 14, NEON.ink, 'right');
   if (game.multiplier > 1) {
-    neonText(`x${game.multiplier} STREAK`, 16, 46, 16, NEON.yellow, 'left');
+    neonText(`x${game.multiplier} STREAK`, 16, 62, 16, NEON.yellow, 'left');
     ctx.fillStyle = NEON.yellow;
-    ctx.fillRect(16, 58, 110 * (game.streakTimer / CONFIG.streakWindow), 4);
+    ctx.fillRect(16, 74, 110 * (game.streakTimer / CONFIG.streakWindow), 4);
   }
 }
 

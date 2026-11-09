@@ -2,8 +2,8 @@
 export const CONFIG = {
   width: 960,
   height: 540,
-  title: 'BLOOD DIARY',          // working title, see design/game.md
-  subtitle: 'survive the night',
+  title: 'MIDNIGHT AFTERBURNER', // shown on the start screen
+  subtitle: 'a neon night sortie',
   highscoreCount: 10,
   highscoreKey: 'team5.highscores.v2',
 
@@ -39,7 +39,7 @@ export const CONFIG = {
   speedScaleSeconds: 300,        // hunter speed +100% every this many seconds...
   maxSpeedScale: 1.5,            // ...capped so you can still outrun them
   dpsScaleSeconds: 150,          // hunter contact damage +100% every this many seconds
-  basicShareStart: 0.6,          // chance a spawn is a plain villager at the start...
+  basicShareStart: 0.6,          // chance a spawn is a plain quadcopter drone at the start...
   basicShareEnd: 0.2,            // ...falling to this...
   basicShareSeconds: 300,        // ...over this many seconds
   maxEnemies: 400,
@@ -48,6 +48,18 @@ export const CONFIG = {
   xpBase: 3,
   xpPerLevel: 3,
 
+  // Armed drones. Hexacopters always shoot; some quadcopters carry a gun too.
+  // Darts are kamikaze drones and never shoot.
+  armedQuadFrom: 45,             // seconds into the night before armed quads appear
+  armedQuadShare: 0.25,          // share of quad spawns that carry a gun after that
+  droneBulletSpeed: 170,
+  droneRange: 380,               // drones only fire when on screen and this close
+  droneWarn: 0.45,               // seconds of red glow before a drone fires
+  droneGuns: {
+    quad:  { interval: 2.8, damage: 6, shots: 1, spread: 0 },
+    heavy: { interval: 3.4, damage: 8, shots: 3, spread: 0.22 },
+  },
+
   // Anti-aircraft guns hidden in the forest at the bottom of the screen
   aaFrom: 20,                    // seconds into the night before they open fire
   aaInterval: 3.2,               // seconds between shots per gun at the start...
@@ -55,6 +67,6 @@ export const CONFIG = {
   aaShellSpeed: 300,
   aaDamage: 14,                  // flak burst damage to the jet
   aaBlast: 34,                   // flak burst radius (also hurts hunters!)
-  aaHp: 60,                      // Blood Bolts can destroy a gun
+  aaHp: 60,                      // cannon tracers can destroy a gun
   aaPoints: 250,
 };

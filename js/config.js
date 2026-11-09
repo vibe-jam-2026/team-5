@@ -10,6 +10,7 @@ export const CONFIG = {
   // Player
   playerSpeed: 190,
   playerMaxHp: 100,
+  lowHpWarning: 0.3,             // red pulse round the screen edges below this share of max HP
   magnetRange: 90,               // SSD cards fly to you inside this range
   crashHeight: 40,               // flying lower than this above the ground crashes into the trees
   pullUpWarning: 90,

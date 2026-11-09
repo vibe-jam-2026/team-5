@@ -20,7 +20,15 @@ The site is served as static files, so everything the browser needs (HTML, JavaS
 | --- | --- |
 | `index.html` | The site's start page. It's a copy of the instructions for now; replace it with what the team builds. |
 | `instructions.html` | The exercise instructions. Keep this file so they stay reachable. |
+| `design/game.md` | The team's game description. Claude uses it as context for the game. |
+| `CLAUDE.md` | Instructions Claude Code reads at the start of every session. |
 | `.github/workflows/publish.yml` | Deploys the site to GitHub Pages on every push to `main`. |
+
+## The game description
+
+Describe the game in [`design/game.md`](design/game.md): pitch, controls, scope and so on. [`CLAUDE.md`](CLAUDE.md) tells Claude to read it before working on the game, so you don't have to explain the game in every session.
+
+Keep it up to date as you go. When the team changes direction, edit the file (or ask Claude to) and merge the change to `main`. A new session picks up the version on its branch, which starts from `main`.
 
 ## Using a build tool
 

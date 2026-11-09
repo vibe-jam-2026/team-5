@@ -81,4 +81,9 @@ export const CONFIG = {
   powerupLife: 14,               // seconds a crate stays before it fades
   powerupDuration: 6,            // seconds the special weapon lasts
   powerupFromLevel: 10,          // no crates drop before the player reaches this level
+
+  // Big red button: a trap card that sometimes sneaks into the level-up
+  // choices. Picking it ends the night on the spot.
+  redButtonFromLevel: 3,         // first level-up it can appear on
+  redButtonChance: 0.3,          // chance per level-up after that
 };

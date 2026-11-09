@@ -331,11 +331,11 @@ export class Game {
       return;
     }
 
-    if (this.player.hp <= 0) {
+    if (this.player.hp <= 0) {   // shot down: the jet catches fire and the pilot ejects
       this.player.hp = 0;
-      this.over = true;
       this.burst(this.player.x, this.player.y, '#c1121f', 40);
-      this.events.push('over');
+      this.burst(this.player.x, this.player.y, '#ffb703', 30);
+      this.startEject(false, true);
     } else if (this.pendingLevels > 0) {
       this.openChoice();
     }
@@ -828,13 +828,14 @@ export class Game {
   // the empty jet spirals down and explodes. The camera zooms in and follows.
   // crash = true: the jet hit the trees, so it explodes at once and the seat
   // fires straight out of the fireball.
-  startEject(crash = false) {
+  // shot = true: health ran out, so the burning jet ejects the pilot at once.
+  startEject(crash = false, shot = false) {
     const p = this.player;
     // Point the jet roughly level so "up" out of the cockpit reads clearly.
     const h = Math.cos(p.heading) >= 0 ? 0 : Math.PI;
     this.eject = {
-      t: 0, done: false, exploded: crash, crash,
-      fireAt: crash ? 0.1 : 0.6,   // when the seat rocket fires
+      t: 0, done: false, exploded: crash, crash, shot,
+      fireAt: crash ? 0.1 : shot ? 0.3 : 0.6,   // when the seat rocket fires
       flash: crash ? 1 : 0,
       jet: { x: p.x, y: p.y, a: p.heading, va: 0, vx: Math.cos(p.heading) * 60, vy: 0, side: h },
       canopy: { x: p.x, y: p.y - 4, vx: rand(-80, 80), vy: crash ? -380 : -260, a: 0, va: rand(-14, 14) },
@@ -882,6 +883,7 @@ export class Game {
     }
     // The empty jet loses control: nose drops, it spins and smokes, then blows up
     if (!e.exploded) {
+      if (e.shot && Math.random() < 0.9) this.particles.push({ x: j.x + rand(-6, 6), y: j.y + rand(-4, 4), vx: rand(-30, 30), vy: rand(-90, -30), life: rand(0.2, 0.5), color: Math.random() < 0.5 ? '#ffb703' : '#ff4d6d' });   // on fire
       if (e.t > e.fireAt) {
         j.vy += 60 * dt; j.va += dt * 2 * (j.side ? -1 : 1);
         j.a += j.va * dt; j.x += j.vx * dt; j.y += j.vy * dt;
@@ -1521,7 +1523,8 @@ export class Game {
       if (this.eject.exploded) {
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.fillStyle = '#ffd166'; ctx.font = 'bold 16px monospace';
-        ctx.fillText(this.eject.crash ? 'The pilot got out. The jet is firewood.' : 'The pilot is fine. The jet is not.', W / 2, H - 70);
+        ctx.fillText(this.eject.crash ? 'The pilot got out. The jet is firewood.'
+          : this.eject.shot ? 'Shot down! The pilot made it out.' : 'The pilot is fine. The jet is not.', W / 2, H - 70);
       }
     }
 

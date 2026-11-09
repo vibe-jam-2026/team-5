@@ -320,7 +320,17 @@ function overlay(alpha = 0.6) {
   ctx.fillRect(0, 0, W, H);
 }
 
+// Render at the canvas's real on-screen resolution (including high-DPI
+// screens) so everything stays sharp; game code still draws in W x H units.
+function fitCanvas() {
+  const dpr = window.devicePixelRatio || 1;
+  const w = Math.round((canvas.clientWidth || W) * dpr), h = Math.round(w * H / W);
+  if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+  ctx.setTransform(w / W, 0, 0, h / H, 0, 0);
+}
+
 function draw() {
+  fitCanvas();
   ctx.save();
   if (shake > 0) ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
   drawBackground();

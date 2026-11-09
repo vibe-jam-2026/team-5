@@ -55,6 +55,6 @@ export const CONFIG = {
   aaShellSpeed: 300,
   aaDamage: 14,                  // flak burst damage to the jet
   aaBlast: 34,                   // flak burst radius (also hurts hunters!)
-  aaHp: 60,                      // Blood Bolts can destroy a gun
+  aaHp: 60,                      // cannon tracers can destroy a gun
   aaPoints: 250,
 };

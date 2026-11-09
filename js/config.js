@@ -2,8 +2,8 @@
 export const CONFIG = {
   width: 960,
   height: 540,
-  title: 'BLOOD DIARY',          // working title, see design/game.md
-  subtitle: 'survive the night',
+  title: 'MIDNIGHT AFTERBURNER', // shown on the start screen
+  subtitle: 'a neon night sortie',
   highscoreCount: 10,
   highscoreKey: 'team5.highscores.v2',
 

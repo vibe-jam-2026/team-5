@@ -595,7 +595,7 @@ export class Game {
 
   // ---------- Power-ups ----------
   dropCrate(x, y) {
-    if (this.level < C.powerupFromLevel) return;
+    if (this.level < C.powerupFromLevel || this.power) return;   // none while one is active
     const kinds = Object.keys(POWERUPS);
     this.crates.push({ x, y, kind: kinds[Math.floor(Math.random() * kinds.length)], life: C.powerupLife });
   }

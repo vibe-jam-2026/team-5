@@ -825,6 +825,7 @@ export class Game {
       canopy: { x: p.x, y: p.y - 4, vx: rand(-80, 80), vy: -260, a: 0, va: rand(-14, 14) },
       pilot: { x: p.x, y: p.y, vx: 0, vy: 0, fired: false },
       seat: null, chute: 0,
+      cam: { x: p.x, y: this.camY, z: 1 },
     };
     this.bullets = []; this.shells = [];
     this.events.push('eject');
@@ -836,42 +837,49 @@ export class Game {
     // Canopy tumbles away
     c.x += c.vx * dt; c.y += c.vy * dt; c.vy += 500 * dt; c.a += c.va * dt;
     // Seat fires after a beat
-    if (!pi.fired && e.t >= 0.3) {
-      pi.fired = true; pi.vy = -440; pi.vx = j.vx * 0.3;
+    if (!pi.fired && e.t >= 0.6) {
+      pi.fired = true; pi.vy = -340; pi.vx = j.vx * 0.3;
       this.burst(pi.x, pi.y + 6, '#ffb703', 24);
       this.events.push('seatFire');
     }
     if (pi.fired) {
-      if (!e.seat && e.t >= 0.95) {     // seat drops away, chute opens
+      if (!e.seat && e.t >= 1.5) {     // seat drops away, chute opens
         e.seat = { x: pi.x, y: pi.y + 6, vx: rand(-40, 40), vy: 0, a: 0 };
         this.events.push('chute');
       }
       if (e.seat) {
-        e.chute = Math.min(1, e.chute + dt * 2.5);
-        pi.vy += (40 - pi.vy) * Math.min(1, dt * 3);   // drift down slowly
+        e.chute = Math.min(1, e.chute + dt * 1.6);
+        pi.vy += (28 - pi.vy) * Math.min(1, dt * 2);   // drift down slowly
         pi.vx *= 0.97;
         e.seat.x += e.seat.vx * dt; e.seat.vy += 600 * dt; e.seat.y += e.seat.vy * dt; e.seat.a += dt * 6;
       } else {
-        pi.vy += 900 * dt;                               // rocket burns out, gravity wins
+        pi.vy += 500 * dt;                               // rocket burns out, gravity wins
         if (Math.random() < 0.9) this.particles.push({ x: pi.x + rand(-2, 2), y: pi.y + 10, vx: rand(-30, 30), vy: rand(40, 120), life: rand(0.3, 0.6), color: Math.random() < 0.5 ? '#ffb703' : '#9a90a8' });
       }
       pi.x += pi.vx * dt; pi.y += pi.vy * dt;
     }
     // The empty jet loses control: nose drops, it spins and smokes, then blows up
     if (!e.exploded) {
-      if (e.t > 0.3) {
-        j.vy += 260 * dt; j.va += dt * 3 * (j.side ? -1 : 1);
+      if (e.t > 0.6) {
+        j.vy += 60 * dt; j.va += dt * 2 * (j.side ? -1 : 1);
         j.a += j.va * dt; j.x += j.vx * dt; j.y += j.vy * dt;
         if (Math.random() < 0.8) this.particles.push({ x: j.x, y: j.y, vx: rand(-20, 20), vy: rand(-40, 0), life: rand(0.4, 0.9), color: Math.random() < 0.3 ? '#ff4d6d' : '#6b5f7a' });
       }
-      if (e.t >= 1.9 || j.y >= CRASH_Y) {
+      if (e.t >= 3.2 || j.y >= CRASH_Y) {
         e.exploded = true;
-        this.burst(j.x, j.y, '#ffb703', 60);
-        this.burst(j.x, j.y, '#ff4d6d', 40);
-        this.burst(j.x, j.y, '#fff1c1', 25);
+        this.burst(j.x, j.y, '#ffb703', 90);
+        this.burst(j.x, j.y, '#ff4d6d', 60);
+        this.burst(j.x, j.y, '#fff1c1', 40);
+        e.flash = 1;
         this.events.push('boom');
       }
     }
+    // Camera: zoom in on the cockpit, frame pilot and jet together, then close in on the chute
+    const cam = e.cam, wantZ = e.t < 0.6 ? 2.2 : e.exploded ? 2.1 : 1.45;
+    const fx = e.exploded ? pi.x : pi.x * 0.6 + j.x * 0.4, fy = e.exploded ? pi.y - 30 : pi.y * 0.6 + j.y * 0.4 - 20;
+    const k = Math.min(1, dt * 4);
+    cam.z += (wantZ - cam.z) * k; cam.x += (fx - cam.x) * k; cam.y += (fy - cam.y) * k;
+    if (e.flash) e.flash = Math.max(0, e.flash - dt * 2);
     this.updateEffects(dt);
     const skip = e.t > 1.2 && input.wasPressed('Enter', 'Space', 'NumpadEnter', 'Escape');
     if (e.t >= C.ejectDuration || skip) {
@@ -907,7 +915,7 @@ export class Game {
     ctx.translate(pi.x, pi.y);
     ctx.rotate(e.seat ? Math.sin(e.t * 2) * 0.12 : 0);
     if (e.chute > 0) {
-      const r = 26 * e.chute, top = -14 - 34 * e.chute;
+      const r = 36 * e.chute, top = -18 - 44 * e.chute;
       ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 0.8;
       for (const dx of [-1, -0.4, 0.4, 1]) { ctx.beginPath(); ctx.moveTo(0, -6); ctx.lineTo(dx * r, top); ctx.stroke(); }
       const cols = ['#ff2a6d', '#fdfdfd', '#05d9e8', '#fdfdfd', '#ff2a6d'];
@@ -919,6 +927,7 @@ export class Game {
       ctx.strokeStyle = '#1c1226'; ctx.lineWidth = 1;
       ctx.beginPath(); ctx.ellipse(0, top, r, r * 0.7, 0, Math.PI, Math.PI * 2); ctx.closePath(); ctx.stroke();
     }
+    ctx.scale(1.4, 1.4);   // pilot drawn a bit larger so they read when zoomed
     // Seat (until it drops) and the pilot
     if (!e.seat) { ctx.fillStyle = '#3a3a4a'; ctx.fillRect(-5, -6, 10, 13); }
     if (pi.fired && !e.seat) {   // rocket flame under the seat
@@ -981,7 +990,10 @@ export class Game {
     const p = this.player;
     ctx.save();
     // World space: the camera is centred on the jet.
-    ctx.translate(Math.round(W / 2 - p.x), Math.round(H / 2 - this.camY));
+    if (this.eject) {   // ejection: the camera zooms in and follows the action
+      const cam = this.eject.cam;
+      ctx.translate(W / 2, H / 2); ctx.scale(cam.z, cam.z); ctx.translate(-cam.x, -cam.y);
+    } else ctx.translate(Math.round(W / 2 - p.x), Math.round(H / 2 - this.camY));
     this.drawGround(ctx);
     // Danger Zone
     if (this.lv.aura > 0) {   // Danger Zone: tinted disc with a crisp rotating dashed ring
@@ -1404,7 +1416,8 @@ export class Game {
 
     if (this.eject && !this.over) {
       const t = this.eject.t;
-      if (t < 1.6 ? Math.floor(t * 8) % 2 === 0 : t < 2.4) {
+      if (this.eject.flash) { ctx.fillStyle = `rgba(255,241,193,${(0.5 * this.eject.flash).toFixed(3)})`; ctx.fillRect(0, 0, W, H); }
+      if (t < 2 ? Math.floor(t * 8) % 2 === 0 : t < 3) {
         ctx.save();
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.shadowColor = NEON.magenta; ctx.shadowBlur = 16;
@@ -1412,7 +1425,7 @@ export class Game {
         ctx.fillText('EJECT! EJECT! EJECT!', W / 2, 130);
         ctx.restore();
       }
-      if (this.eject.seat) {
+      if (this.eject.exploded) {
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.fillStyle = '#ffd166'; ctx.font = 'bold 16px monospace';
         ctx.fillText('The pilot is fine. The jet is not.', W / 2, H - 70);

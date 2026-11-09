@@ -87,7 +87,7 @@ export const CONFIG = {
   // choices. Picking it ends the night on the spot.
   redButtonFromLevel: 3,         // first level-up it can appear on
   redButtonChance: 0.5,          // chance per level-up after that
-  ejectDuration: 4.5,            // seconds of the pilot-ejecting animation before game over (ENTER skips)
+  ejectDuration: 7,            // seconds of the pilot-ejecting animation before game over (ENTER skips)
 
   // Final boss, just before sunrise: the Mothership, then its AI core.
   // Beat the core and dawn breaks: big bonus, full heal, then Overtime.

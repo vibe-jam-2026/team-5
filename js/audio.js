@@ -9,26 +9,35 @@ function ac() {
   return ctx;
 }
 
-// ---- Background music: an original, subtle 80s synth-rock loop ----------
-// Am - F - C - G at 104 BPM: pulsing saw bass, gated reverb snare, warm pad
-// and a sparse echoing lead every other pass. Scheduled ahead with WebAudio.
-const BPM = 104, STEP = 60 / BPM / 4;            // 16th-note length in seconds
-const MUSIC_VOL = 0.22;                          // master music level (subtle)
+// ---- Background music: an original, driving 80s jet-rock loop -----------
+// Em - C - D - B at 138 BPM: chugging 16th-note bass, distorted power-chord
+// stabs, rock beat with a big gated snare, tom fills and a heroic saw lead.
+const BPM = 138, STEP = 60 / BPM / 4;            // 16th-note length in seconds
+const MUSIC_VOL = 0.3;                           // master music level
 const hz = (n) => 440 * Math.pow(2, (n - 69) / 12);
-// Chord per bar: [bass root, pad notes] as MIDI numbers.
-const CHORDS = [
-  [45, [57, 60, 64]],   // Am
-  [41, [57, 60, 65]],   // F
-  [48, [55, 60, 64]],   // C
-  [43, [55, 59, 62]],   // G
+// Bass root per bar (MIDI). Power chords are built on root + 12.
+const ROOTS = [40, 36, 38, 35];   // E, C, D, B
+// Lead phrases: [step in 4-bar phrase (0..63), midi, length in steps].
+// A = call (passes 0 and 2), B = answer (pass 1), C = climb (pass 3).
+const LEAD_A = [
+  [0, 71, 6], [6, 74, 2], [8, 76, 8],
+  [16, 79, 4], [20, 76, 4], [24, 72, 8],
+  [32, 74, 6], [38, 76, 2], [40, 78, 8],
+  [48, 75, 12], [60, 71, 4],
 ];
-// Lead: [step in 4-bar phrase (0..63), midi, length in steps]. Played on odd passes.
-const LEAD = [
-  [0, 76, 6], [6, 74, 2], [8, 72, 4], [12, 71, 4],
-  [16, 72, 6], [22, 69, 2], [24, 72, 8],
-  [32, 67, 6], [38, 69, 2], [40, 72, 4], [44, 74, 4],
-  [48, 76, 10], [58, 74, 2], [60, 71, 4],
+const LEAD_B = [
+  [0, 76, 4], [4, 79, 4], [8, 83, 8],
+  [16, 81, 4], [20, 79, 4], [24, 76, 8],
+  [32, 78, 4], [36, 79, 4], [40, 81, 8],
+  [48, 78, 6], [54, 75, 2], [56, 71, 8],
 ];
+const LEAD_C = [
+  [0, 76, 2], [2, 78, 2], [4, 79, 4], [8, 83, 8],
+  [16, 84, 6], [22, 83, 2], [24, 79, 8],
+  [32, 81, 6], [38, 83, 2], [40, 86, 8],
+  [48, 87, 16],
+];
+const LEADS = [LEAD_A, LEAD_B, LEAD_A, LEAD_C];
 let music = null;   // { bus, reverb, delay, noise, step, next, timer }
 
 function makeMusic(a) {
@@ -53,11 +62,18 @@ function makeMusic(a) {
   const noise = a.createBuffer(1, a.sampleRate * 0.5, a.sampleRate);
   const nd = noise.getChannelData(0);
   for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
-  return { bus, reverb, delay, noise, step: 0, next: a.currentTime + 0.1, timer: null };
+  // Overdrive for the "guitar" power chords.
+  const drive = a.createWaveShaper(), curve = new Float32Array(1024);
+  for (let i = 0; i < curve.length; i++) { const x = i / 512 - 1; curve[i] = Math.tanh(x * 6); }
+  drive.curve = curve;
+  const driveTone = a.createBiquadFilter(); driveTone.type = 'lowpass'; driveTone.frequency.value = 3200;
+  const driveOut = a.createGain(); driveOut.gain.value = 0.11;
+  drive.connect(driveTone).connect(driveOut).connect(bus);
+  return { bus, reverb, delay, noise, drive, step: 0, next: a.currentTime + 0.1, timer: null };
 }
 
 function voice(a, t, freq, dur, { type = 'sawtooth', vol = 0.1, cutoff = 2000, attack = 0.01,
-  detune = 0, rev = 0, echo = 0 } = {}) {
+  detune = 0, rev = 0, echo = 0, dist = false } = {}) {
   const m = music;
   const o = a.createOscillator(), f = a.createBiquadFilter(), g = a.createGain();
   o.type = type; o.frequency.value = freq; o.detune.value = detune;
@@ -66,7 +82,7 @@ function voice(a, t, freq, dur, { type = 'sawtooth', vol = 0.1, cutoff = 2000, a
   g.gain.linearRampToValueAtTime(vol, t + attack);
   g.gain.setValueAtTime(vol, t + Math.max(attack, dur - 0.05));
   g.gain.exponentialRampToValueAtTime(0.0001, t + dur + 0.08);
-  o.connect(f).connect(g).connect(m.bus);
+  o.connect(f).connect(g).connect(dist ? m.drive : m.bus);
   if (rev) { const s = a.createGain(); s.gain.value = rev; g.connect(s).connect(m.reverb); }
   if (echo) { const s = a.createGain(); s.gain.value = echo; g.connect(s).connect(m.delay); }
   o.start(t); o.stop(t + dur + 0.1);
@@ -84,12 +100,23 @@ function drum(a, t, kind) {
     o.start(t); o.stop(t + 0.3);
     return;
   }
+  if (kind.startsWith('tom')) {
+    const o = a.createOscillator(), g = a.createGain(), f0 = +kind.slice(3);
+    o.frequency.setValueAtTime(f0, t);
+    o.frequency.exponentialRampToValueAtTime(f0 * 0.5, t + 0.25);
+    g.gain.setValueAtTime(0.35, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+    o.connect(g).connect(m.bus);
+    const s = a.createGain(); s.gain.value = 0.5; g.connect(s).connect(m.reverb);
+    o.start(t); o.stop(t + 0.35);
+    return;
+  }
   const src = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
   src.buffer = m.noise;
   const snare = kind === 'snare';
   f.type = snare ? 'bandpass' : 'highpass';
   f.frequency.value = snare ? 1800 : 8000;
-  const vol = snare ? 0.35 : 0.05, dur = snare ? 0.18 : 0.04;
+  const vol = snare ? 0.5 : 0.06, dur = snare ? 0.22 : 0.04;
   g.gain.setValueAtTime(vol, t);
   g.gain.exponentialRampToValueAtTime(0.001, t + dur);
   src.connect(f).connect(g).connect(m.bus);
@@ -98,30 +125,32 @@ function drum(a, t, kind) {
 }
 
 function playStep(a, t, step) {
-  const s16 = step % 16, bar = Math.floor(step / 16) % 4, pass = Math.floor(step / 64);
-  const [root, pad] = CHORDS[bar];
-  // Drums: kick on 1 and 3, gated snare on 2 and 4, soft eighth hats.
-  if (s16 === 0 || s16 === 8 || (s16 === 10 && bar === 3)) drum(a, t, 'kick');
-  if (s16 === 4 || s16 === 12) drum(a, t, 'snare');
-  if (s16 % 2 === 0) drum(a, t, 'hat');
-  // Driving eighth-note bass, octave pop on the last eighth of each bar.
-  if (s16 % 2 === 0) {
-    const n = s16 === 14 ? root + 12 : root;
-    voice(a, t, hz(n), STEP * 1.8, { vol: 0.13, cutoff: 600 + (s16 === 0 ? 400 : 0) });
+  const s16 = step % 16, bar = Math.floor(step / 16) % 4, pass = Math.floor(step / 64) % 4;
+  const root = ROOTS[bar], fill = bar === 3 && pass % 2 === 1 && s16 >= 8;
+  // Drums: rock beat (kick 1, 1&, 3), big gated snare on 2 and 4, 8th hats, tom fill.
+  if (s16 === 0 || s16 === 6 || s16 === 8 || (s16 === 11 && !fill)) drum(a, t, 'kick');
+  if (fill) {
+    if (s16 % 2 === 0) drum(a, t, `tom${[220, 180, 140, 110][(s16 - 8) / 2]}`);
+  } else {
+    if (s16 === 4 || s16 === 12) drum(a, t, 'snare');
+    if (s16 % 2 === 0) drum(a, t, 'hat');
   }
-  // Pad: slow-swelling detuned saws for the whole bar.
-  if (s16 === 0) {
-    for (const n of pad) for (const d of [-8, 8]) {
-      voice(a, t, hz(n), STEP * 16, { vol: 0.025, cutoff: 1400, attack: 0.6, detune: d, rev: 0.6 });
+  if (step % 64 === 0) drum(a, t, 'snare');   // crash-ish accent at phrase start
+  // Chugging 16th-note bass with a little octave kick on the offbeats.
+  voice(a, t, hz(root + (s16 % 4 === 3 ? 12 : 0)), STEP * 0.85,
+    { vol: 0.12, cutoff: s16 % 4 === 0 ? 1400 : 800 });
+  // Distorted power chords: big hit on 1, punchy stabs on 2& and 3&, ringing on 4.
+  const hits = { 0: 6, 6: 1.5, 10: 1.5, 12: 4 };
+  if (hits[s16]) {
+    for (const n of [root + 12, root + 19, root + 24]) for (const d of [-7, 7]) {
+      voice(a, t, hz(n), STEP * hits[s16], { vol: 0.5, cutoff: 5000, detune: d, dist: true });
     }
   }
-  // Lead every other pass, so the loop breathes.
-  if (pass % 2 === 1) {
-    const ph = step % 64;
-    for (const [at, n, len] of LEAD) {
-      if (at === ph) voice(a, t, hz(n), STEP * len, { type: 'square', vol: 0.04, cutoff: 2600,
-        attack: 0.03, rev: 0.5, echo: 0.5 });
-    }
+  // Heroic saw lead with echo, a different phrase each pass.
+  const ph = step % 64;
+  for (const [at, n, len] of LEADS[pass]) {
+    if (at === ph) for (const d of [-10, 10]) voice(a, t, hz(n), STEP * len, { vol: 0.035, cutoff: 4200,
+      attack: 0.02, detune: d, rev: 0.45, echo: 0.4 });
   }
 }
 

@@ -634,8 +634,9 @@ function draw() {
 
   if (state === 'entry') {
     overlay(0.8);
-    chromeTitle(isNewBest ? 'TOP ACE!' : 'YOU MADE THE BOARD!', W / 2, 140, 48);
-    neonText(String(Math.floor(game.score)), W / 2, 205, 32, '#fff');
+    chromeTitle('GAME OVER', W / 2, 110, 52);
+    neonText(isNewBest ? 'NEW HIGH SCORE!' : 'YOU MADE THE BOARD!', W / 2, 160, 18, NEON.yellow);
+    neonText(String(Math.floor(game.score)), W / 2, 210, 32, '#fff');
     neonText('ENTER YOUR CALLSIGN', W / 2, 270, 16, NEON.cyan);
     const shown = (entryName + (Math.floor(clock * 3) % 2 ? '_' : ' ')).padEnd(3, ' ').slice(0, 3);
     neonText(shown.split('').join(' '), W / 2, 325, 40, NEON.yellow);
@@ -644,11 +645,12 @@ function draw() {
 
   if (state === 'gameover') {
     overlay(0.82);
-    chromeTitle(game.pressedRed ? 'YOU PRESSED IT' : game.crashed ? 'CRASHED' : 'SHOT DOWN', W / 2, 52, 52);
-    neonText(`Airborne ${fmtTime(game.time)}  ·  ${game.kills} bandits splashed  ·  level ${game.level}  ·  ${Math.floor(game.score)} pts`, W / 2, 96, 15, NEON.cyan);
+    chromeTitle('GAME OVER', W / 2, 46, 52);
+    neonText(game.pressedRed ? 'YOU PRESSED THE BIG RED BUTTON' : game.crashed ? 'CRASHED INTO THE TREES' : 'SHOT DOWN', W / 2, 86, 16, NEON.magenta);
+    neonText(`Airborne ${fmtTime(game.time)}  ·  ${game.kills} bandits splashed  ·  level ${game.level}  ·  ${Math.floor(game.score)} pts`, W / 2, 110, 15, NEON.cyan);
     const boardRows = Math.max(2, Math.min(highscores.list.length, CONFIG.highscoreCount));
-    neonPanel(W / 2 - 220, 116, 440, 64 + boardRows * 20, NEON.magenta);
-    drawPilotLog(W / 2 - 200, 138, 400);
+    neonPanel(W / 2 - 220, 128, 440, 64 + boardRows * 20, NEON.magenta);
+    drawPilotLog(W / 2 - 200, 150, 400);
     if (Math.floor(clock * 2) % 2 === 0) neonText('R / ENTER choose aircraft & fly again   ·   ESC title', W / 2, H - 30, 18, NEON.yellow);
   }
 

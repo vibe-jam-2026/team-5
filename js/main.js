@@ -183,84 +183,119 @@ const STARS = Array.from({ length: 45 }, (_, i) => {
   return { x: r(1) * W, y: r(2) * H * 0.6, s: 0.6 + r(3) * 1.2, phase: r(4) * 6.28, speed: 0.6 + r(5) * 1.6 };
 });
 
-// In-game sky: the night's whole story in one sky, in the same neon style as
-// the title screen. Each run starts at sunset: the striped sun sinks behind
-// the forest and the sky fades to deep night while the stars come out. Just
-// before the boss the horizon starts to glow again, and when the boss is
-// beaten the sun rises on the other side: dawn.
-// The horizon sits behind the forest and sinks out of view as the jet climbs.
-const SUN_R = 90;
-const SUNSET_X = W * 0.68, SUNRISE_X = W * 0.32;
-const SKY_STOPS = [0, 0.5, 0.8, 0.93, 1];
-const SUNSET_SKY = ['#07011a', '#2a0a52', '#8a1f78', '#e0407a', '#ff9e3d'];
-const NIGHT_SKY = ['#030008', '#0b0320', '#170733', '#26093f', '#3a1048'];
+// In-game sky with a day cycle driven by the in-game clock (game.hour):
+// each run starts at sunset, 6 PM. Night falls, and by 6 AM (when the final
+// boss arrives) the horizon glows with twilight. The sun only rises once the
+// boss is beaten; then it's day through Overtime, and sunset again at 6 PM.
+// The horizon sits behind the forest and sinks out of view as the jet climbs,
+// so the sky darkens up high.
+const SUNSET_SUN = { x: W * 0.68, r: 90 };
+const MOON = { x: W * 0.28, y: H * 0.22, r: 34 };
+
+// Sky gradient stops (top → horizon) for each time of day.
+const SKIES = {
+  sunset:  ['#07011a', '#2a0a52', '#8a1f78', '#e0407a', '#ff9e3d'],
+  night:   ['#020008', '#0a0420', '#150a36', '#1f0f44', '#2a1650'],
+  twilight: ['#07031f', '#1d1450', '#5a2c74', '#a54a7c', '#e07a5c'],
+  sunrise: ['#0e0b3c', '#3a2a7a', '#b8559c', '#ff8a80', '#ffd27a'],
+  day:     ['#1b4fa6', '#3b7fd6', '#6fb2ec', '#a8d8f5', '#e8f6ff'],
+};
+// Keyframes over 24 hours starting at 6 PM (u = hours since 6 PM / 24, so
+// u 0.5 = 6 AM): sky, sun height above the horizon (in sun radii; negative =
+// set), star brightness and moon brightness.
+const CYCLE = [
+  { u: 0.00, sky: 'sunset',   sun: 0.2,  stars: 0.3, moon: 0 },    // 6:00 PM, run starts
+  { u: 0.10, sky: 'night',    sun: -2.6, stars: 1,   moon: 1 },    // ~8:30 PM
+  { u: 0.44, sky: 'night',    sun: -2.6, stars: 1,   moon: 1 },    // ~4:30 AM
+  { u: 0.50, sky: 'twilight', sun: -1.1, stars: 0.5, moon: 0.3 },  // 6:00 AM, boss (clock holds here)
+  { u: 0.52, sky: 'sunrise',  sun: 0.2,  stars: 0.3, moon: 0 },    // ~6:30 AM, boss beaten: sunrise
+  { u: 0.60, sky: 'day',      sun: 2.6,  stars: 0,   moon: 0 },    // ~8:30 AM
+  { u: 0.88, sky: 'day',      sun: 2.6,  stars: 0,   moon: 0 },
+  { u: 1.00, sky: 'sunset',   sun: 0.2,  stars: 0.3, moon: 0 },    // 6:00 PM again
+];
 
 const hexRgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
-function mix(a, b, k) {
+function mixHex(a, b, k) {
   const A = hexRgb(a), B = hexRgb(b);
   return `rgb(${A.map((v, i) => Math.round(v + (B[i] - v) * k)).join(',')})`;
 }
-const ease = (k) => k * k * (3 - 2 * k);
-const clamp01 = (k) => Math.max(0, Math.min(1, k));
 
-// Where we are in the day cycle: light (0 night .. 1 sunset/sunrise colours),
-// sun x, and sink (0 = sun sitting on the horizon, 1 = fully below it).
-function skyState() {
-  if (!game || state === 'select' || state === 'title') return { light: 1, x: SUNSET_X, sink: 0 };
-  const dusk = clamp01(game.time / CONFIG.sunsetTime);
-  const dawn = game.daylight;                       // 0 night, 0.3 pre-dawn glow, 1 sunrise
-  const light = Math.max(1 - ease(dusk), dawn);
-  if (dawn > 0.3) {                                 // the sun comes back up
-    const rise = ease((dawn - 0.3) / 0.7);
-    return { light, x: SUNRISE_X, sink: 1.1 - rise * 1.5 };
-  }
-  return { light, x: SUNSET_X, sink: ease(clamp01(game.time / (CONFIG.sunsetTime * 0.7))) * 1.1 };
+// Current time-of-day state from the in-game clock (hours, 0..24).
+function timeOfDay(hour) {
+  const u = (((hour - 18) / 24) % 1 + 1) % 1;
+  let i = 0;
+  while (u > CYCLE[i + 1].u) i++;
+  const a = CYCLE[i], b = CYCLE[i + 1];
+  const k0 = (u - a.u) / (b.u - a.u), k = k0 * k0 * (3 - 2 * k0);   // smoothstep
+  const lerp = (f) => a[f] + (b[f] - a[f]) * k;
+  return {
+    stops: SKIES[a.sky].map((c, j) => mixHex(c, SKIES[b.sky][j], k)),
+    sun: lerp('sun'), stars: lerp('stars'), moon: lerp('moon'),
+  };
 }
 
 function drawBackground() {
   const t = performance.now() / 1000;
-  const { light, x, sink } = skyState();
-  const horizon = H - 50 + (game && state !== 'select' ? game.groundOffset : 0);
+  const inRun = game && state !== 'select';
+  const horizon = H - 50 + (inRun ? game.groundOffset : 0);
+  const tod = timeOfDay(inRun ? game.hour : 18);
   const sky = ctx.createLinearGradient(0, horizon - H * 1.6, 0, horizon);
-  SKY_STOPS.forEach((stop, i) => sky.addColorStop(stop, mix(NIGHT_SKY[i], SUNSET_SKY[i], light)));
+  [0, 0.5, 0.8, 0.93, 1].forEach((at, j) => sky.addColorStop(at, tod.stops[j]));
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, W, H);
 
-  // Stars fade in towards the top, where the sky is darkest, and shine
-  // brighter (and lower) once night falls.
-  const night = 1 - light;
+  // Stars fade in towards the top, where the sky is darkest, and only at night.
   for (const st of STARS) {
-    const fade = clamp01((horizon - st.y - H * (0.55 - 0.45 * night)) / (H * 0.5));
+    const fade = tod.stars * Math.max(0, Math.min(1, (horizon - st.y - H * 0.2) / (H * 0.5)));
     if (fade <= 0) continue;
-    const a = fade * (0.2 + 0.4 * night + 0.4 * (0.5 + 0.5 * Math.sin(t * st.speed + st.phase)));
-    ctx.fillStyle = `rgba(255,235,255,${Math.min(1, a).toFixed(3)})`;
+    const a = fade * (0.2 + 0.4 * (0.5 + 0.5 * Math.sin(t * st.speed + st.phase)));
+    ctx.fillStyle = `rgba(255,235,255,${a.toFixed(3)})`;
     ctx.fillRect(st.x, st.y, st.s, st.s);
   }
 
-  // The striped sun, clipped at the horizon so it sinks behind it.
-  const r = SUN_R, cy = horizon + sink * r;
-  if (sink >= 1.05 || cy - r * 2.4 > H) return;
-  const show = clamp01(1 - sink);
-  const halo = ctx.createRadialGradient(x, cy, r * 0.6, x, cy, r * 2.4);
-  halo.addColorStop(0, `rgba(255,42,109,${(0.45 * (0.3 + 0.7 * show)).toFixed(3)})`);
-  halo.addColorStop(1, 'rgba(255,42,109,0)');
-  ctx.fillStyle = halo;
-  ctx.fillRect(x - r * 2.4, Math.min(cy, horizon) - r * 2.4, r * 4.8, horizon - Math.min(cy, horizon) + r * 2.4);
+  // Moon: a pale crescent that shows up at night.
+  if (tod.moon > 0.01) {
+    const my = MOON.y + (horizon - (H - 50)) * 0.3;
+    ctx.save();
+    ctx.globalAlpha = tod.moon;
+    const mg = ctx.createRadialGradient(MOON.x, my, MOON.r * 0.8, MOON.x, my, MOON.r * 3);
+    mg.addColorStop(0, 'rgba(200,210,255,0.25)');
+    mg.addColorStop(1, 'rgba(200,210,255,0)');
+    ctx.fillStyle = mg;
+    ctx.fillRect(MOON.x - MOON.r * 3, my - MOON.r * 3, MOON.r * 6, MOON.r * 6);
+    // Crescent: the moon disc minus an offset disc (even-odd fill inside the moon).
+    ctx.beginPath(); ctx.arc(MOON.x, my, MOON.r, 0, Math.PI * 2); ctx.clip();
+    ctx.fillStyle = '#e8e6ff';
+    ctx.beginPath();
+    ctx.arc(MOON.x, my, MOON.r, 0, Math.PI * 2);
+    ctx.arc(MOON.x + MOON.r * 0.45, my - MOON.r * 0.2, MOON.r * 0.9, 0, Math.PI * 2);
+    ctx.fill('evenodd');
+    ctx.restore();
+  }
 
+  const { x, r } = SUNSET_SUN;
+  const cy = horizon - tod.sun * r;                 // sun centre
+  if (cy - r > H || tod.sun < -1.05) return;        // sun is below the horizon or the screen
+  // Pink glow when the sun is low, a soft white one when it's high.
+  const low = Math.max(0, Math.min(1, 1 - tod.sun / 2));
+  const halo = ctx.createRadialGradient(x, cy, r * 0.6, x, cy, r * 2.4);
+  halo.addColorStop(0, low > 0.5 ? `rgba(255,42,109,${(0.45 * low).toFixed(3)})` : `rgba(255,250,220,${(0.35 * (1 - low)).toFixed(3)})`);
+  halo.addColorStop(1, 'rgba(255,42,109,0)');
   ctx.save();
-  ctx.beginPath();
-  ctx.rect(0, 0, W, horizon);
-  ctx.clip();
+  ctx.beginPath(); ctx.rect(0, 0, W, horizon); ctx.clip();   // nothing below the horizon
+  ctx.fillStyle = halo;
+  ctx.fillRect(x - r * 2.4, cy - r * 2.4, r * 4.8, r * 4.8);
+
   ctx.beginPath();
   ctx.arc(x, cy, r, 0, Math.PI * 2);
   ctx.clip();
-  const sg = ctx.createLinearGradient(0, cy - r, 0, cy);
+  const sg = ctx.createLinearGradient(0, cy - r, 0, cy + r);
   sg.addColorStop(0, NEON.yellow);
-  sg.addColorStop(0.45, '#ff9e3d');
-  sg.addColorStop(1, NEON.pink);
+  sg.addColorStop(0.45, low > 0.5 ? '#ff9e3d' : '#fff3b0');
+  sg.addColorStop(1, low > 0.5 ? NEON.pink : '#ffd166');
   ctx.fillStyle = sg;
-  ctx.fillRect(x - r, cy - r, r * 2, r);
-  // Slats cut through the lower sun, thicker towards the horizon, slowly sinking.
+  ctx.fillRect(x - r, cy - r, r * 2, r * 2);
+  // Slats cut through the sun near the horizon, thicker lower down, slowly sinking.
   ctx.fillStyle = sky;
   const gap = 12, drift = (t * 6) % gap;
   for (let i = 0; i < 7; i++) {
@@ -277,7 +312,11 @@ function drawHud() {
   // Top middle: score, high score and time. Top left holds the HP/XP bars (game.js).
   text(`SCORE ${String(score).padStart(7, '0')}`, W / 2, 22, 18, '#fff');
   neonText(`HI ${String(Math.max(score, highscores.best())).padStart(7, '0')}`, W / 2, 42, 14, NEON.cyan);
-  text(fmtTime(game.time), W / 2, 62, 16, '#fff');
+  // In-game clock (6 PM at the start, 6 AM at the boss) and time airborne.
+  const h = Math.floor(game.hour), m = Math.floor((game.hour % 1) * 60);
+  const clockStr = `${(h + 11) % 12 + 1}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
+  const held = game.boss && !game.cleared && Math.floor(clock * 2) % 2;   // blinks while the boss holds back dawn
+  text(`${held ? '' : clockStr}  ·  ${fmtTime(game.time)}`, W / 2, 62, 16, '#fff');
   neonText(`LV ${game.level}`, W - 16, 22, 18, NEON.magenta, 'right');
   text(`SPLASH ${game.kills}`, W - 16, 44, 14, NEON.ink, 'right');
   if (game.multiplier > 1) {
@@ -467,7 +506,7 @@ function drawTitle() {
     'Pick your jet, then fly it through the neon night.',
     'Hostiles swarm in from every side of the sky.',
     'Your weapons fire on their own: you just fly.',
-    'Shoot them down, grab the drops to level up.',
+    'Shoot them down, grab the SSD cards to level up.',
     'Each level: pick 1 of 3 new or stronger weapons.',
     'AA guns in the forest fire flak. Dodge or destroy!',
     'Quick kills build a streak multiplier. Stay airborne!',
@@ -477,7 +516,7 @@ function drawTitle() {
 
   neonText('FLIGHT CONTROLS', lx + 20, ly + 196, 16, NEON.magenta, 'left');
   const cy = ly + 222;
-  controlRow('Steer', ['↑', '↓', '←', '→', 'or', 'W', 'A', 'S', 'D'], lx + 20, cy);
+  controlRow('Fly', ['↑', '↓', '←', '→', 'or', 'W', 'A', 'S', 'D'], lx + 20, cy);
   controlRow('Pick upgrade', ['1', '2', '3', 'or', '←', '→', 'Enter'], lx + 20, cy + 26);
   controlRow('Pause', ['P', 'or', 'Esc'], lx + 20, cy + 52);
   controlRow('Sound', ['M'], lx + 20, cy + 78);

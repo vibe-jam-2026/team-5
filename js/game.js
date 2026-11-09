@@ -4,7 +4,7 @@
 //   new Game(aircraft), game.update(dt, input), game.draw(ctx), game.drawUi(ctx),
 //   game.score, game.level, game.time, game.kills, game.multiplier, game.streakTimer,
 //   game.over, game.choosing, game.events
-//   game.cleared (survived to dawn), game.testRun (used a test shortcut), game.daylight
+//   game.cleared (survived to dawn), game.testRun (used a test shortcut), game.hour (in-game clock)
 // `events` are strings the shell reacts to: 'pickup', 'kill', 'hit', 'levelup', 'choose', 'over',
 // plus boss events 'bossWarn', 'bossDown', 'dawn'.
 import { CONFIG as C } from './config.js';
@@ -256,7 +256,7 @@ export class Game {
     return pts;
   }
 
-  get daylight() { return Boss.daylight(this); }
+  get hour() { return Boss.hour(this); }
   get floorY() { return CRASH_Y; }
 
   // Testing shortcut: jump to just before the boss with a mid-game loadout.
@@ -337,20 +337,18 @@ export class Game {
       let d = Math.atan2(ax.y, ax.x) - p.heading;
       d = Math.atan2(Math.sin(d), Math.cos(d));
       p.heading += d * Math.min(1, dt * 12);
+    } else {
+      // No input: the jet stays put and levels out its nose.
+      const right = Math.abs(Math.cos(p.heading)) > 0.05 ? Math.cos(p.heading) > 0 : p.face > 0;
+      let d = (right ? 0 : Math.PI) - p.heading;
+      d = Math.atan2(Math.sin(d), Math.cos(d));
+      p.heading += d * Math.min(1, dt * 6);
     }
-    // The jet never stops: it always flies forward along its heading, and
-    // the arrow keys only steer it.
-    p.vx = Math.cos(p.heading) * speed; p.vy = Math.sin(p.heading) * speed;
+    // The jet only moves while WASD / arrow keys are held.
+    p.vx = ax.x * speed; p.vy = ax.y * speed;
     p.x += p.vx * dt;
-    p.y += p.vy * dt;
-    if (p.y <= CEIL_Y) {      // max height: level out and nose slightly down
-      p.y = CEIL_Y;
-      if (Math.sin(p.heading) < 0) {
-        const right = Math.abs(Math.cos(p.heading)) > 0.05 ? Math.cos(p.heading) > 0 : p.face > 0;
-        p.heading = right ? 0.15 : Math.PI - 0.15;
-      }
-    }
-    p.moving = true;
+    p.y = Math.max(CEIL_Y, p.y + p.vy * dt);   // max height
+    p.moving = !!(ax.x || ax.y);
     // Neon exhaust trail left behind the nozzle.
     const back = 12 * this.aircraft.size;
     p.trail = (p.trail || []).filter((q) => (q.life -= dt) > 0);
@@ -630,7 +628,7 @@ export class Game {
     this.floaters.push({ x: g.x, y: g.y - 24, text: `+${pts}`, life: 1 });
     this.burst(g.x, g.y, '#ffb703', 24);
     this.burst(g.x, g.y, '#c1121f', 12);
-    // Its blood drops tumble up out of the trees towards the jet.
+    // Its SSD cards tumble up out of the trees towards the jet.
     for (let i = 0; i < 3; i++) this.gems.push({ x: g.x + rand(-20, 20), y: g.y - 30 - i * 14, v: 5, big: true });
     if (Math.random() < C.powerupFromGun) this.dropCrate(g.x, g.y - 70);
     this.events.push('boom', 'kill');
@@ -645,7 +643,7 @@ export class Game {
 
   powerups(dt) {
     const p = this.player, m = this.might, parts = Boss.parts(this);
-    // Pick up crates (they drift towards you a little, like blood).
+    // Pick up crates (they drift towards you a little, like SSD cards).
     for (const c of this.crates) {
       c.life -= dt;
       const dx = p.x - c.x, dy = p.y - c.y, d = Math.hypot(dx, dy) || 1;
@@ -769,7 +767,7 @@ export class Game {
         }
       }
     }
-    // Drop blood left far behind so the list doesn't grow forever.
+    // Drop SSD cards left far behind so the list doesn't grow forever.
     this.gems = this.gems.filter((g) => !g.taken && dist2(g, p) < (DESPAWN_RADIUS * 2) ** 2);
   }
 
@@ -830,7 +828,7 @@ export class Game {
   }
 
   // ---------- Drawing ----------
-  // Scrolling ground: grass tufts, stones and graves fixed in the world.
+  // Scrolling ground: grass tufts and stones fixed in the world.
   drawGround(ctx) {
     const p = this.player;
     const x0 = Math.floor((p.x - W / 2) / TILE), x1 = Math.floor((p.x + W / 2) / TILE);
@@ -846,13 +844,9 @@ export class Game {
         } else if (h < 0.93) {    // grass tuft
           ctx.fillStyle = 'rgba(120,90,160,0.18)';
           ctx.fillRect(x, y, 2, 6); ctx.fillRect(x + 4, y + 1, 2, 5); ctx.fillRect(x - 4, y + 2, 2, 4);
-        } else if (h < 0.98) {    // stone
+        } else {                  // stone
           ctx.fillStyle = 'rgba(150,130,170,0.14)';
           ctx.beginPath(); ctx.ellipse(x, y, 6, 4, 0, 0, Math.PI * 2); ctx.fill();
-        } else {                  // gravestone
-          ctx.fillStyle = 'rgba(150,130,170,0.2)';
-          ctx.beginPath(); ctx.arc(x, y - 8, 8, Math.PI, 0); ctx.fill();
-          ctx.fillRect(x - 8, y - 8, 16, 16);
         }
       }
     }
@@ -874,11 +868,21 @@ export class Game {
       ctx.stroke();
       ctx.setLineDash([]);
     }
-    // Blood drops
+    // XP pickups: SSD cards (circuit board with a chip and gold contacts)
     for (const g of this.gems) {
-      ctx.fillStyle = g.big ? '#ff4d6d' : '#c1121f';
-      const s = g.big ? 6 : 4;
-      ctx.beginPath(); ctx.moveTo(g.x, g.y - s * 1.6); ctx.lineTo(g.x + s, g.y); ctx.arc(g.x, g.y, s, 0, Math.PI); ctx.lineTo(g.x - s, g.y); ctx.fill();
+      const s = g.big ? 1.4 : 1, w = 14 * s, h = 9 * s;
+      ctx.save();
+      ctx.translate(g.x, g.y); ctx.rotate(Math.sin(this.time * 3 + g.x * 0.1) * 0.25);
+      ctx.fillStyle = g.big ? '#05d9e8' : '#1f8a5b';                 // board
+      ctx.fillRect(-w / 2, -h / 2, w, h);
+      ctx.fillStyle = '#1a1a24';                                       // NAND chips
+      ctx.fillRect(-w / 2 + 2 * s, -h / 2 + 2 * s, 4 * s, h - 4 * s);
+      ctx.fillRect(-w / 2 + 7 * s, -h / 2 + 2 * s, 3 * s, h - 4 * s);
+      ctx.fillStyle = '#ffd166';                                       // gold contacts
+      for (let i = 0; i < 3; i++) ctx.fillRect(w / 2 - 2 * s, -h / 2 + (1 + i * 2.6) * s, 2 * s, 1.6 * s);
+      ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1;
+      ctx.strokeRect(-w / 2 + 0.5, -h / 2 + 0.5, w - 1, h - 1);
+      ctx.restore();
     }
     // Power-up crates: spinning glowing boxes with a letter, blinking before they fade
     for (const c of this.crates) {

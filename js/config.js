@@ -10,7 +10,7 @@ export const CONFIG = {
   // Player
   playerSpeed: 190,
   playerMaxHp: 100,
-  magnetRange: 90,               // blood drops fly to you inside this range
+  magnetRange: 90,               // SSD cards fly to you inside this range
   crashHeight: 40,               // flying lower than this above the ground crashes into the trees
   pullUpWarning: 90,
   maxAltitude: 900,              // the jet can't climb higher than this above the ground
@@ -87,18 +87,14 @@ export const CONFIG = {
   redButtonFromLevel: 3,         // first level-up it can appear on
   redButtonChance: 0.3,          // chance per level-up after that
 
-  // Day cycle: each run starts at sunset. The sun sinks and the sky fades to
-  // night over this many seconds; dawn comes with the final boss below.
-  sunsetTime: 50,
-
   // Final boss, just before sunrise: the Mothership, then its AI core.
   // Beat the core and dawn breaks: big bonus, full heal, then Overtime.
   // Testing: Shift+B jumps to the boss, Shift+N skips the current boss phase,
   // or open the page with ?boss to start every run at the boss. Test runs
   // aren't saved to the high scores.
   boss: {
-    at: 360,                     // seconds into the night when the Mothership arrives
-    skyFrom: 60,                 // the sky starts to lighten this many seconds before
+    at: 300,                     // seconds into the run when the Mothership arrives. The in-game
+                                 // clock maps 6 PM (start) to 6 AM (boss) over this time.
     warnTime: 3.5,               // seconds of WARNING banner while it descends
     spawnScale: 0.2,             // normal drone spawns are cut to this during the fight
     hullHp: 22000,

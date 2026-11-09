@@ -355,12 +355,14 @@ export const Boss = {
     return ph === 'dawn' ? 0 : B.spawnScale;
   },
 
-  // 0 = deep night, 1 = full sunrise. Drives the sky colour in main.js.
-  daylight(g) {
-    const b = g.boss;
-    if (!b) return 0.3 * Math.max(0, Math.min(1, (g.time - (B.at - B.skyFrom)) / B.skyFrom));
-    if (b.phase === 'dawn') return 0.3 + 0.7 * Math.min(1, b.t / 4);
-    return b.phase === 'overtime' ? 1 : 0.3;
+  // In-game clock in hours (0..24): 6 PM at the start of the run, 6 AM when
+  // the boss arrives (B.at seconds later). The clock holds at 6 AM until the
+  // boss is beaten, then runs on at the same pace. Drives the sky in main.js.
+  hour(g) {
+    const b = g.boss, perSecond = 12 / B.at;
+    if (g.cleared) return (6 + (g.time - g.clearedAt) * perSecond) % 24;
+    if (b) return 6;
+    return (18 + g.time * perSecond) % 24;
   },
 
   // Testing: jump forward to the next boss phase.

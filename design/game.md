@@ -14,7 +14,7 @@ Genre inspiration: "survivors-likes" / "bullet heaven" (e.g. Vampire Survivors).
 - Drones swarm towards you: quadcopters, fast kamikaze darts and armoured hexacopters. Some drones carry guns and fire at you (they glow red first).
 - Anti-aircraft guns in the forest at the bottom of the screen fire flak at the jet. Your cannon can destroy them. Flying into the trees is a crash (game over); "PULL UP!" warns you.
 - Weapons fire automatically. Downed drones drop pickups (XP). Each level-up you pick 1 of 3 upgrades: new weapons or stronger ones. Watch out for the big red button trap card: picking it ends the run on the spot.
-- The jet always flies forward at full speed; you steer it. It can't climb more than 900 px above the ground ("MAX ALTITUDE" warns you).
+- The jet only moves while you hold WASD or the arrow keys; let go and it hovers in place. It can't climb more than 900 px above the ground ("MAX ALTITUDE" warns you).
 - From level 10, power-up crates sometimes drop and give a special weapon for 6 seconds: Scatter Cannon, Pulse Laser or Rocket Swarm.
 - Health at 0 ends the run. The longer you survive, the more and tougher the drones.
 - Score comes from kills (with a kill-streak multiplier), destroyed guns, pickups and survival time.
@@ -23,17 +23,19 @@ Genre inspiration: "survivors-likes" / "bullet heaven" (e.g. Vampire Survivors).
 
 Every run builds towards a climax just before sunrise.
 
-1. **Sunset to night:** each run starts at sunset. The striped neon sun sinks behind the forest and the sky fades to deep night over the first ~50 seconds (`sunsetTime` in `js/config.js`) while the stars come out.
-2. **Sky lightens:** in the last minute before the boss, the night sky starts to warm up.
-3. **WARNING:** at 6:00 a flashing warning banner and siren appear, and the **Mothership** descends: the hive carrier the drones have been coming from all night. Normal drone spawns drop to a trickle.
+An in-game clock under the score maps the run to one night: **6:00 PM at the start, 6:00 AM when the boss arrives at 5:00 of play** (12 in-game hours in 5 minutes; `CONFIG.boss.at`).
+
+1. **Sunset to night (6 PM):** each run starts at sunset. The striped neon sun sinks behind the forest, the sky fades to deep night by about 8:30 PM, and the stars and crescent moon come out.
+2. **Twilight (4:30–6 AM):** the night sky starts to glow with twilight.
+3. **WARNING (6:00 AM):** at 5:00 of play a flashing warning banner and siren appear, and the **Mothership** descends: the hive carrier the drones have been coming from all night. Normal drone spawns drop to a trickle.
 4. **Mothership fight:** it hovers near the top of the screen and drifts over the jet.
    - Four turrets fire aimed 3-shot bursts (red glow first). Shooting them off earns points and drops a power-up crate.
    - Its core eye charges up, then fires a ring of bullets (two rings once it's below half health).
    - The hangar launches waves of drones.
    - Ramming the hull hurts.
 5. **"Final final" boss:** when the hull breaks, it explodes in a chain, and the glowing **AI core** breaks loose. The core circles the jet spraying a bullet spiral, and every few seconds it charges straight at you (a red dashed line shows where).
-6. **Dawn breaks:** beating the core shoots down every drone in the sky, the striped sun rises again on the other side of the sky, and you get a big **Dawn Bonus** (more for health left) plus a full heal.
-7. **Overtime:** the run continues with all points worth x2 until you go down. The game-over screen says "NIGHT CLEARED".
+6. **Dawn breaks:** the clock holds at 6:00 AM (blinking) until the boss is beaten. Beating the core shoots down every drone in the sky, the striped sun rises again on the other side of the sky, and you get a big **Dawn Bonus** (more for health left) plus a full heal.
+7. **Overtime:** the run continues with all points worth x2 until you go down. The clock runs on: full daylight by about 8:30 AM, and sunset again at 6 PM. The game-over screen says "NIGHT CLEARED".
 
 Losing during the boss keeps everything you scored before it. All boss numbers (arrival time, health, attack rates, bonuses) are in `CONFIG.boss` in `js/config.js`.
 
@@ -46,7 +48,7 @@ Losing during the boss keeps everything you scored before it. All boss numbers (
 
 ## Controls
 
-- Arrow keys or WASD: steer
+- Arrow keys or WASD: fly
 - 1 / 2 / 3, or arrows + Enter: pick an upgrade or aircraft
 - P or Esc: pause · M: mute · R: fly again after game over
 
@@ -72,7 +74,7 @@ Fly to dodge the swarm → weapons shoot drones down → collect pickups → lev
 - Health, game over, score with kill-streak multiplier, local top-10 high scores with initials
 - Music and sound effects
 - Final boss before dawn (Mothership → AI core → dawn bonus → Overtime)
-- Day cycle sky: sunset at the start, night, pre-dawn glow, sunrise after the boss
+- Day cycle sky tied to an in-game clock: 6 PM sunset at the start, night with moon and stars, twilight at the 6 AM boss, sunrise after the boss, then day and sunset again in Overtime
 - Big red button trap card in the level-up choices
 
 **Nice to have:** only if there's time.
@@ -99,3 +101,5 @@ Plain HTML, JavaScript modules and canvas. No libraries, no build step. Gameplay
 - 2026-11-09: New requirement: a final final boss. To fit the endless genre, it's a timed climax just before sunrise (Mothership, then its AI core). Beating it gives a dawn bonus and Overtime at double points, so the high-score chase continues. Test shortcuts: Shift+B, Shift+N, `?boss`.
 - 2026-11-09: The in-game sky became a neon sunset (from main). Merged with the dawn concept: runs start at sunset, the sun sinks into night, and it rises again on the other side when the boss is beaten.
 - 2026-11-09 (from main): the jet always flies forward and you steer it, with a max altitude; power-ups last 6 s and only drop from level 10; big red button trap card added to the level-ups.
+- 2026-11-09: Back to direct WASD/arrow flight: the jet only moves while a key is held (no more always flying forward).
+- 2026-11-09: Merged the teammate's day cycle (moon, sunrise and blue daytime sky) with the boss: an in-game clock runs 6 PM → 6 AM over the 5 minutes before the boss, holds at 6 AM during the fight, and the sun rises when the boss is beaten. The boss now arrives at 5:00 instead of 6:00.

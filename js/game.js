@@ -1,5 +1,5 @@
-// Survivors-like gameplay: the vampire moves, powers attack automatically,
-// hunters drop blood (XP), level-ups offer a choice of 3 upgrades.
+// Survivors-like gameplay: the jet flies, weapons fire automatically,
+// downed hostiles drop pickups (XP), level-ups offer a choice of 3 upgrades.
 // main.js only relies on:
 //   new Game(aircraft), game.update(dt, input), game.draw(ctx), game.drawUi(ctx),
 //   game.score, game.level, game.time, game.kills, game.multiplier, game.streakTimer,
@@ -11,7 +11,7 @@ const W = C.width, H = C.height;
 const rand = (a, b) => a + Math.random() * (b - a);
 const dist2 = (a, b) => (a.x - b.x) ** 2 + (a.y - b.y) ** 2;
 
-// Camera: the world is endless and the vampire always stays in the centre of
+// Camera: the world is endless and the jet always stays in the centre of
 // the screen. Hunters spawn just outside the view, in every direction.
 const SPAWN_RADIUS = Math.hypot(W, H) / 2 + 40;
 const DESPAWN_RADIUS = SPAWN_RADIUS * 1.8;   // hunters left this far behind respawn ahead
@@ -30,6 +30,9 @@ function hash(x, y) {
   h = Math.imul(h ^ (h >>> 13), 1274126177);
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 }
+
+// 80s neon palette (same as the title screen in main.js) for the level-up picker.
+const NEON = { magenta: '#ff71ce', cyan: '#05d9e8', yellow: '#fffb96', ink: '#e8dcff', dim: '#9a86c4' };
 
 // ---------- Enemy drone types ----------
 // The first entry is the "basic" spawn (see basicShare* in config.js).
@@ -618,7 +621,7 @@ export class Game {
   draw(ctx) {
     const p = this.player;
     ctx.save();
-    // World space: the camera is centred on the vampire.
+    // World space: the camera is centred on the jet.
     ctx.translate(Math.round(W / 2 - p.x), Math.round(H / 2 - p.y));
     this.drawGround(ctx);
     // Danger Zone
@@ -836,9 +839,11 @@ export class Game {
   drawUi(ctx) {
     const p = this.player;
     // XP bar along the bottom
-    ctx.fillStyle = '#2a1a33'; ctx.fillRect(0, H - 8, W, 8);
-    ctx.fillStyle = '#c1121f'; ctx.fillRect(0, H - 8, W * (this.xp / this.xpToNext), 8);
-    // Health bar under the vampire (always at the screen centre)
+    ctx.fillStyle = '#1a0838'; ctx.fillRect(0, H - 8, W, 8);
+    const xpGrad = ctx.createLinearGradient(0, 0, W, 0);
+    xpGrad.addColorStop(0, NEON.magenta); xpGrad.addColorStop(1, NEON.cyan);
+    ctx.fillStyle = xpGrad; ctx.fillRect(0, H - 8, W * (this.xp / this.xpToNext), 8);
+    // Health bar under the jet (always at the screen centre)
     const cx = W / 2, cy = H / 2;
     ctx.fillStyle = '#000'; const by = cy + Math.round(17 * this.aircraft.size);
     ctx.fillRect(cx - 16, by, 32, 4);
@@ -846,24 +851,30 @@ export class Game {
     ctx.fillRect(cx - 16, by, 32 * (p.hp / p.maxHp), 4);
 
     if (!this.choosing) return;
-    ctx.fillStyle = 'rgba(8,4,14,0.75)'; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = 'rgba(9,2,28,0.78)'; ctx.fillRect(0, 0, W, H);
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#ff4d6d'; ctx.font = 'bold 34px monospace';
-    ctx.fillText(`LEVEL ${this.level - this.pendingLevels}!`, W / 2, 120);
-    ctx.fillStyle = '#b8a9c9'; ctx.font = 'bold 14px monospace';
-    ctx.fillText('Choose an upgrade:  1 / 2 / 3   or   ← → and ENTER', W / 2, 160);
+    ctx.save();
+    ctx.shadowColor = NEON.magenta; ctx.shadowBlur = 14;
+    ctx.fillStyle = NEON.magenta; ctx.font = 'italic 900 40px Impact, "Arial Black", sans-serif';
+    ctx.fillText(`LEVEL ${this.level - this.pendingLevels} · WEAPONS UPGRADE`, W / 2, 120);
+    ctx.restore();
+    ctx.fillStyle = NEON.cyan; ctx.font = 'bold 14px monospace';
+    ctx.fillText('Arm your jet:  1 / 2 / 3   or   ← → and ENTER', W / 2, 160);
     const n = this.choosing.length, cw = 240, gap = 24, x0 = W / 2 - (n * cw + (n - 1) * gap) / 2;
     this.choosing.forEach((key, i) => {
       const x = x0 + i * (cw + gap), y = 200, sel = i === this.choiceIndex;
-      ctx.fillStyle = sel ? '#3a1530' : '#1c1226'; ctx.fillRect(x, y, cw, 170);
-      ctx.strokeStyle = sel ? '#ff4d6d' : '#4a3a5a'; ctx.lineWidth = sel ? 3 : 1.5; ctx.strokeRect(x, y, cw, 170);
+      ctx.fillStyle = sel ? 'rgba(60,10,70,0.92)' : 'rgba(9,2,28,0.88)'; ctx.fillRect(x, y, cw, 170);
+      ctx.save();
+      if (sel) { ctx.shadowColor = NEON.magenta; ctx.shadowBlur = 16; }
+      ctx.strokeStyle = sel ? NEON.magenta : 'rgba(5,217,232,0.45)'; ctx.lineWidth = sel ? 3 : 1.5; ctx.strokeRect(x, y, cw, 170);
+      ctx.restore();
       const u = UPGRADES[key], l = this.lv[key] ?? 0;
-      ctx.fillStyle = '#8a7a9a'; ctx.font = 'bold 14px monospace'; ctx.fillText(`[${i + 1}]`, x + cw / 2, y + 24);
+      ctx.fillStyle = NEON.dim; ctx.font = 'bold 14px monospace'; ctx.fillText(`[${i + 1}]`, x + cw / 2, y + 24);
       ctx.fillStyle = '#fff'; ctx.font = 'bold 20px monospace';
       ctx.fillText(u ? u.name : FLYBY.name, x + cw / 2, y + 62);
-      ctx.fillStyle = '#ffd6de'; ctx.font = '14px monospace';
+      ctx.fillStyle = l === 0 && u ? NEON.yellow : NEON.cyan; ctx.font = 'bold 14px monospace';
       ctx.fillText(u ? (l === 0 ? 'NEW' : `Lv ${l} → ${l + 1}`) : 'All upgrades maxed', x + cw / 2, y + 92);
-      ctx.fillStyle = '#b8a9c9'; ctx.font = '13px monospace';
+      ctx.fillStyle = NEON.ink; ctx.font = '13px monospace';
       ctx.fillText(u ? u.desc(l) : FLYBY.desc, x + cw / 2, y + 125);
     });
   }

@@ -87,7 +87,11 @@ export const CONFIG = {
   // choices. Picking it ends the night on the spot.
   redButtonFromLevel: 3,         // first level-up it can appear on
   redButtonChance: 0.5,          // chance per level-up after that
-  ejectDuration: 7,            // seconds of the pilot-ejecting animation before game over (ENTER skips)
+  ejectDuration: 7,
+  // Flares (F or Space): a salvo of smoking flares shot out behind the jet; nothing hurts you for a moment.
+  flareShield: 2,                // seconds of protection
+  flareCooldown: 60,             // seconds before flares can be used again
+            // seconds of the pilot-ejecting animation before game over (ENTER skips)
 
   // Soundtrack: which of the three tracks plays when (in-game clock hours).
   // "Neon Sunset" from 6 PM, "Midnight Drive" from midnight, and

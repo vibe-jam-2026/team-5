@@ -74,7 +74,7 @@ function update(dt) {
     }
 
     case 'playing':
-      if (input.wasPressed('KeyP', 'Escape')) { state = 'paused'; break; }
+      if (input.wasPressed('Escape')) { state = 'paused'; break; }
       game.update(dt, input);
       soundBudget = 2;
       for (const e of game.events) {
@@ -100,7 +100,7 @@ function update(dt) {
       break;
 
     case 'paused':
-      if (input.wasPressed('KeyP', 'Escape')) state = 'playing';
+      if (input.wasPressed('Escape')) state = 'playing';
       if (input.wasPressed('KeyQ')) state = 'title';
       break;
 
@@ -121,7 +121,7 @@ function update(dt) {
       break;
 
     case 'gameover':
-      if (input.wasPressed('KeyR', ...START)) openSelect();
+      if (input.wasPressed('Enter', 'NumpadEnter')) openSelect();
       if (input.wasPressed('Escape')) state = 'title';
       break;
   }
@@ -562,9 +562,9 @@ function drawTitle() {
   const cy = ly + 222;
   controlRow('Fly', ['↑', '↓', '←', '→', 'or', 'W', 'A', 'S', 'D'], lx + 20, cy);
   controlRow('Pick upgrade', ['1', '2', '3', 'or', '←', '→', 'Enter'], lx + 20, cy + 26);
-  controlRow('Pause', ['P', 'or', 'Esc'], lx + 20, cy + 52);
+  controlRow('Pause', ['Esc'], lx + 20, cy + 52);
   controlRow('Sound', ['M'], lx + 20, cy + 78);
-  controlRow('Fly again', ['R'], lx + 20, cy + 104);
+  controlRow('Fly again', ['Enter'], lx + 20, cy + 104);
   text('(after you go down)', lx + 160, cy + 104, 12, NEON.dim, 'left', 'normal');
 
   // Right: high scores
@@ -690,7 +690,7 @@ function draw() {
   if (state === 'paused') {
     overlay();
     chromeTitle('PAUSED', W / 2, H / 2 - 20, 48);
-    neonText('P resume  ·  Q quit to title', W / 2, H / 2 + 28, 16, NEON.cyan);
+    neonText('ESC resume  ·  Q quit to title', W / 2, H / 2 + 28, 16, NEON.cyan);
   }
 
   if (state === 'entry') {
@@ -713,7 +713,7 @@ function draw() {
     const boardRows = Math.max(2, Math.min(highscores.list.length, CONFIG.highscoreCount));
     neonPanel(W / 2 - 220, 128, 440, 64 + boardRows * 20, NEON.magenta);
     drawPilotLog(W / 2 - 200, 150, 400);
-    if (Math.floor(clock * 2) % 2 === 0) neonText('R / ENTER choose aircraft & fly again   ·   ESC title', W / 2, H - 30, 18, NEON.yellow);
+    if (Math.floor(clock * 2) % 2 === 0) neonText('ENTER choose aircraft & fly again   ·   ESC title', W / 2, H - 30, 18, NEON.yellow);
   }
 
   if (sfx.muted) text('MUTED', W - 16, H - 22, 12, '#8a7a9a', 'right');

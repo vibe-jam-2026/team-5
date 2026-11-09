@@ -130,6 +130,8 @@ const LASER_LEN = 260;
 
 // Shown when every upgrade is maxed.
 const FLYBY = { name: 'Tower Flyby', desc: 'Heal 30, +500 points' };
+// Trap card: looks like an upgrade, ends the game if picked.
+const RED_BUTTON = { name: 'Big Red Button', desc: 'Do not press. Seriously. Do NOT press it.' };
 
 // Fill a polygon and give it a crisp dark outline (mitred corners keep it sharp).
 const OUTLINE = '#07040b';
@@ -237,6 +239,7 @@ export class Game {
     this.choiceIndex = 0;
     this.over = false;
     this.crashed = false;     // true if the night ended by flying into the ground
+    this.pressedRed = false;  // true if the night ended by picking the big red button
     this.events = [];
   }
 
@@ -720,6 +723,11 @@ export class Game {
     for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
     this.choosing = pool.slice(0, 3);
     if (!this.choosing.length) this.choosing = ['feast'];
+    // Sometimes the big red button sneaks in, replacing one of the cards.
+    if (this.level >= C.redButtonFromLevel && Math.random() < C.redButtonChance) {
+      const slot = Math.floor(Math.random() * Math.max(this.choosing.length, 2));
+      this.choosing[Math.min(slot, this.choosing.length)] = 'redbutton';
+    }
     this.choiceIndex = 0;
     this.pendingLevels--;
     this.events.push('levelup');
@@ -735,7 +743,12 @@ export class Game {
     if (pick < 0) return;
 
     const key = this.choosing[pick];
-    if (key === 'feast') { this.player.hp = Math.min(this.player.maxHp, this.player.hp + 30); this.score += 500; }
+    if (key === 'redbutton') {   // told you so
+      this.player.hp = 0;
+      this.pressedRed = true;
+      this.burst(this.player.x, this.player.y, '#e01b2f', 60);
+      this.burst(this.player.x, this.player.y, '#fff1c1', 30);
+    } else if (key === 'feast') { this.player.hp = Math.min(this.player.maxHp, this.player.hp + 30); this.score += 500; }
     else {
       this.lv[key]++;
       if (key === 'vigor') { this.player.maxHp += 25; this.player.hp = Math.min(this.player.maxHp, this.player.hp + 25); }
@@ -1219,9 +1232,10 @@ function drawUpgradeCard(ctx, key, i, x, y, w, h, sel, l, t) {
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   // Status tag, top left
   ctx.textAlign = 'left'; ctx.font = 'bold 12px monospace';
-  const tag = !u ? 'BONUS' : l === 0 ? '★ NEW' : `LV ${l} → ${l + 1}`;
-  ctx.shadowColor = NEON.yellow; ctx.shadowBlur = l === 0 || !u ? 8 : 0;
-  ctx.fillStyle = l === 0 || !u ? NEON.yellow : '#fff';
+  const trap = key === 'redbutton';
+  const tag = trap ? '⚠ DANGER' : !u ? 'BONUS' : l === 0 ? '★ NEW' : `LV ${l} → ${l + 1}`;
+  ctx.shadowColor = trap ? '#ff2a3a' : NEON.yellow; ctx.shadowBlur = l === 0 || !u ? 8 : 0;
+  ctx.fillStyle = trap ? '#ff4d5a' : l === 0 || !u ? NEON.yellow : '#fff';
   ctx.fillText(tag, x + 22, y + 16);
   ctx.shadowBlur = 0;
   // Icon in a glowing ring
@@ -1240,7 +1254,7 @@ function drawUpgradeCard(ctx, key, i, x, y, w, h, sel, l, t) {
   // Name: chrome gradient on the selected card
   ctx.textAlign = 'center';
   ctx.font = 'italic 900 21px Impact, "Arial Black", sans-serif';
-  const name = (u ? u.name : FLYBY.name).toUpperCase();
+  const name = (u ? u.name : trap ? RED_BUTTON.name : FLYBY.name).toUpperCase();
   if (sel) {
     const chrome = ctx.createLinearGradient(0, y + 114, 0, y + 136);
     chrome.addColorStop(0, '#f4fdff'); chrome.addColorStop(0.45, '#5fd3ff');
@@ -1251,7 +1265,7 @@ function drawUpgradeCard(ctx, key, i, x, y, w, h, sel, l, t) {
   ctx.shadowBlur = 0;
   // Description, wrapped
   ctx.fillStyle = NEON.ink; ctx.font = '13px monospace';
-  wrapText(ctx, u ? u.desc(l) : FLYBY.desc, x + w / 2, y + 154, w - 30, 16);
+  wrapText(ctx, u ? u.desc(l) : trap ? RED_BUTTON.desc : FLYBY.desc, x + w / 2, y + 154, w - 30, 16);
   // Level pips along the bottom: filled = owned, blinking = the level you'd get
   if (u) {
     const pw = 14, pg = 6, total = u.max * pw + (u.max - 1) * pg;
@@ -1349,6 +1363,17 @@ function drawUpgradeIcon(ctx, key, t, sel) {
       ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, 16, a - 0.9, a); ctx.closePath(); ctx.fill();
       ctx.globalAlpha = 1;
       ctx.beginPath(); ctx.arc(7, -6, 2, 0, Math.PI * 2); ctx.fill();
+      break;
+    }
+    case 'redbutton': { // big glossy red button on a yellow-black base
+      ctx.shadowColor = '#ff2a3a'; ctx.shadowBlur = 14 + 6 * Math.sin(t * 6);
+      ctx.fillStyle = '#ffd400'; ctx.fillRect(-18, 4, 36, 10);
+      ctx.fillStyle = '#111';
+      for (let k = -18; k < 18; k += 8) { ctx.beginPath(); ctx.moveTo(k, 14); ctx.lineTo(k + 4, 14); ctx.lineTo(k + 8, 4); ctx.lineTo(k + 4, 4); ctx.fill(); }
+      ctx.fillStyle = '#7a0a14'; ctx.beginPath(); ctx.ellipse(0, 4, 14, 6, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#e01b2f'; ctx.beginPath(); ctx.ellipse(0, -2, 14, 9, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.beginPath(); ctx.ellipse(-5, -5, 4, 2.5, -0.3, 0, Math.PI * 2); ctx.fill();
       break;
     }
     default: {          // flyby bonus: star

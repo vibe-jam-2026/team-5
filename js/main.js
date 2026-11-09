@@ -581,7 +581,7 @@ function draw() {
 
   if (state === 'gameover') {
     overlay(0.82);
-    chromeTitle(game.crashed ? 'CRASHED' : 'SHOT DOWN', W / 2, 52, 52);
+    chromeTitle(game.pressedRed ? 'YOU PRESSED IT' : game.crashed ? 'CRASHED' : 'SHOT DOWN', W / 2, 52, 52);
     neonText(`Airborne ${fmtTime(game.time)}  ·  ${game.kills} bandits splashed  ·  level ${game.level}  ·  ${Math.floor(game.score)} pts`, W / 2, 96, 15, NEON.cyan);
     const boardRows = Math.max(2, Math.min(highscores.list.length, CONFIG.highscoreCount));
     neonPanel(W / 2 - 220, 116, 440, 64 + boardRows * 20, NEON.magenta);

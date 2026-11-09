@@ -1,5 +1,5 @@
 // Game shell: state machine (title / playing / paused / name entry / game over),
-// fixed-timestep loop, HUD, high scores ("the diary") and screen shake.
+// fixed-timestep loop, HUD, high scores ("top pilots") and screen shake.
 import { CONFIG } from './config.js';
 import { input } from './input.js';
 import { highscores } from './highscores.js';
@@ -224,31 +224,27 @@ function drawBackground() {
 function drawHud() {
   const score = Math.floor(game.score);
   text(`SCORE ${String(score).padStart(7, '0')}`, 16, 22, 18, '#fff', 'left');
-  text(`HI ${String(Math.max(score, highscores.best())).padStart(7, '0')}`, W / 2, 22, 16, '#ffb3c1');
+  neonText(`HI ${String(Math.max(score, highscores.best())).padStart(7, '0')}`, W / 2, 22, 16, NEON.cyan);
   text(fmtTime(game.time), W / 2, 44, 18, '#fff');
-  text(`LV ${game.level}`, W - 16, 22, 18, '#ff4d6d', 'right');
-  text(`☠ ${game.kills}`, W - 16, 44, 14, '#b8a9c9', 'right');
+  neonText(`LV ${game.level}`, W - 16, 22, 18, NEON.magenta, 'right');
+  text(`SPLASH ${game.kills}`, W - 16, 44, 14, NEON.ink, 'right');
   if (game.multiplier > 1) {
-    text(`x${game.multiplier} STREAK`, 16, 46, 16, '#ff4d6d', 'left');
-    ctx.fillStyle = '#ff4d6d';
+    neonText(`x${game.multiplier} STREAK`, 16, 46, 16, NEON.yellow, 'left');
+    ctx.fillStyle = NEON.yellow;
     ctx.fillRect(16, 58, 110 * (game.streakTimer / CONFIG.streakWindow), 4);
   }
 }
 
-const DIARY_LOOK = {
-  heading: 'THE DIARY · BEST NIGHTS', color: '#ff4d6d', dim: '#8a7a9a',
-  empty: ['The pages are empty.', 'Survive a night to write the first entry.'],
-};
-
-function drawDiary(x, y, w, rows = CONFIG.highscoreCount, look = DIARY_LOOK) {
-  text(look.heading, x + w / 2, y, 16, look.color);
+// High-score board (the look is PILOT_LOG, defined with the title screen).
+function drawPilotLog(x, y, w, rows = CONFIG.highscoreCount, look = PILOT_LOG) {
+  neonText(look.heading, x + w / 2, y, 16, look.color);
   if (!highscores.list.length) {
     look.empty.forEach((l, i) => text(l, x + w / 2, y + 34 + i * 20, 14, look.dim, 'center', 'normal'));
     return;
   }
   text('#  NAME    SCORE   TIME  LV', x + w / 2, y + 26, 12, look.dim);
   highscores.list.slice(0, rows).forEach((e, i) => {
-    const color = i === lastRank ? '#ffd166' : i === 0 ? '#fff' : '#d8cce6';
+    const color = i === lastRank ? NEON.yellow : i === 0 ? '#fff' : NEON.ink;
     const line = `${String(i + 1).padStart(2)} ${e.name.padEnd(3)} ${String(e.score).padStart(8)}  ${fmtTime(e.time ?? 0).padStart(5)} ${String(e.level).padStart(3)}`;
     text(line, x + w / 2, y + 48 + i * 20, 14, color);
   });
@@ -438,7 +434,7 @@ function drawTitle() {
   // Right: high scores
   const rx = 540, rw = 390;
   neonPanel(rx, ly, rw, lh, NEON.cyan);
-  drawDiary(rx, ly + 24, rw, CONFIG.highscoreCount, PILOT_LOG);
+  drawPilotLog(rx, ly + 24, rw, CONFIG.highscoreCount, PILOT_LOG);
 
   if (Math.floor(clock * 2) % 2 === 0) neonText('PRESS ENTER TO CHOOSE YOUR AIRCRAFT', W / 2, H - 28, 22, NEON.yellow);
 }
@@ -487,7 +483,7 @@ function drawSelect() {
 }
 
 function overlay(alpha = 0.6) {
-  ctx.fillStyle = `rgba(8,4,14,${alpha})`;
+  ctx.fillStyle = `rgba(9,2,28,${alpha})`;
   ctx.fillRect(0, 0, W, H);
 }
 
@@ -519,26 +515,28 @@ function draw() {
 
   if (state === 'paused') {
     overlay();
-    text('PAUSED', W / 2, H / 2 - 20, 40);
-    text('P resume  ·  Q quit to title', W / 2, H / 2 + 24, 16, '#b8a9c9');
+    chromeTitle('PAUSED', W / 2, H / 2 - 20, 48);
+    neonText('P resume  ·  Q quit to title', W / 2, H / 2 + 28, 16, NEON.cyan);
   }
 
   if (state === 'entry') {
     overlay(0.8);
-    text(isNewBest ? 'BEST NIGHT EVER!' : 'A NIGHT FOR THE DIARY!', W / 2, 140, 36, '#ff4d6d');
-    text(String(Math.floor(game.score)), W / 2, 200, 32);
-    text('SIGN THE DIARY WITH YOUR INITIALS', W / 2, 270, 16, '#b8a9c9');
+    chromeTitle(isNewBest ? 'TOP ACE!' : 'YOU MADE THE BOARD!', W / 2, 140, 48);
+    neonText(String(Math.floor(game.score)), W / 2, 205, 32, '#fff');
+    neonText('ENTER YOUR CALLSIGN', W / 2, 270, 16, NEON.cyan);
     const shown = (entryName + (Math.floor(clock * 3) % 2 ? '_' : ' ')).padEnd(3, ' ').slice(0, 3);
-    text(shown.split('').join(' '), W / 2, 325, 40, '#ffd166');
-    text('type letters · ENTER to confirm', W / 2, 385, 14, '#b8a9c9');
+    neonText(shown.split('').join(' '), W / 2, 325, 40, NEON.yellow);
+    text('type letters · ENTER to confirm', W / 2, 385, 14, NEON.dim);
   }
 
   if (state === 'gameover') {
     overlay(0.82);
-    text('THE NIGHT IS OVER', W / 2, 50, 40, '#c1121f');
-    text(`Lasted ${fmtTime(game.time)}  ·  ${game.kills} hunters drained  ·  level ${game.level}  ·  ${Math.floor(game.score)} pts`, W / 2, 92, 15, '#fff', 'center', 'normal');
-    drawDiary(W / 2 - 200, 135, 400);
-    blink('R / ENTER choose aircraft & play again   ·   ESC title', W / 2, H - 30, 18, '#fff');
+    chromeTitle('SHOT DOWN', W / 2, 52, 52);
+    neonText(`Airborne ${fmtTime(game.time)}  ·  ${game.kills} bandits splashed  ·  level ${game.level}  ·  ${Math.floor(game.score)} pts`, W / 2, 96, 15, NEON.cyan);
+    const boardRows = Math.max(2, Math.min(highscores.list.length, CONFIG.highscoreCount));
+    neonPanel(W / 2 - 220, 116, 440, 64 + boardRows * 20, NEON.magenta);
+    drawPilotLog(W / 2 - 200, 138, 400);
+    if (Math.floor(clock * 2) % 2 === 0) neonText('R / ENTER choose aircraft & fly again   ·   ESC title', W / 2, H - 30, 18, NEON.yellow);
   }
 
   if (sfx.muted) text('MUTED', W - 16, H - 22, 12, '#8a7a9a', 'right');

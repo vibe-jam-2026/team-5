@@ -35,7 +35,7 @@ const ENEMIES = {
 // Each upgrade has a max level; `apply` runs when picked.
 const UPGRADES = {
   bolt:   { name: 'Blood Bolt', max: 8, desc: (l) => l === 0 ? 'Shoot the nearest hunter' : 'Faster, harder, more bolts' },
-  bats:   { name: 'Bat Swarm',  max: 6, desc: (l) => l === 0 ? 'A bat circles you, biting hunters' : '+1 bat, faster orbit' },
+  bats:   { name: 'Missile Swarm', max: 6, desc: (l) => l === 0 ? 'A missile circles you, hitting hunters' : '+1 missile, faster orbit' },
   aura:   { name: 'Mist Aura',  max: 5, desc: (l) => l === 0 ? 'Damage hunters close to you' : 'Bigger, stronger mist' },
   might:  { name: 'Bloodlust',  max: 5, desc: () => '+20% damage' },
   speed:  { name: 'Shadow Step', max: 5, desc: () => '+10% move speed' },
@@ -45,7 +45,7 @@ const UPGRADES = {
 
 export class Game {
   constructor() {
-    this.player = { x: 0, y: 0, r: 11, hp: C.playerMaxHp, maxHp: C.playerMaxHp, face: 1 };
+    this.player = { x: 0, y: 0, r: 11, hp: C.playerMaxHp, maxHp: C.playerMaxHp, face: 1, heading: -Math.PI / 2 };
     this.lv = { bolt: 1, bats: 0, aura: 0, might: 0, speed: 0, vigor: 0, magnet: 0 };
     this.enemies = [];
     this.bolts = [];
@@ -108,6 +108,12 @@ export class Game {
     const p = this.player, ax = input.axis();
     const speed = C.playerSpeed * (1 + this.lv.speed * 0.1);
     if (ax.x) p.face = Math.sign(ax.x);
+    if (ax.x || ax.y) {
+      // Turn the jet smoothly towards the direction of travel.
+      let d = Math.atan2(ax.y, ax.x) - p.heading;
+      d = Math.atan2(Math.sin(d), Math.cos(d));
+      p.heading += d * Math.min(1, dt * 12);
+    }
     p.x += ax.x * speed * dt;
     p.y += ax.y * speed * dt;
     p.moving = !!(ax.x || ax.y);
@@ -244,7 +250,7 @@ export class Game {
     const n = this.lv.bats, p = this.player, out = [];
     for (let i = 0; i < n; i++) {
       const a = this.batAngle + (i / n) * Math.PI * 2;
-      out.push({ x: p.x + Math.cos(a) * 70, y: p.y + Math.sin(a) * 70 });
+      out.push({ x: p.x + Math.cos(a) * 70, y: p.y + Math.sin(a) * 70, a: a + Math.PI / 2 });
     }
     return out;
   }
@@ -374,24 +380,49 @@ export class Game {
     // Bolts
     ctx.fillStyle = '#ff4d6d';
     for (const b of this.bolts) { ctx.beginPath(); ctx.arc(b.x, b.y, 4, 0, Math.PI * 2); ctx.fill(); }
-    // Bats
-    for (const bat of this.batPositions()) {
-      ctx.fillStyle = '#2b1d3a';
-      ctx.strokeStyle = '#b39ddb';
-      ctx.lineWidth = 1.5;
-      const flap = Math.sin(this.time * 20) * 3;
-      ctx.beginPath(); ctx.moveTo(bat.x, bat.y); ctx.lineTo(bat.x - 10, bat.y - 4 + flap); ctx.lineTo(bat.x - 5, bat.y + 2);
-      ctx.lineTo(bat.x, bat.y + 4); ctx.lineTo(bat.x + 5, bat.y + 2); ctx.lineTo(bat.x + 10, bat.y - 4 + flap); ctx.closePath();
-      ctx.fill(); ctx.stroke();
-    }
-    // Vampire: dark cape triangle + pale face
-    if (!(this.hurtCd > 0.2 && Math.floor(this.hurtCd * 30) % 2)) {
-      ctx.fillStyle = '#5a0f1e';
-      ctx.beginPath(); ctx.moveTo(p.x, p.y - 6); ctx.lineTo(p.x - 13, p.y + 13); ctx.lineTo(p.x + 13, p.y + 13); ctx.fill();
-      ctx.fillStyle = '#e8e0f0';
-      ctx.beginPath(); ctx.arc(p.x, p.y - 6, 7, 0, Math.PI * 2); ctx.fill();
+    // Missiles (Missile Swarm), nose pointing along the orbit
+    for (const m of this.batPositions()) {
+      ctx.save();
+      ctx.translate(m.x, m.y); ctx.rotate(m.a);
+      // Exhaust flame
+      const flick = 4 + Math.sin(this.time * 40 + m.a) * 2;
+      ctx.fillStyle = '#ffb703';
+      ctx.beginPath(); ctx.moveTo(-7, -2); ctx.lineTo(-7 - flick, 0); ctx.lineTo(-7, 2); ctx.fill();
+      // Fins
       ctx.fillStyle = '#c1121f';
-      ctx.fillRect(p.x + p.face * 2 - 1, p.y - 8, 2, 2);
+      ctx.beginPath(); ctx.moveTo(-7, -2); ctx.lineTo(-9, -5); ctx.lineTo(-4, -2); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(-7, 2); ctx.lineTo(-9, 5); ctx.lineTo(-4, 2); ctx.fill();
+      // Body and nose
+      ctx.fillStyle = '#d8d8e4';
+      ctx.fillRect(-7, -2, 11, 4);
+      ctx.fillStyle = '#c1121f';
+      ctx.beginPath(); ctx.moveTo(4, -2); ctx.lineTo(9, 0); ctx.lineTo(4, 2); ctx.fill();
+      ctx.restore();
+    }
+    // Fighter jet, pointing where it flies
+    if (!(this.hurtCd > 0.2 && Math.floor(this.hurtCd * 30) % 2)) {
+      ctx.save();
+      ctx.translate(p.x, p.y); ctx.rotate(p.heading);
+      // Afterburner when moving
+      if (p.moving) {
+        const f = 6 + Math.sin(this.time * 50) * 2;
+        ctx.fillStyle = '#ffb703';
+        ctx.beginPath(); ctx.moveTo(-12, -3); ctx.lineTo(-12 - f, 0); ctx.lineTo(-12, 3); ctx.fill();
+      }
+      ctx.fillStyle = '#6b7488';
+      // Swept wings
+      ctx.beginPath(); ctx.moveTo(4, -2); ctx.lineTo(-6, -15); ctx.lineTo(-9, -15); ctx.lineTo(-5, -2);
+      ctx.lineTo(-5, 2); ctx.lineTo(-9, 15); ctx.lineTo(-6, 15); ctx.lineTo(4, 2); ctx.fill();
+      // Tail fins
+      ctx.beginPath(); ctx.moveTo(-8, -2); ctx.lineTo(-13, -7); ctx.lineTo(-12, -2); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(-8, 2); ctx.lineTo(-13, 7); ctx.lineTo(-12, 2); ctx.fill();
+      // Fuselage
+      ctx.fillStyle = '#a7b0c2';
+      ctx.beginPath(); ctx.moveTo(16, 0); ctx.lineTo(6, -3.5); ctx.lineTo(-12, -3); ctx.lineTo(-12, 3); ctx.lineTo(6, 3.5); ctx.closePath(); ctx.fill();
+      // Cockpit
+      ctx.fillStyle = '#4cc9f0';
+      ctx.beginPath(); ctx.ellipse(5, 0, 4, 1.8, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
     }
     // Particles
     for (const q of this.particles) {

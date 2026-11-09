@@ -1,7 +1,7 @@
 // Survivors-like gameplay: the vampire moves, powers attack automatically,
 // hunters drop blood (XP), level-ups offer a choice of 3 upgrades.
 // main.js only relies on:
-//   new Game(), game.update(dt, input), game.draw(ctx), game.drawUi(ctx),
+//   new Game(aircraft), game.update(dt, input), game.draw(ctx), game.drawUi(ctx),
 //   game.score, game.level, game.time, game.kills, game.multiplier, game.streakTimer,
 //   game.over, game.choosing, game.events
 // `events` are strings the shell reacts to: 'pickup', 'kill', 'hit', 'levelup', 'choose', 'over'.
@@ -43,9 +43,46 @@ const UPGRADES = {
   magnet: { name: 'Thirst',     max: 4, desc: () => '+40% blood pickup range' },
 };
 
+// Draw an aircraft at the origin pointing along +x (callers translate/rotate).
+function drawJet(ctx, a, burner = 0) {
+  ctx.save();
+  ctx.scale(a.size, a.size);
+  if (burner) {
+    ctx.fillStyle = '#ffb703';
+    ctx.beginPath(); ctx.moveTo(-12, -3); ctx.lineTo(-12 - burner, 0); ctx.lineTo(-12, 3); ctx.fill();
+  }
+  ctx.fillStyle = a.wing;
+  if (a.id === 'interceptor') {        // slim delta wing
+    ctx.beginPath(); ctx.moveTo(8, -2); ctx.lineTo(-10, -12); ctx.lineTo(-11, -2);
+    ctx.lineTo(-11, 2); ctx.lineTo(-10, 12); ctx.lineTo(8, 2); ctx.fill();
+  } else if (a.id === 'gunship') {     // broad straight wings, twin engines
+    ctx.fillRect(-4, -17, 9, 34);
+    ctx.fillRect(-13, -8, 4, 16);
+    ctx.fillStyle = '#3a3226';
+    ctx.fillRect(-2, -12, 7, 3); ctx.fillRect(-2, 9, 7, 3);
+    ctx.fillStyle = a.wing;
+  } else {                             // swept wings
+    ctx.beginPath(); ctx.moveTo(4, -2); ctx.lineTo(-6, -15); ctx.lineTo(-9, -15); ctx.lineTo(-5, -2);
+    ctx.lineTo(-5, 2); ctx.lineTo(-9, 15); ctx.lineTo(-6, 15); ctx.lineTo(4, 2); ctx.fill();
+  }
+  // Tail fins
+  ctx.beginPath(); ctx.moveTo(-8, -2); ctx.lineTo(-13, -7); ctx.lineTo(-12, -2); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(-8, 2); ctx.lineTo(-13, 7); ctx.lineTo(-12, 2); ctx.fill();
+  // Fuselage
+  ctx.fillStyle = a.body;
+  const nose = a.id === 'interceptor' ? 19 : 16, w = a.id === 'gunship' ? 4.5 : 3.5;
+  ctx.beginPath(); ctx.moveTo(nose, 0); ctx.lineTo(6, -w); ctx.lineTo(-12, -3); ctx.lineTo(-12, 3); ctx.lineTo(6, w); ctx.closePath(); ctx.fill();
+  // Cockpit
+  ctx.fillStyle = '#4cc9f0';
+  ctx.beginPath(); ctx.ellipse(5, 0, 4, 1.8, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+
 export class Game {
-  constructor() {
-    this.player = { x: 0, y: 0, r: 11, hp: C.playerMaxHp, maxHp: C.playerMaxHp, face: 1, heading: -Math.PI / 2 };
+  constructor(aircraft = C.aircraft[1]) {
+    this.aircraft = aircraft;
+    const maxHp = Math.round(C.playerMaxHp * aircraft.health);
+    this.player = { x: 0, y: 0, r: 11 * aircraft.size, hp: maxHp, maxHp, face: 1, heading: -Math.PI / 2 };
     this.lv = { bolt: 1, bats: 0, aura: 0, might: 0, speed: 0, vigor: 0, magnet: 0 };
     this.enemies = [];
     this.bolts = [];
@@ -72,7 +109,7 @@ export class Game {
   }
 
   get xpToNext() { return C.xpBase + (this.level - 1) * C.xpPerLevel; }
-  get might() { return 1 + this.lv.might * 0.2; }
+  get might() { return this.aircraft.damage * (1 + this.lv.might * 0.2); }
 
   // ---------- Update ----------
   update(dt, input) {
@@ -106,7 +143,7 @@ export class Game {
 
   movePlayer(dt, input) {
     const p = this.player, ax = input.axis();
-    const speed = C.playerSpeed * (1 + this.lv.speed * 0.1);
+    const speed = C.playerSpeed * this.aircraft.speed * (1 + this.lv.speed * 0.1);
     if (ax.x) p.face = Math.sign(ax.x);
     if (ax.x || ax.y) {
       // Turn the jet smoothly towards the direction of travel.
@@ -399,25 +436,7 @@ export class Game {
     if (!(this.hurtCd > 0.2 && Math.floor(this.hurtCd * 30) % 2)) {
       ctx.save();
       ctx.translate(p.x, p.y); ctx.rotate(p.heading);
-      // Afterburner when moving
-      if (p.moving) {
-        const f = 6 + Math.sin(this.time * 50) * 2;
-        ctx.fillStyle = '#ffb703';
-        ctx.beginPath(); ctx.moveTo(-12, -3); ctx.lineTo(-12 - f, 0); ctx.lineTo(-12, 3); ctx.fill();
-      }
-      ctx.fillStyle = '#6b7488';
-      // Swept wings
-      ctx.beginPath(); ctx.moveTo(4, -2); ctx.lineTo(-6, -15); ctx.lineTo(-9, -15); ctx.lineTo(-5, -2);
-      ctx.lineTo(-5, 2); ctx.lineTo(-9, 15); ctx.lineTo(-6, 15); ctx.lineTo(4, 2); ctx.fill();
-      // Tail fins
-      ctx.beginPath(); ctx.moveTo(-8, -2); ctx.lineTo(-13, -7); ctx.lineTo(-12, -2); ctx.fill();
-      ctx.beginPath(); ctx.moveTo(-8, 2); ctx.lineTo(-13, 7); ctx.lineTo(-12, 2); ctx.fill();
-      // Fuselage
-      ctx.fillStyle = '#a7b0c2';
-      ctx.beginPath(); ctx.moveTo(16, 0); ctx.lineTo(6, -3.5); ctx.lineTo(-12, -3); ctx.lineTo(-12, 3); ctx.lineTo(6, 3.5); ctx.closePath(); ctx.fill();
-      // Cockpit
-      ctx.fillStyle = '#4cc9f0';
-      ctx.beginPath(); ctx.ellipse(5, 0, 4, 1.8, 0, 0, Math.PI * 2); ctx.fill();
+      drawJet(ctx, this.aircraft, p.moving ? 6 + Math.sin(this.time * 50) * 2 : 0);
       ctx.restore();
     }
     // Particles
@@ -446,9 +465,10 @@ export class Game {
     ctx.fillStyle = '#c1121f'; ctx.fillRect(0, H - 8, W * (this.xp / this.xpToNext), 8);
     // Health bar under the vampire (always at the screen centre)
     const cx = W / 2, cy = H / 2;
-    ctx.fillStyle = '#000'; ctx.fillRect(cx - 16, cy + 17, 32, 4);
+    ctx.fillStyle = '#000'; const by = cy + Math.round(17 * this.aircraft.size);
+    ctx.fillRect(cx - 16, by, 32, 4);
     ctx.fillStyle = p.hp / p.maxHp > 0.3 ? '#7ae582' : '#ff4d6d';
-    ctx.fillRect(cx - 16, cy + 17, 32 * (p.hp / p.maxHp), 4);
+    ctx.fillRect(cx - 16, by, 32 * (p.hp / p.maxHp), 4);
 
     if (!this.choosing) return;
     ctx.fillStyle = 'rgba(8,4,14,0.75)'; ctx.fillRect(0, 0, W, H);
@@ -473,3 +493,6 @@ export class Game {
     });
   }
 }
+
+// main.js uses this to preview aircraft on the selection screen.
+Game.drawJet = drawJet;

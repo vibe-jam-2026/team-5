@@ -10,20 +10,27 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 const W = CONFIG.width, H = CONFIG.height;
 
-let state = 'title';      // 'title' | 'playing' | 'paused' | 'entry' | 'gameover'
+let state = 'title';      // 'title' | 'select' | 'playing' | 'paused' | 'entry' | 'gameover'
 let game = null;
 let shake = 0;
 let clock = 0;            // for blinking text
 let entryName = '';
 let lastRank = -1;
 let isNewBest = false;
+let aircraftIndex = 1;    // remembered between rounds
 let soundBudget = 0;      // limits kill/pickup sounds per frame when many happen at once
 
 const START = ['Enter', 'Space', 'NumpadEnter'];
 const fmtTime = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
+function openSelect() {
+  state = 'select';
+  sfx.unlock();
+  sfx.select();
+}
+
 function startGame() {
-  game = new Game();
+  game = new Game(CONFIG.aircraft[aircraftIndex]);
   state = 'playing';
   lastRank = -1;
   sfx.unlock();
@@ -49,8 +56,18 @@ function update(dt) {
 
   switch (state) {
     case 'title':
-      if (input.wasPressed(...START)) startGame();
+      if (input.wasPressed(...START)) openSelect();
       break;
+
+    case 'select': {
+      const n = CONFIG.aircraft.length;
+      if (input.wasPressed(...START)) { startGame(); break; }
+      if (input.wasPressed('ArrowLeft', 'KeyA', 'ArrowUp', 'KeyW')) { aircraftIndex = (aircraftIndex + n - 1) % n; sfx.select(); }
+      if (input.wasPressed('ArrowRight', 'KeyD', 'ArrowDown', 'KeyS')) { aircraftIndex = (aircraftIndex + 1) % n; sfx.select(); }
+      for (let i = 0; i < n; i++) if (input.wasPressed('Digit' + (i + 1), 'Numpad' + (i + 1))) { aircraftIndex = i; startGame(); }
+      if (input.wasPressed('Escape')) state = 'title';
+      break;
+    }
 
     case 'playing':
       if (input.wasPressed('KeyP', 'Escape')) { state = 'paused'; break; }
@@ -88,7 +105,7 @@ function update(dt) {
       break;
 
     case 'gameover':
-      if (input.wasPressed('KeyR', ...START)) startGame();
+      if (input.wasPressed('KeyR', ...START)) openSelect();
       if (input.wasPressed('Escape')) state = 'title';
       break;
   }
@@ -216,7 +233,42 @@ function drawTitle() {
   panel(rx, ly, rw, lh);
   drawDiary(rx, ly + 24, rw);
 
-  blink('PRESS ENTER TO BEGIN THE NIGHT', W / 2, H - 30, 20, '#fff');
+  blink('PRESS ENTER TO CHOOSE YOUR AIRCRAFT', W / 2, H - 30, 20, '#fff');
+}
+
+// Aircraft selection: three cards with a preview and stat bars.
+function drawSelect() {
+  overlay(0.7);
+  text('CHOOSE YOUR AIRCRAFT', W / 2, 70, 34, '#ff4d6d');
+  text('1 / 2 / 3   or   ← → and ENTER   ·   ESC back', W / 2, 108, 14, '#b8a9c9');
+  const list = CONFIG.aircraft, cw = 260, ch = 300, gap = 24;
+  const x0 = W / 2 - (list.length * cw + (list.length - 1) * gap) / 2;
+  const stats = [['SPEED', 'speed'], ['HEALTH', 'health'], ['DAMAGE', 'damage']];
+  const maxOf = (k) => Math.max(...list.map((a) => a[k]));
+  list.forEach((a, i) => {
+    const x = x0 + i * (cw + gap), y = 140, sel = i === aircraftIndex;
+    ctx.fillStyle = sel ? '#3a1530' : '#1c1226'; ctx.fillRect(x, y, cw, ch);
+    ctx.strokeStyle = sel ? '#ff4d6d' : '#4a3a5a'; ctx.lineWidth = sel ? 3 : 1.5; ctx.strokeRect(x, y, cw, ch);
+    text(`[${i + 1}]`, x + cw / 2, y + 22, 14, '#8a7a9a');
+    // Preview, gently bobbing when selected
+    ctx.save();
+    ctx.translate(x + cw / 2, y + 85 + (sel ? Math.sin(clock * 4) * 3 : 0));
+    ctx.rotate(-Math.PI / 2);
+    ctx.scale(2.4, 2.4);
+    Game.drawJet(ctx, a, sel ? 6 + Math.sin(clock * 50) * 2 : 0);
+    ctx.restore();
+    text(a.name.toUpperCase(), x + cw / 2, y + 150, 20, '#fff');
+    text(a.desc, x + cw / 2, y + 174, 13, '#b8a9c9', 'center', 'normal');
+    stats.forEach(([label, k], j) => {
+      const sy = y + 206 + j * 28;
+      text(label, x + 18, sy, 12, '#d8cce6', 'left');
+      const bx = x + 96, bw = cw - 150;
+      ctx.fillStyle = '#2a1a33'; ctx.fillRect(bx, sy - 5, bw, 10);
+      ctx.fillStyle = a[k] > 1 ? '#7ae582' : a[k] < 1 ? '#ff4d6d' : '#ffd166';
+      ctx.fillRect(bx, sy - 5, bw * (a[k] / maxOf(k)), 10);
+      text(`${Math.round(a[k] * 100)}%`, x + cw - 14, sy, 12, '#d8cce6', 'right', 'normal');
+    });
+  });
 }
 
 function overlay(alpha = 0.6) {
@@ -228,11 +280,13 @@ function draw() {
   ctx.save();
   if (shake > 0) ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
   drawBackground();
-  if (game) game.draw(ctx);
+  if (game && state !== 'select') game.draw(ctx);
   ctx.restore();
 
   if (state === 'title') {
     drawTitle();
+  } else if (state === 'select') {
+    drawSelect();
   } else if (game) {
     drawHud();
     game.drawUi(ctx);
@@ -259,7 +313,7 @@ function draw() {
     text('THE NIGHT IS OVER', W / 2, 50, 40, '#c1121f');
     text(`Lasted ${fmtTime(game.time)}  ·  ${game.kills} hunters drained  ·  level ${game.level}  ·  ${Math.floor(game.score)} pts`, W / 2, 92, 15, '#fff', 'center', 'normal');
     drawDiary(W / 2 - 200, 135, 400);
-    blink('R / ENTER play again   ·   ESC title', W / 2, H - 30, 18, '#fff');
+    blink('R / ENTER choose aircraft & play again   ·   ESC title', W / 2, H - 30, 18, '#fff');
   }
 
   if (sfx.muted) text('MUTED', W - 16, H - 22, 12, '#8a7a9a', 'right');

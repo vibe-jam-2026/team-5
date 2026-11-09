@@ -312,7 +312,7 @@ export class Game {
       let g = this.guns.get(slot);
       if (!g) {
         g = { x: slot * AA_SLOT + 80 + hash(slot, 992) * (AA_SLOT - 160), y: 0, r: 14,
-          hp: C.aaHp, maxHp: C.aaHp, cd: rand(1, C.aaInterval), aim: -Math.PI / 2, flash: 0, hitFlash: 0, dead: false, spin: hash(slot, 993) * 6.28 };
+          hp: C.aaHp, maxHp: C.aaHp, cd: rand(1, C.aaInterval), aim: -Math.PI / 2, flash: 0, hitFlash: 0, dead: false };
         this.guns.set(slot, g);
       }
       g.y = p.y + AA_Y - H / 2;
@@ -331,12 +331,6 @@ export class Game {
       if (g.flash > 0) g.flash -= dt;
       if (g.hitFlash > 0) g.hitFlash -= dt;
       if (g.dead) continue;
-      // Radar dish sweeps around, then locks onto the jet just before firing.
-      if (this.time >= C.aaFrom && g.cd < 0.7) {
-        const lock = p.x >= g.x ? 0 : Math.PI;
-        let d = lock - g.spin; d = Math.atan2(Math.sin(d), Math.cos(d));
-        g.spin += d * Math.min(1, dt * 10);
-      } else g.spin += dt * 2.5;
       // Track the jet, barrels always pointing upwards.
       let want = Math.atan2(p.y - g.y, p.x - g.x);
       want = Math.max(-Math.PI + 0.25, Math.min(-0.25, want));
@@ -644,9 +638,6 @@ export class Game {
       ctx.fillStyle = '#1c1620';
       ctx.fillRect(x - 18, y + 4, 36, 10);
       ctx.beginPath(); ctx.arc(x - 2, y + 4, 8, Math.PI, 0); ctx.fill();
-      ctx.save(); ctx.translate(x + 14, y + 4); ctx.rotate(1.2);   // toppled radar dish
-      ctx.beginPath(); ctx.ellipse(0, 0, 4, 10, 0, -Math.PI / 2, Math.PI / 2); ctx.fill();
-      ctx.restore();
       for (let i = 0; i < 4; i++) {
         const t = (this.time * 0.6 + i / 4) % 1;
         ctx.fillStyle = `rgba(90,80,100,${(0.3 * (1 - t)).toFixed(3)})`;
@@ -655,7 +646,6 @@ export class Game {
       return;
     }
     const lit = g.hitFlash > 0;
-    this.drawRadar(ctx, x - 14, y - 15, g.spin, lit);
     // Twin barrels
     ctx.save();
     ctx.translate(x, y); ctx.rotate(g.aim);
@@ -683,28 +673,6 @@ export class Game {
       ctx.fillStyle = '#000'; ctx.fillRect(x - 14, y - 16, 28, 3);
       ctx.fillStyle = '#ffb703'; ctx.fillRect(x - 14, y - 16, 28 * (g.hp / g.maxHp), 3);
     }
-  }
-
-  // A small radar dish on a mast. The dish is a bowl seen side-on; squashing
-  // it by cos(spin) makes it look like it turns, and the dark back shows when
-  // it faces away.
-  drawRadar(ctx, x, y, spin, lit) {
-    ctx.fillStyle = lit ? '#fff' : '#3a4034';
-    ctx.fillRect(x - 1.25, y, 2.5, 18);             // mast
-    ctx.fillRect(x - 4, y + 15, 8, 3);              // mount
-    const c = Math.cos(spin), front = c >= 0;
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.scale(Math.abs(c) < 0.15 ? 0.15 * Math.sign(c || 1) : c, 1);
-    ctx.fillStyle = lit ? '#fff' : front ? '#9aa58a' : '#4f5845';
-    ctx.strokeStyle = '#07040b'; ctx.lineWidth = 0.8;
-    ctx.beginPath(); ctx.ellipse(0, 0, 5.5, 11, 0, -Math.PI / 2, Math.PI / 2); ctx.closePath();
-    ctx.fill(); ctx.stroke();
-    // Feed horn on struts in front of the dish
-    ctx.strokeStyle = lit ? '#fff' : '#6b745e'; ctx.lineWidth = 0.9;
-    ctx.beginPath(); ctx.moveTo(0, -8); ctx.lineTo(10, 0); ctx.lineTo(0, 8); ctx.stroke();
-    ctx.fillStyle = '#ff4d6d'; ctx.fillRect(9, -1.5, 3, 3);
-    ctx.restore();
   }
 
   // Bars and the level-up picker, drawn above the HUD.

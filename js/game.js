@@ -878,8 +878,9 @@ function cardPath(ctx, x, y, w, h, c) {
   ctx.closePath();
 }
 
-function drawUpgradeCard(ctx, key, i, x, y, w, h, sel, l, t) {
-  const u = UPGRADES[key];
+// Shared neon card frame (also used by the aircraft picker in main.js):
+// body, synthwave grid, scanlines, light sweep, header band, border and a key badge.
+function drawNeonCard(ctx, x, y, w, h, sel, t, keyLabel) {
   const accent = sel ? NEON.magenta : NEON.cyan;
   const pulse = 0.5 + 0.5 * Math.sin(t * 5);
   ctx.save();
@@ -938,7 +939,17 @@ function drawUpgradeCard(ctx, key, i, x, y, w, h, sel, l, t) {
   ctx.fillStyle = sel ? NEON.magenta : '#1a0838'; ctx.fillRect(kx, ky, 24, 20);
   ctx.strokeStyle = sel ? '#fff' : NEON.cyan; ctx.lineWidth = 1.2; ctx.strokeRect(kx, ky, 24, 20);
   ctx.fillStyle = sel ? '#1a0838' : '#fff'; ctx.font = 'bold 13px monospace';
-  ctx.fillText(String(i + 1), kx + 12, ky + 11);
+  ctx.fillText(keyLabel, kx + 12, ky + 11);
+  ctx.restore();
+}
+
+function drawUpgradeCard(ctx, key, i, x, y, w, h, sel, l, t) {
+  const u = UPGRADES[key];
+  const accent = sel ? NEON.magenta : NEON.cyan;
+  const pulse = 0.5 + 0.5 * Math.sin(t * 5);
+  drawNeonCard(ctx, x, y, w, h, sel, t, String(i + 1));
+  ctx.save();
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   // Status tag, top left
   ctx.textAlign = 'left'; ctx.font = 'bold 12px monospace';
   const tag = !u ? 'BONUS' : l === 0 ? '★ NEW' : `LV ${l} → ${l + 1}`;
@@ -1087,3 +1098,4 @@ function drawUpgradeIcon(ctx, key, t, sel) {
 
 // main.js uses this to preview aircraft on the selection screen.
 Game.drawJet = drawJet;
+Game.drawNeonCard = drawNeonCard;

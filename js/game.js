@@ -31,12 +31,73 @@ function hash(x, y) {
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 }
 
-// ---------- Hunter types ----------
+// ---------- Enemy drone types ----------
+// The first entry is the "basic" spawn (see basicShare* in config.js).
 const ENEMIES = {
-  villager: { r: 10, hp: 10, speed: 60, dps: 12, xp: 1, color: '#d98b3a', from: 0 },
-  hunter:   { r: 8,  hp: 8,  speed: 115, dps: 10, xp: 1, color: '#9fb4c7', from: 30 },
-  priest:   { r: 16, hp: 70, speed: 40, dps: 25, xp: 5, color: '#f2efe6', from: 80 },
+  quad:  { r: 10, hp: 10, speed: 60, dps: 12, xp: 1, color: '#d98b3a', from: 0 },   // quadcopter swarm drone
+  dart:  { r: 8,  hp: 8,  speed: 115, dps: 10, xp: 1, color: '#9fb4c7', from: 30 }, // fast fixed-wing kamikaze drone
+  heavy: { r: 16, hp: 70, speed: 40, dps: 25, xp: 5, color: '#8a8f6a', from: 80 },  // armoured hexacopter
 };
+
+// Draw a drone at the origin facing +x (callers translate/rotate).
+function drawDrone(ctx, e, t) {
+  const r = e.r, body = e.flash > 0 ? '#fff' : e.color;
+  const blink = Math.floor(t * 4 + e.seed * 4) % 2 === 0;
+  if (e.kind === 'dart') {
+    // Delta-wing kamikaze drone with a pusher prop
+    ctx.fillStyle = body;
+    ctx.beginPath(); ctx.moveTo(r * 1.5, 0); ctx.lineTo(-r, -r * 1.2); ctx.lineTo(-r * 0.6, 0); ctx.lineTo(-r, r * 1.2); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#3a3f4b';
+    ctx.fillRect(-r * 0.8, -1.5, r * 1.9, 3);
+    ctx.strokeStyle = 'rgba(220,220,230,0.6)'; ctx.lineWidth = 1.5;
+    const s = Math.sin(t * 60 + e.seed * 9) * r * 0.7;
+    ctx.beginPath(); ctx.moveTo(-r * 0.9, -s); ctx.lineTo(-r * 0.9, s); ctx.stroke();
+    ctx.fillStyle = '#e63946';
+    ctx.beginPath(); ctx.arc(r * 1.1, 0, 1.8, 0, Math.PI * 2); ctx.fill();
+    return;
+  }
+  // Multirotors: quad = 4 arms, heavy = 6 arms
+  const arms = e.kind === 'heavy' ? 6 : 4, reach = r * 1.15, rotor = r * (arms === 6 ? 0.45 : 0.55);
+  ctx.strokeStyle = '#3a3f4b'; ctx.lineWidth = arms === 6 ? 3 : 2;
+  for (let i = 0; i < arms; i++) {
+    const a = (i + 0.5) / arms * Math.PI * 2;
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(a) * reach, Math.sin(a) * reach); ctx.stroke();
+  }
+  // Spinning rotor discs
+  for (let i = 0; i < arms; i++) {
+    const a = (i + 0.5) / arms * Math.PI * 2, x = Math.cos(a) * reach, y = Math.sin(a) * reach;
+    ctx.fillStyle = 'rgba(200,205,220,0.22)';
+    ctx.beginPath(); ctx.arc(x, y, rotor, 0, Math.PI * 2); ctx.fill();
+    const b = t * 40 * (i % 2 ? 1 : -1) + e.seed * 7;
+    ctx.strokeStyle = 'rgba(230,230,240,0.7)'; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(x - Math.cos(b) * rotor, y - Math.sin(b) * rotor); ctx.lineTo(x + Math.cos(b) * rotor, y + Math.sin(b) * rotor); ctx.stroke();
+  }
+  // Body
+  ctx.fillStyle = body;
+  if (arms === 6) {
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; ctx.lineTo(Math.cos(a) * r * 0.6, Math.sin(a) * r * 0.6); }
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#4a4f3a'; ctx.fillRect(-r * 0.15, -r * 0.45, r * 0.3, r * 0.9); // armour plate
+  } else {
+    ctx.fillRect(-r * 0.45, -r * 0.35, r * 0.9, r * 0.7);
+  }
+  // Gun barrel under the nose; glows red while charging a shot
+  if (e.gun) {
+    ctx.fillStyle = '#222'; ctx.fillRect(r * 0.3, -1.5, r * 0.9, 3);
+    const tip = r * 1.25;
+    if (e.gunCd < C.droneWarn) {
+      const k = 1 - Math.max(0, e.gunCd) / C.droneWarn;
+      ctx.fillStyle = `rgba(255,60,80,${(0.25 + 0.5 * k).toFixed(3)})`;
+      ctx.beginPath(); ctx.arc(tip, 0, 2 + k * 4, 0, Math.PI * 2); ctx.fill();
+    }
+    if (e.muzzle > 0) { ctx.fillStyle = '#fff1c1'; ctx.beginPath(); ctx.arc(tip, 0, 5, 0, Math.PI * 2); ctx.fill(); }
+  }
+  // Camera eye facing the player, and a blinking nav light
+  ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(r * 0.35, 0, r * 0.2, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#e63946'; ctx.beginPath(); ctx.arc(r * 0.35, 0, r * 0.09, 0, Math.PI * 2); ctx.fill();
+  if (blink) { ctx.fillStyle = arms === 6 ? '#ffb703' : '#4cc9f0'; ctx.beginPath(); ctx.arc(-r * 0.4, 0, 1.6, 0, Math.PI * 2); ctx.fill(); }
+}
 
 // ---------- Upgrades ----------
 // Each upgrade has a max level; `apply` runs when picked.
@@ -112,6 +173,7 @@ export class Game {
     this.guns = new Map();    // anti-aircraft guns by forest slot
     this.shells = [];
     this.flak = [];           // flak bursts
+    this.bullets = [];        // shots from armed drones
     this.score = 0;
     this.time = 0;
     this.kills = 0;
@@ -145,6 +207,7 @@ export class Game {
     this.movePlayer(dt, input);
     this.spawn(dt);
     this.moveEnemies(dt);
+    this.droneGuns(dt);
     this.antiAircraft(dt);
     this.weapons(dt);
     this.collectGems(dt);
@@ -189,15 +252,18 @@ export class Game {
     const hpScale = 1 + T / C.hpScaleSeconds;
     const speedScale = Math.min(C.maxSpeedScale, 1 + T / C.speedScaleSeconds);
     const dpsScale = 1 + T / C.dpsScaleSeconds;
-    // Plain villagers get rarer as the night goes on; tougher types take over.
+    // Plain quadcopters get rarer as the night goes on; tougher types take over.
     const basic = C.basicShareStart + (C.basicShareEnd - C.basicShareStart) * Math.min(1, T / C.basicShareSeconds);
     while (this.spawnAcc >= 1) {
       this.spawnAcc--;
       if (this.enemies.length >= C.maxEnemies) continue;
       const [kind, t] = types[Math.random() < basic ? 0 : Math.floor(Math.random() * types.length)];
       const { x, y } = this.around(SPAWN_RADIUS + rand(0, 60));
+      const armed = kind === 'heavy' || (kind === 'quad' && T >= C.armedQuadFrom && Math.random() < C.armedQuadShare);
+      const gun = armed ? C.droneGuns[kind] : null;
       this.enemies.push({ kind, x, y, r: t.r, hp: t.hp * hpScale, maxHp: t.hp * hpScale,
-        speed: t.speed * speedScale * rand(0.85, 1.15), dps: t.dps * dpsScale, xp: t.xp, color: t.color, flash: 0, batCd: 0 });
+        speed: t.speed * speedScale * rand(0.85, 1.15), dps: t.dps * dpsScale, xp: t.xp, color: t.color, flash: 0, batCd: 0, seed: Math.random(),
+        gun, gunCd: gun ? gun.interval * rand(0.6, 1.2) : 0, muzzle: 0 });
     }
   }
 
@@ -312,6 +378,40 @@ export class Game {
     }
 
     this.enemies = this.enemies.filter((e) => !e.dead);
+  }
+
+  // ---------- Armed drones ----------
+  droneGuns(dt) {
+    const p = this.player, range2 = C.droneRange ** 2;
+    for (const e of this.enemies) {
+      if (!e.gun || e.dead) continue;
+      if (e.muzzle > 0) e.muzzle -= dt;
+      const onScreen = Math.abs(e.x - p.x) < W / 2 - 10 && Math.abs(e.y - p.y) < H / 2 - 10;
+      // Only count down while in view and in range, so shots never come from off-screen.
+      if (!onScreen || dist2(e, p) > range2) { e.gunCd = Math.max(e.gunCd, C.droneWarn); continue; }
+      e.gunCd -= dt;
+      if (e.gunCd > 0) continue;
+      e.gunCd = e.gun.interval * rand(0.85, 1.15);
+      e.muzzle = 0.08;
+      const a = Math.atan2(p.y - e.y, p.x - e.x), sp = C.droneBulletSpeed, n = e.gun.shots;
+      for (let i = 0; i < n; i++) {
+        const b = a + (i - (n - 1) / 2) * e.gun.spread;
+        this.bullets.push({ x: e.x + Math.cos(b) * e.r * 1.3, y: e.y + Math.sin(b) * e.r * 1.3,
+          vx: Math.cos(b) * sp, vy: Math.sin(b) * sp, life: 3, dmg: e.gun.damage });
+      }
+      this.events.push('zap');
+    }
+    for (const b of this.bullets) {
+      b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
+      if (b.life <= 0) b.done = true;
+      else if (dist2(b, p) < (p.r + 3) ** 2) {
+        b.done = true;
+        p.hp -= b.dmg;
+        this.hurtCd = 0.4;
+        this.events.push('hit');
+      }
+    }
+    this.bullets = this.bullets.filter((b) => !b.done);
   }
 
   // ---------- Anti-aircraft guns ----------
@@ -530,24 +630,11 @@ export class Game {
       const s = g.big ? 6 : 4;
       ctx.beginPath(); ctx.moveTo(g.x, g.y - s * 1.6); ctx.lineTo(g.x + s, g.y); ctx.arc(g.x, g.y, s, 0, Math.PI); ctx.lineTo(g.x - s, g.y); ctx.fill();
     }
-    // Hunters: angular silhouettes that point at the jet
+    // Drones, facing the jet
     for (const e of this.enemies) {
-      const lit = e.flash > 0, col = lit ? '#fff' : e.color, r = e.r;
       ctx.save();
       ctx.translate(e.x, e.y); ctx.rotate(Math.atan2(p.y - e.y, p.x - e.x));
-      if (e.kind === 'villager') {        // arrowhead with a torch flame
-        poly(ctx, [r * 1.25, 0, -r * 0.8, -r, -r * 0.35, 0, -r * 0.8, r], col, 1.2);
-        if (!lit) poly(ctx, [r * 0.2, -r * 1.05, r * 0.65, -r * 1.7, r * 0.55, -r * 0.95], '#ffb703', 0.8);
-      } else if (e.kind === 'hunter') {   // needle-thin dart
-        poly(ctx, [r * 1.7, 0, -r, -r * 0.8, -r * 0.4, 0, -r, r * 0.8], col, 1.2);
-        if (!lit) poly(ctx, [r * 1.1, 0, -r * 0.1, -r * 0.25, -r * 0.1, r * 0.25], '#e8f1f8', 0);
-      } else {                            // armoured octagon with a cross
-        const pts = [];
-        for (let i = 0; i < 8; i++) { const a = (i + 0.5) * Math.PI / 4; pts.push(Math.cos(a) * r, Math.sin(a) * r); }
-        poly(ctx, pts, col, 1.5);
-        ctx.rotate(-Math.atan2(p.y - e.y, p.x - e.x));   // keep the cross upright
-        if (!lit) { ctx.fillStyle = '#7a1c1c'; ctx.fillRect(-1.5, -8, 3, 16); ctx.fillRect(-6, -4, 12, 3); }
-      }
+      drawDrone(ctx, e, this.time);
       ctx.restore();
     }
     // Cannon tracers: thin bright streaks along their flight path
@@ -579,6 +666,15 @@ export class Game {
       ctx.translate(p.x, p.y); ctx.rotate(p.heading);
       drawJet(ctx, this.aircraft, p.moving ? 6 + Math.sin(this.time * 50) * 2 : 0);
       ctx.restore();
+    }
+    // Drone bullets: red tracers
+    for (const b of this.bullets) {
+      ctx.strokeStyle = 'rgba(255,77,109,0.45)'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x - b.vx * 0.05, b.y - b.vy * 0.05); ctx.stroke();
+      ctx.fillStyle = '#ff4d6d';
+      ctx.beginPath(); ctx.arc(b.x, b.y, 3, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#ffd6dd';
+      ctx.beginPath(); ctx.arc(b.x, b.y, 1.3, 0, Math.PI * 2); ctx.fill();
     }
     // Flak shells and bursts
     ctx.fillStyle = '#ffe8a3';

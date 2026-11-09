@@ -18,7 +18,11 @@ The site is served as static files, so everything the browser needs (HTML, JavaS
 
 | Path | What it is |
 | --- | --- |
-| `index.html` | The site's start page. It's a copy of the instructions for now; replace it with what the team builds. |
+| `index.html` | The game's start page (canvas + `style.css`). |
+| `js/main.js` | Game shell: title, pause, game over, high-score entry, HUD, loop. Theme-agnostic. |
+| `js/game.js` | **Placeholder gameplay** — replace with the real game. |
+| `js/config.js` | Tunables: lives, scoring, combo, difficulty ramp. |
+| `js/highscores.js`, `js/audio.js`, `js/input.js` | Local top-10 table (localStorage), synth sound effects, keyboard input. |
 | `instructions.html` | The exercise instructions. Keep this file so they stay reachable. |
 | `design/game.md` | The team's game description. Claude uses it as context for the game. |
 | `CLAUDE.md` | Instructions Claude Code reads at the start of every session. |

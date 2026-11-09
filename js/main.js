@@ -427,7 +427,7 @@ function drawTitle() {
     'Pick your jet, then fly it through the neon night.',
     'Hostiles swarm in from every side of the sky.',
     'Your weapons fire on their own: you just fly.',
-    'Shoot them down, grab the drops to level up.',
+    'Shoot them down, grab the SSD cards to level up.',
     'Each level: pick 1 of 3 new or stronger weapons.',
     'AA guns in the forest fire flak. Dodge or destroy!',
     'Quick kills build a streak multiplier. Stay airborne!',

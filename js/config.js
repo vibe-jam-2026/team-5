@@ -75,9 +75,10 @@ export const CONFIG = {
   aaPoints: 250,
 
   // Power-ups: glowing crates that grant a special weapon for a short time.
-  powerupChance: 0.015,          // drop chance per drone kill...
-  powerupChanceHeavy: 0.12,      // ...per hexacopter kill
-  powerupFromGun: 0.5,           // ...per destroyed anti-aircraft gun
+  powerupChance: 0.0162,         // drop chance per drone kill...
+  powerupChanceHeavy: 0.1296,    // ...per hexacopter kill
+  powerupFromGun: 1 / 3,          // ...per destroyed anti-aircraft gun
   powerupLife: 14,               // seconds a crate stays before it fades
-  powerupDuration: 10,           // seconds the special weapon lasts
+  powerupDuration: 6,            // seconds the special weapon lasts
+  powerupFromLevel: 10,          // no crates drop before the player reaches this level
 };

@@ -1,6 +1,6 @@
 html, body { margin: 0; height: 100%; background: #050308; color: #8a8aa0; font: 13px system-ui, sans-serif; }
 body { display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; }
 canvas { display: block; background: #0a0610; outline: none;
-  max-width: 100vw; max-height: calc(100vh - 28px); aspect-ratio: 16 / 9; width: 100vw; height: auto; }
+  aspect-ratio: 16 / 9; width: min(100vw, calc((100vh - 28px) * 16 / 9)); height: auto; }
 footer { height: 24px; line-height: 24px; }
 footer a { color: #8a8aa0; }

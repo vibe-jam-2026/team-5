@@ -38,8 +38,8 @@ head = f'''<title>Blood Diary Test</title>
 html, body {{ height: 100%; background: var(--bg); color: var(--ink); font: 13px system-ui, sans-serif; }}
 body {{ display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; overflow: hidden;
   padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); box-sizing: border-box; }}
-canvas {{ display: block; background: var(--canvas); outline: none; max-width: 100%; max-height: calc(100% - 30px);
-  aspect-ratio: 16 / 9; width: 100%; height: auto; }}
+canvas {{ display: block; background: var(--canvas); outline: none;
+  aspect-ratio: 16 / 9; width: min(100%, calc((100vh - 30px) * 16 / 9)); height: auto; }}
 p {{ margin: 0; }}
 </style>
 <canvas id="game" width="960" height="540" tabindex="0"></canvas>

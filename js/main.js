@@ -10,6 +10,22 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 const W = CONFIG.width, H = CONFIG.height;
 
+// Crisp rendering at any size: the game always draws in W x H logical units,
+// but the canvas bitmap matches its on-screen size x devicePixelRatio, so
+// nothing is upscaled (blurry) on big or high-DPI screens.
+let scale = 1;
+function resize() {
+  const r = canvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  const s = Math.min(4, Math.max(1, (r.width * dpr) / W));
+  const w = Math.round(W * s), h = Math.round(H * s);
+  if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+  scale = w / W;
+}
+addEventListener('resize', resize);
+if (window.ResizeObserver) new ResizeObserver(resize).observe(canvas);
+resize();
+
 let state = 'title';      // 'title' | 'select' | 'playing' | 'paused' | 'entry' | 'gameover'
 let game = null;
 let shake = 0;
@@ -321,6 +337,7 @@ function overlay(alpha = 0.6) {
 }
 
 function draw() {
+  ctx.setTransform(scale, 0, 0, scale, 0, 0);
   ctx.save();
   if (shake > 0) ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
   drawBackground();

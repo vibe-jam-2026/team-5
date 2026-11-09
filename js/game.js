@@ -645,7 +645,7 @@ export class Game {
       ctx.fillRect(x - 18, y + 4, 36, 10);
       ctx.beginPath(); ctx.arc(x - 2, y + 4, 8, Math.PI, 0); ctx.fill();
       ctx.save(); ctx.translate(x + 14, y + 4); ctx.rotate(1.2);   // toppled radar dish
-      ctx.beginPath(); ctx.ellipse(0, 0, 3, 7, 0, -Math.PI / 2, Math.PI / 2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(0, 0, 4, 10, 0, -Math.PI / 2, Math.PI / 2); ctx.fill();
       ctx.restore();
       for (let i = 0; i < 4; i++) {
         const t = (this.time * 0.6 + i / 4) % 1;
@@ -655,7 +655,7 @@ export class Game {
       return;
     }
     const lit = g.hitFlash > 0;
-    this.drawRadar(ctx, x - 13, y - 9, g.spin, lit);
+    this.drawRadar(ctx, x - 14, y - 15, g.spin, lit);
     // Twin barrels
     ctx.save();
     ctx.translate(x, y); ctx.rotate(g.aim);
@@ -690,20 +690,20 @@ export class Game {
   // it faces away.
   drawRadar(ctx, x, y, spin, lit) {
     ctx.fillStyle = lit ? '#fff' : '#3a4034';
-    ctx.fillRect(x - 1, y, 2, 12);                  // mast
-    ctx.fillRect(x - 3, y + 10, 6, 2);              // mount
+    ctx.fillRect(x - 1.25, y, 2.5, 18);             // mast
+    ctx.fillRect(x - 4, y + 15, 8, 3);              // mount
     const c = Math.cos(spin), front = c >= 0;
     ctx.save();
     ctx.translate(x, y);
     ctx.scale(Math.abs(c) < 0.15 ? 0.15 * Math.sign(c || 1) : c, 1);
     ctx.fillStyle = lit ? '#fff' : front ? '#9aa58a' : '#4f5845';
     ctx.strokeStyle = '#07040b'; ctx.lineWidth = 0.8;
-    ctx.beginPath(); ctx.ellipse(0, 0, 4, 8, 0, -Math.PI / 2, Math.PI / 2); ctx.closePath();
+    ctx.beginPath(); ctx.ellipse(0, 0, 5.5, 11, 0, -Math.PI / 2, Math.PI / 2); ctx.closePath();
     ctx.fill(); ctx.stroke();
     // Feed horn on struts in front of the dish
     ctx.strokeStyle = lit ? '#fff' : '#6b745e'; ctx.lineWidth = 0.9;
-    ctx.beginPath(); ctx.moveTo(0, -6); ctx.lineTo(7, 0); ctx.lineTo(0, 6); ctx.stroke();
-    ctx.fillStyle = '#ff4d6d'; ctx.fillRect(6, -1, 2, 2);
+    ctx.beginPath(); ctx.moveTo(0, -8); ctx.lineTo(10, 0); ctx.lineTo(0, 8); ctx.stroke();
+    ctx.fillStyle = '#ff4d6d'; ctx.fillRect(9, -1.5, 3, 3);
     ctx.restore();
   }
 

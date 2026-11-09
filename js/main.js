@@ -476,7 +476,7 @@ function drawSelect() {
     ctx.translate(x + cw / 2, y + 85 + (sel ? Math.sin(clock * 4) * 3 : 0));
     ctx.rotate(-Math.PI / 2);
     ctx.scale(2.4, 2.4);
-    Game.drawJet(ctx, a, sel ? 6 + Math.sin(clock * 50) * 2 : 0);
+    Game.drawJet(ctx, a, (sel ? 6 : 4.5) + Math.sin(clock * 50 + i) * 2);
     ctx.restore();
     if (sel) neonText(a.name.toUpperCase(), x + cw / 2, y + 150, 20, NEON.magenta);
     else text(a.name.toUpperCase(), x + cw / 2, y + 150, 20, '#fff');

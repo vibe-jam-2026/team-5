@@ -25,6 +25,7 @@ const GROUND_Y = H / 2;                       // world y of the bottom edge of t
 const CAM_MAX_Y = GROUND_Y - H / 2;           // lowest camera centre: ground at the screen bottom
 const FOREST_TOP = H - 78;                    // tallest trees reach about here (screen y with the camera at its lowest)
 const CRASH_Y = GROUND_Y - C.crashHeight;     // jet centre below this world y = crashed into the trees
+const CEIL_Y = GROUND_Y - C.maxAltitude;      // jet centre can't go above this world y (max height)
 const AA_SLOT = 520;                          // at most one gun per this many px of world x
 const AA_Y = H - 34;                          // screen y of a gun's turret
 const AA_CHANCE = 0.65;                       // share of slots that hold a gun
@@ -303,6 +304,13 @@ export class Game {
     p.vx = Math.cos(p.heading) * speed; p.vy = Math.sin(p.heading) * speed;
     p.x += p.vx * dt;
     p.y += p.vy * dt;
+    if (p.y <= CEIL_Y) {      // max height: level out and nose slightly down
+      p.y = CEIL_Y;
+      if (Math.sin(p.heading) < 0) {
+        const right = Math.abs(Math.cos(p.heading)) > 0.05 ? Math.cos(p.heading) > 0 : p.face > 0;
+        p.heading = right ? 0.15 : Math.PI - 0.15;
+      }
+    }
     p.moving = true;
     // Neon exhaust trail left behind the nozzle.
     const back = 12 * this.aircraft.size;
@@ -1077,6 +1085,16 @@ export class Game {
       ctx.shadowColor = '#ff4d6d'; ctx.shadowBlur = 12;
       ctx.fillStyle = '#ff4d6d';
       ctx.fillText('PULL UP!', W / 2, H / 2 - 120);
+      ctx.restore();
+    }
+    // Ceiling notice when the jet nears its max height
+    if (!this.over && p.y - CEIL_Y < C.ceilingWarning && Math.floor(this.time * 4) % 2 === 0) {
+      ctx.save();
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = 'italic 900 24px Impact, "Arial Black", sans-serif';
+      ctx.shadowColor = NEON.cyan; ctx.shadowBlur = 12;
+      ctx.fillStyle = NEON.cyan;
+      ctx.fillText('MAX ALTITUDE', W / 2, H / 2 - 120);
       ctx.restore();
     }
     ctx.fillStyle = '#000'; const by = cy + Math.round(17 * this.aircraft.size);

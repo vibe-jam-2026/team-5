@@ -6,19 +6,19 @@ Short notes are fine. Delete a section's hint text once you've filled it in, and
 
 ## Pitch
 
-_One or two sentences: what the game is and why it's fun._
+A survivor-style arena game in the style of Vampire Survivors: walk through an endless world while a growing horde chases you, and see how long you can last.
 
 ## How to play
 
-_What the player does, and how they win or lose. Who is the player, and what's the goal?_
+The player character is always in the centre of the screen and walks around the environment; the world scrolls around them. Enemies spawn off-screen and always chase the player. Touching an enemy costs a life; lose all lives and the run ends. Goal: survive as long as possible and score high. Player character and setting: TBD.
 
 ## Controls
 
-_Keys, mouse or touch. For example: arrow keys to move, space to jump._
+Arrow keys or WASD to move. P to pause, M to mute. Attacks: TBD (Vampire Survivors-style automatic weapons are the likely direction).
 
 ## Core loop
 
-_What the player does over and over, minute to minute._
+Move to dodge the chasing horde, collect pickups, and survive as enemies get more numerous and faster over time.
 
 ## Look and sound
 
@@ -28,7 +28,9 @@ _Visual style, colours, mood, music and sound effects. Simple shapes are fine._
 
 **Must have:** the smallest version that's playable and fun.
 
--
+- Player always centred on screen, walking around a scrolling world.
+- Enemies that always chase the player.
+- Lives, score and game over.
 
 **Nice to have:** only if there's time.
 
@@ -46,4 +48,4 @@ _Plain HTML/JS/canvas, or a library such as Phaser or Three.js. It all has to ru
 
 _Add a dated line when you change direction, so everyone (and Claude) knows why._
 
--
+- 2026-11-09: Going with a Vampire Survivors-style game: centred player, scrolling world, enemies always chase the player.

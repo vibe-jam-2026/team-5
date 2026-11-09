@@ -13,7 +13,7 @@ Genre inspiration: "survivors-likes" / "bullet heaven" (e.g. Vampire Survivors).
 - You are the vampire. Hunters (villagers with torches, fast hunters, tough priests) swarm towards you.
 - Your powers attack automatically. Killed hunters drop blood drops (XP).
 - Collect blood to level up. Each level-up you pick 1 of 3 random upgrades: new powers or stronger ones.
-- Trap: from level 3, each level-up has a 30% chance that one card is a **Big Red Button** ("Do not press"). Picking it ends the run at once ("YOU PRESSED IT"). Tunable in `js/config.js` (`redButtonFromLevel`, `redButtonChance`).
+- Trap: from level 3, each level-up has a 50% chance that one card is a **Big Red Button** ("Do not press"). Picking it ends the run at once ("YOU PRESSED IT"). Tunable in `js/config.js` (`redButtonFromLevel`, `redButtonChance`).
 - Hunters touching you drain your health. Health at 0 ends the night (game over).
 - The longer you survive, the more and tougher the hunters.
 - Goal: highest score. Score comes from kills (with a kill-streak multiplier) and survival time.

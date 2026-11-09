@@ -12,7 +12,9 @@ export const CONFIG = {
   playerMaxHp: 100,
   magnetRange: 90,               // blood drops fly to you inside this range
   crashHeight: 40,               // flying lower than this above the ground crashes into the trees
-  pullUpWarning: 90,             // "PULL UP!" shows when this close above the crash height
+  pullUpWarning: 90,
+  maxAltitude: 900,              // the jet can't climb higher than this above the ground
+  ceilingWarning: 90,            // "MAX ALTITUDE" shows when this close to the ceiling             // "PULL UP!" shows when this close above the crash height
 
   // Aircraft picked before each round. Stats multiply the player values above
   // (speed x playerSpeed, health x playerMaxHp) and all weapon damage.

@@ -25,6 +25,7 @@ const GROUND_Y = H / 2;                       // world y of the bottom edge of t
 const CAM_MAX_Y = GROUND_Y - H / 2;           // lowest camera centre: ground at the screen bottom
 const FOREST_TOP = H - 78;                    // tallest trees reach about here (screen y with the camera at its lowest)
 const CRASH_Y = GROUND_Y - C.crashHeight;     // jet centre below this world y = crashed into the trees
+const CEIL_Y = GROUND_Y - C.maxAltitude;      // jet centre can't go above this world y (max height)
 const AA_SLOT = 520;                          // at most one gun per this many px of world x
 const AA_Y = H - 34;                          // screen y of a gun's turret
 const AA_CHANCE = 0.65;                       // share of slots that hold a gun
@@ -141,15 +142,38 @@ function poly(ctx, pts, fill, lw = 1) {
   ctx.lineJoin = 'miter'; ctx.lineWidth = lw; ctx.strokeStyle = OUTLINE; ctx.stroke();
 }
 
+// Neon afterburner out of the tail nozzle (at x = -12): a hot pink glow,
+// then magenta, orange and white-hot flame layers with shock diamonds.
+function drawAfterburner(ctx, burner) {
+  const len = burner * 2.6, flick = 0.85 + Math.random() * 0.3;
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  const glow = ctx.createRadialGradient(-12 - len * 0.35, 0, 0, -12 - len * 0.35, 0, len * 0.9 + 6);
+  glow.addColorStop(0, 'rgba(255,113,206,0.55)');
+  glow.addColorStop(0.5, 'rgba(255,42,109,0.18)');
+  glow.addColorStop(1, 'rgba(255,42,109,0)');
+  ctx.fillStyle = glow;
+  ctx.beginPath(); ctx.arc(-12 - len * 0.35, 0, len * 0.9 + 6, 0, Math.PI * 2); ctx.fill();
+  poly(ctx, [-12, -4, -12 - len * flick, 0, -12, 4], 'rgba(255,42,109,0.75)', 0);
+  poly(ctx, [-12, -3, -12 - len * 0.75 * flick, 0, -12, 3], '#ff71ce', 0);
+  poly(ctx, [-12, -2.2, -12 - len * 0.5 * flick, 0, -12, 2.2], '#ff9e3d', 0);
+  poly(ctx, [-12, -1.3, -12 - len * 0.3, 0, -12, 1.3], '#fffbe0', 0);
+  if (burner > 4) {   // shock diamonds in the full-power plume
+    ctx.fillStyle = 'rgba(255,251,150,0.8)';
+    for (let i = 1; i <= 3; i++) {
+      const x = -12 - len * 0.18 * i, r = 1.3 - i * 0.25;
+      ctx.beginPath(); ctx.moveTo(x - r * 1.6, 0); ctx.lineTo(x, -r); ctx.lineTo(x + r * 1.6, 0); ctx.lineTo(x, r); ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+
 // Draw an aircraft at the origin pointing along +x (callers translate/rotate).
 function drawJet(ctx, a, burner = 0) {
   ctx.save();
   ctx.scale(a.size, a.size);
   const lw = 0.9 / a.size;
-  if (burner) {   // two-tone afterburner cone
-    poly(ctx, [-12, -3, -12 - burner * 1.3, 0, -12, 3], '#ffb703', 0);
-    poly(ctx, [-12, -1.5, -12 - burner * 0.7, 0, -12, 1.5], '#fff1c1', 0);
-  }
+  if (burner) drawAfterburner(ctx, burner);
   if (a.id === 'interceptor') {        // slim delta wing
     poly(ctx, [9, -2, -10, -13, -12, -12, -11, -2, -11, 2, -12, 12, -10, 13, 9, 2], a.wing, lw);
   } else if (a.id === 'gunship') {     // broad straight wings with pointed tips, twin engines
@@ -275,10 +299,23 @@ export class Game {
       d = Math.atan2(Math.sin(d), Math.cos(d));
       p.heading += d * Math.min(1, dt * 12);
     }
-    p.vx = ax.x * speed; p.vy = ax.y * speed;
+    // The jet never stops: it always flies forward along its heading, and
+    // the arrow keys only steer it.
+    p.vx = Math.cos(p.heading) * speed; p.vy = Math.sin(p.heading) * speed;
     p.x += p.vx * dt;
     p.y += p.vy * dt;
-    p.moving = !!(ax.x || ax.y);
+    if (p.y <= CEIL_Y) {      // max height: level out and nose slightly down
+      p.y = CEIL_Y;
+      if (Math.sin(p.heading) < 0) {
+        const right = Math.abs(Math.cos(p.heading)) > 0.05 ? Math.cos(p.heading) > 0 : p.face > 0;
+        p.heading = right ? 0.15 : Math.PI - 0.15;
+      }
+    }
+    p.moving = true;
+    // Neon exhaust trail left behind the nozzle.
+    const back = 12 * this.aircraft.size;
+    p.trail = (p.trail || []).filter((q) => (q.life -= dt) > 0);
+    p.trail.push({ x: p.x - Math.cos(p.heading) * back, y: p.y - Math.sin(p.heading) * back, life: p.moving ? 0.45 : 0.15, max: p.moving ? 0.45 : 0.15 });
     if (this.hurtCd > 0) this.hurtCd -= dt;
   }
 
@@ -844,11 +881,25 @@ export class Game {
       poly(ctx, [-5, -1.5, 4, -1.5, 7, 0, 4, 1.5, -5, 1.5], '#ff4d6d', 0.8);
       ctx.restore();
     }
+    // Afterburner trail: a fading ribbon from hot pink to cyan
+    const trail = p.trail || [];
+    if (trail.length > 1) {
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.lineCap = 'round';
+      for (let i = 1; i < trail.length; i++) {
+        const a = trail[i - 1], b = trail[i], k = b.life / b.max;
+        ctx.strokeStyle = `rgba(${Math.round(5 + 250 * k)},${Math.round(217 - 170 * k)},${Math.round(232 - 30 * k)},${(0.55 * k).toFixed(3)})`;
+        ctx.lineWidth = (1 + 5 * k) * this.aircraft.size;
+        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+      }
+      ctx.restore();
+    }
     // Fighter jet, pointing where it flies
     if (!(this.hurtCd > 0.2 && Math.floor(this.hurtCd * 30) % 2)) {
       ctx.save();
       ctx.translate(p.x, p.y); ctx.rotate(p.heading);
-      drawJet(ctx, this.aircraft, p.moving ? 6 + Math.sin(this.time * 50) * 2 : 0);
+      drawJet(ctx, this.aircraft, p.moving ? 6 + Math.sin(this.time * 50) * 2 : 2.5 + Math.sin(this.time * 40) * 0.5);
       ctx.restore();
     }
     // Drone bullets: red tracers
@@ -1041,6 +1092,16 @@ export class Game {
       ctx.shadowColor = '#ff4d6d'; ctx.shadowBlur = 12;
       ctx.fillStyle = '#ff4d6d';
       ctx.fillText('PULL UP!', W / 2, H / 2 - 120);
+      ctx.restore();
+    }
+    // Ceiling notice when the jet nears its max height
+    if (!this.over && p.y - CEIL_Y < C.ceilingWarning && Math.floor(this.time * 4) % 2 === 0) {
+      ctx.save();
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = 'italic 900 24px Impact, "Arial Black", sans-serif';
+      ctx.shadowColor = NEON.cyan; ctx.shadowBlur = 12;
+      ctx.fillStyle = NEON.cyan;
+      ctx.fillText('MAX ALTITUDE', W / 2, H / 2 - 120);
       ctx.restore();
     }
     // Active power-up: name and time left, top centre

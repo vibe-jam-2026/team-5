@@ -276,6 +276,22 @@ export class Game {
     this.player.y = Math.min(this.player.y, CRASH_Y - 160);
   }
 
+  // Testing shortcut: jump to just before midnight (when the "Midnight Drive"
+  // music starts) with an early-mid-game loadout.
+  skipToMidnight() {
+    this.testRun = true;
+    const at = C.boss.at * ((C.music.midnightHour - 18 + 24) % 24) / 12 - 2;
+    if (this.boss || this.time >= at) return;
+    this.time = at;
+    this.enemies = []; this.bullets = []; this.shells = [];
+    if (this.level < 8) {
+      Object.assign(this.lv, { bolt: 3, bats: 1, aura: 1, might: 1, speed: 1 });
+      this.level = 8; this.xp = 0; this.pendingLevels = 0;
+    }
+    this.player.hp = this.player.maxHp;
+    this.player.y = Math.min(this.player.y, CRASH_Y - 160);
+  }
+
   // Camera centre y: follows the jet, but never shows below the ground.
   get camY() { return Math.min(this.player.y, CAM_MAX_Y); }
   // How far the forest strip is pushed down the screen while the jet is high.
@@ -290,10 +306,10 @@ export class Game {
     if (this.over) return;
     if (this.eject) { this.updateEject(dt, input); return; }
     if (this.choosing) { this.updateChoice(input); return; }
-    if (input.isDown('ShiftLeft', 'ShiftRight')) {   // test shortcuts
-      if (input.wasPressed('KeyB')) this.skipToBoss();
-      if (input.wasPressed('KeyN')) { this.testRun = true; Boss.skipPhase(this); }
-    }
+    // Test shortcuts
+    if (input.wasPressed('Shift+KeyB')) this.skipToBoss();
+    if (input.wasPressed('Shift+KeyM')) this.skipToMidnight();
+    if (input.wasPressed('Shift+KeyN')) { this.testRun = true; Boss.skipPhase(this); }
 
     this.time += dt;
     this.score += C.survivalPointsPerSecond * dt * (this.boss?.phase === 'overtime' ? C.boss.overtimeMult : 1);

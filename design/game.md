@@ -39,8 +39,9 @@ An in-game clock under the score maps the run to one night: **6:00 PM at the sta
 
 Losing during the boss keeps everything you scored before it. All boss numbers (arrival time, health, attack rates, bonuses) are in `CONFIG.boss` in `js/config.js`.
 
-### Testing the boss
+### Testing shortcuts
 
+- **Shift+M** during a run jumps to just before midnight (2:28 of play), so you hear the switch to the Midnight Drive music. Gives a level 8 loadout.
 - **Shift+B** during a run jumps straight to the boss with a mid-game loadout (level 15 weapons).
 - **Shift+N** skips the current boss phase (warning → fight → breakup → core → dawn).
 - Opening the page with **`?boss`** at the end of the address starts every run at the boss.
@@ -114,3 +115,4 @@ Plain HTML, JavaScript modules and canvas. No libraries, no build step. Gameplay
 - 2026-11-09: The ejection animation is bigger, slower (about 7 s) and zoomed in, with the camera following the pilot.
 - 2026-11-09: Crashing into the ground now also plays the ejection: the jet explodes on impact and the pilot rockets out and parachutes down before game over.
 - 2026-11-09: The single jet-rock music loop became three cheesy 80s neon tracks that crossfade: Neon Sunset at the start, Midnight Drive from midnight, and Dawn Strike from 4:30 AM through the boss.
+- 2026-11-09: Added a Shift+M test shortcut that jumps to just before midnight to hear the Midnight Drive music. Plain M still mutes.

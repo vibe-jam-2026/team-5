@@ -67,7 +67,7 @@ function update(dt) {
   clock += dt;
   sfx.music(musicTrack());
   shake = Math.max(0, shake - dt * 30);
-  if (input.wasPressed('KeyM')) sfx.toggleMute();
+  if (input.wasPressed('KeyM') && !input.wasPressed('Shift+KeyM')) sfx.toggleMute();   // Shift+M is a test shortcut
 
   switch (state) {
     case 'title':

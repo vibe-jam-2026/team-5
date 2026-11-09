@@ -4,7 +4,10 @@ const pressed = new Set();
 
 addEventListener('keydown', (e) => {
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault();
-  if (!down.has(e.code)) pressed.add(e.code);
+  if (!down.has(e.code)) {
+    pressed.add(e.code);
+    if (e.shiftKey) pressed.add('Shift+' + e.code);   // e.g. 'Shift+KeyB' for test shortcuts
+  }
   down.add(e.code);
   typed.push(e.key);
 });

@@ -1096,10 +1096,21 @@ export class Game {
   // Bars and the level-up picker, drawn above the HUD.
   drawUi(ctx) {
     const p = this.player;
+    // Low health: the screen edges pulse red, faster and stronger the lower it gets.
+    const hpShare = p.hp / p.maxHp;
+    if (!this.over && hpShare <= C.lowHpWarning) {
+      const danger = 1 - hpShare / C.lowHpWarning;             // 0 at the threshold, 1 at empty
+      const pulse = 0.5 + 0.5 * Math.sin(this.time * (5 + danger * 5));
+      const alpha = (0.25 + 0.35 * danger) * (0.4 + 0.6 * pulse);
+      const edge = ctx.createRadialGradient(W / 2, H / 2, H * 0.35, W / 2, H / 2, W * 0.62);
+      edge.addColorStop(0, 'rgba(255,0,40,0)');
+      edge.addColorStop(1, `rgba(255,0,40,${alpha.toFixed(3)})`);
+      ctx.fillStyle = edge; ctx.fillRect(0, 0, W, H);
+    }
     // Health and XP bars, top left (the score sits top middle, the streak below the bars)
     const bx = 44, bw = 170;
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.font = 'bold 12px monospace';
-    const hpK = Math.max(0, p.hp / p.maxHp), low = hpK <= 0.3;
+    const hpK = Math.max(0, p.hp / p.maxHp), low = hpK <= C.lowHpWarning;
     ctx.fillStyle = NEON.ink; ctx.fillText('HP', 16, 22);
     ctx.fillStyle = '#1a0838'; ctx.fillRect(bx, 17, bw, 10);
     ctx.fillStyle = low ? '#ff4d6d' : '#7ae582'; ctx.fillRect(bx, 17, bw * hpK, 10);

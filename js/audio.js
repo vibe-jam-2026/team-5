@@ -37,5 +37,7 @@ export const sfx = {
   choose() { tone(784, 0.08, 'square', 0.1); setTimeout(() => tone(1046, 0.12, 'square', 0.1), 70); },
   levelUp() { tone(523, 0.1); setTimeout(() => tone(784, 0.15), 100); },
   gameOver() { tone(300, 0.6, 'triangle', 0.2, -250); },
+  flak() { tone(90, 0.12, 'square', 0.08, -40); },
+  boom() { tone(140, 0.25, 'sawtooth', 0.1, -110); },
   select() { tone(660, 0.05, 'square', 0.08); },
 };

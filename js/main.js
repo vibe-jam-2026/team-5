@@ -60,6 +60,8 @@ function update(dt) {
         if (e === 'kill' && soundBudget-- > 0) sfx.kill(game.multiplier);
         if (e === 'pickup' && soundBudget-- > 0) sfx.pickup();
         if (e === 'hit') { sfx.hit(); shake = Math.max(shake, 6); }
+        if (e === 'flak') sfx.flak();
+        if (e === 'boom') { sfx.boom(); shake = Math.max(shake, 3); }
         if (e === 'levelup') sfx.levelUp();
         if (e === 'choose') sfx.choose();
         if (e === 'over') { sfx.gameOver(); shake = 20; endGame(); }

@@ -15,7 +15,7 @@ Genre inspiration: "survivors-likes" / "bullet heaven" (e.g. Vampire Survivors).
 - Anti-aircraft guns in the forest at the bottom of the screen fire flak at the jet. Your cannon can destroy them. Flying into the trees is a crash (game over); "PULL UP!" warns you. When you crash, the jet explodes in the trees and the pilot ejects out of the fireball and floats down under the parachute (the same zoomed-in ejection scene as the Big Red Button, ENTER skips), then the game-over screen says "CRASHED INTO THE TREES".
 - Weapons fire automatically. Downed drones drop SSD cards (XP). Each level-up you pick 1 of 3 upgrades: new weapons or stronger ones. Trap: from level 3, each level-up has a 50% chance that one card is a **Big Red Button** ("Do not press"). Picking it ends the run: "EJECT! EJECT! EJECT!" flashes, the canopy blows off, the pilot rockets out on the ejection seat and floats down under a striped parachute while the empty jet spirals down and explodes. The camera zooms in to follow it. After about 7 seconds (ENTER skips) comes the high-score name entry / game-over screen ("YOU PRESSED THE BIG RED BUTTON"). Tunable in `js/config.js` (`redButtonFromLevel`, `redButtonChance`, `ejectDuration`).
 - The jet only moves while you hold WASD or the arrow keys; let go and it hovers in place. It can't climb more than 900 px above the ground ("MAX ALTITUDE" warns you).
-- **Flares** (F or Space): the jet pops a spray of flares and a cyan hexagon shield for 3 seconds. While it's up, nothing hurts you (drones, bullets, flak, the boss), and enemy bullets burn up on it. It can only be used once a minute; the FL bar under XP shows the shield time left, the cooldown, or READY. Crashing into the trees still ends the run. Tunable in `js/config.js` (`flareShield`, `flareCooldown`, `flareShieldRadius`).
+- **Flares** (F or Space): the jet fires a salvo of burning flares that shoot out backwards in pairs, trailing smoke, and for 2 seconds nothing hurts you (drones, bullets, flak, the boss). No visible shield. It can only be used once a minute; the FL bar under XP shows the time left, the cooldown, or READY. Crashing into the trees still ends the run. Tunable in `js/config.js` (`flareShield`, `flareCooldown`).
 - From level 10, power-up crates sometimes drop and give a special weapon for 6 seconds: Scatter Cannon, Pulse Laser or Rocket Swarm.
 - Health at 0 ends the run. The longer you survive, the more and tougher the drones.
 - Score comes from kills (with a kill-streak multiplier), destroyed guns, pickups and survival time.
@@ -50,7 +50,7 @@ Losing during the boss keeps everything you scored before it. All boss numbers (
 ## Controls
 
 - Arrow keys or WASD: fly
-- F or Space: flares (3 s shield, once a minute)
+- F or Space: flares (2 s of cover, once a minute)
 - 1 / 2 / 3, or arrows + Enter: pick an upgrade or aircraft
 - Esc: pause and resume · M: mute · Enter: fly again after game over
 
@@ -78,7 +78,7 @@ Fly to dodge the swarm → weapons shoot drones down → collect pickups → lev
 - Final boss before dawn (Mothership → AI core → dawn bonus → Overtime)
 - Day cycle sky tied to an in-game clock: 6 PM sunset at the start, night with moon and stars, twilight at the 6 AM boss, sunrise after the boss, then day and sunset again in Overtime
 - Big red button trap card in the level-up choices
-- Flares: a 3-second shield on F/Space, once a minute
+- Flares: 2 seconds of cover on F/Space, once a minute
 
 **Nice to have:** only if there's time.
 
@@ -113,3 +113,4 @@ Plain HTML, JavaScript modules and canvas. No libraries, no build step. Gameplay
 - 2026-11-09: The ejection animation is bigger, slower (about 7 s) and zoomed in, with the camera following the pilot.
 - 2026-11-09: Crashing into the ground now also plays the ejection: the jet explodes on impact and the pilot rockets out and parachutes down before game over.
 - 2026-11-09: Added flares (F or Space): a 3 s shield that blocks all damage and burns up enemy bullets, usable once every 60 s. The streak counter moved down a little to make room for the flare bar.
+- 2026-11-09: Flares tweaked: no blue shield circle, protection lasts 2 s instead of 3 s, and the flares now fly out backwards trailing smoke.

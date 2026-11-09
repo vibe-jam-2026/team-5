@@ -228,7 +228,8 @@ export class Game {
     this.rockets = [];
     this.shieldT = 0;         // seconds of flare shield left
     this.flareCd = 0;         // seconds until flares can be used again
-    this.flares = [];         // flare particles falling behind the jet
+    this.flares = [];         // burning flares shot out behind the jet
+    this.smoke = [];          // smoke puffs the flares leave behind
     this.score = 0;
     this.time = 0;
     this.kills = 0;
@@ -539,11 +540,9 @@ export class Game {
     for (const b of this.bullets) {
       b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
       if (b.life <= 0) b.done = true;
-      else if (this.shielded && dist2(b, p) < C.flareShieldRadius ** 2) {   // burns up on the flare shield
+      else if (dist2(b, p) < (p.r + 3) ** 2) {
         b.done = true;
-        this.burst(b.x, b.y, NEON.cyan, 3);
-      } else if (dist2(b, p) < (p.r + 3) ** 2) {
-        b.done = true;
+        if (this.shielded) continue;   // flares decoy it: no damage
         p.hp -= b.dmg;
         this.hurtCd = 0.4;
         this.events.push('hit');
@@ -972,22 +971,39 @@ export class Game {
     }
   }
 
-  // Flares: F or Space pops a spray of flares and a short shield that blocks all damage.
+  // Flares: F or Space fires a salvo of smoking flares out behind the jet, and nothing hurts it for a moment.
   updateFlares(dt, input) {
     if (this.flareCd > 0) this.flareCd = Math.max(0, this.flareCd - dt);
     if (this.shieldT > 0) this.shieldT = Math.max(0, this.shieldT - dt);
     if (this.flareCd <= 0 && input.wasPressed('KeyF', 'Space')) {
       this.shieldT = C.flareShield;
       this.flareCd = C.flareCooldown;
-      const p = this.player, back = p.heading + Math.PI;
-      for (let i = 0; i < 14; i++) {
-        const a = back + rand(-1.1, 1.1), s = rand(120, 260);
-        this.flares.push({ x: p.x, y: p.y, vx: Math.cos(a) * s + p.vx * 0.3, vy: Math.sin(a) * s - 60, life: rand(1.6, 2.6) });
-      }
+      // Pairs, one to each side, popping out in quick succession.
+      for (let i = 0; i < 10; i++) this.flares.push({ delay: Math.floor(i / 2) * 0.07, side: i % 2 ? 1 : -1, life: rand(1.4, 2), puff: 0 });
       this.events.push('flare');
     }
-    for (const f of this.flares) { f.x += f.vx * dt; f.y += f.vy * dt; f.vx *= 0.96; f.vy = f.vy * 0.96 + 140 * dt; f.life -= dt; }
-    this.flares = this.flares.filter((f) => f.life > 0);
+    const p = this.player;
+    for (const f of this.flares) {
+      if (f.delay > 0) {   // not launched yet: rides along under the jet
+        f.delay -= dt;
+        if (f.delay > 0) continue;
+        const back = p.heading + Math.PI, a = back + f.side * rand(0.25, 0.9), s = rand(260, 360);
+        const sz = this.aircraft.size;
+        Object.assign(f, { x: p.x + Math.cos(back) * 10 * sz, y: p.y + Math.sin(back) * 10 * sz,
+          vx: Math.cos(a) * s, vy: Math.sin(a) * s });
+      }
+      f.x += f.vx * dt; f.y += f.vy * dt;
+      f.vx *= 1 - 1.8 * dt; f.vy = f.vy * (1 - 1.8 * dt) + 90 * dt;   // drag, then they drop
+      f.life -= dt;
+      f.puff -= dt;
+      if (f.puff <= 0 && f.life > 0.15) {   // trail of smoke
+        f.puff = 0.025;
+        this.smoke.push({ x: f.x + rand(-1.5, 1.5), y: f.y + rand(-1.5, 1.5), r: rand(3, 5), life: rand(0.9, 1.4), max: 1.4 });
+      }
+    }
+    this.flares = this.flares.filter((f) => f.delay > 0 || f.life > 0);
+    for (const q of this.smoke) { q.r += 9 * dt; q.y -= 6 * dt; q.life -= dt; }
+    this.smoke = this.smoke.filter((q) => q.life > 0);
   }
 
   updateEffects(dt) {
@@ -1000,34 +1016,21 @@ export class Game {
 
   // ---------- Drawing ----------
   // Scrolling ground: grass tufts and stones fixed in the world.
-  // Flare sparks and the shield bubble round the jet.
+  // Flares: grey smoke trails with a white-hot spark at the head.
   drawFlares(ctx) {
-    const p = this.player;
+    for (const q of this.smoke) {
+      ctx.fillStyle = `rgba(200,190,215,${(0.32 * q.life / q.max).toFixed(3)})`;
+      ctx.beginPath(); ctx.arc(q.x, q.y, q.r, 0, Math.PI * 2); ctx.fill();
+    }
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     for (const f of this.flares) {
-      const k = Math.min(1, f.life / 1.5), fl = 0.7 + Math.random() * 0.3;
-      ctx.fillStyle = `rgba(255,140,60,${(0.25 * k).toFixed(3)})`;
-      ctx.beginPath(); ctx.arc(f.x, f.y, 9 * k * fl, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = `rgba(255,245,200,${k.toFixed(3)})`;
-      ctx.beginPath(); ctx.arc(f.x, f.y, 2.5 * fl, 0, Math.PI * 2); ctx.fill();
-    }
-    if (this.shielded && !this.eject) {
-      const r = C.flareShieldRadius, t = this.time;
-      // Flickers in the last half second to warn it's about to drop.
-      const vis = this.shieldT > 0.6 || Math.floor(t * 16) % 2 ? 1 : 0.3;
-      const g = ctx.createRadialGradient(p.x, p.y, r * 0.4, p.x, p.y, r);
-      g.addColorStop(0, 'rgba(5,217,232,0)');
-      g.addColorStop(1, `rgba(5,217,232,${(0.35 * vis).toFixed(3)})`);
-      ctx.fillStyle = g;
-      ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = `rgba(150,245,255,${(0.9 * vis).toFixed(3)})`; ctx.lineWidth = 2;
-      ctx.beginPath();
-      for (let i = 0; i <= 6; i++) {   // rotating hexagon
-        const a = t * 1.5 + (i * Math.PI) / 3;
-        ctx[i ? 'lineTo' : 'moveTo'](p.x + Math.cos(a) * r, p.y + Math.sin(a) * r);
-      }
-      ctx.stroke();
+      if (f.delay > 0) continue;
+      const k = Math.min(1, f.life / 0.6), fl = 0.7 + Math.random() * 0.3;
+      ctx.fillStyle = `rgba(255,150,60,${(0.35 * k).toFixed(3)})`;
+      ctx.beginPath(); ctx.arc(f.x, f.y, 10 * fl, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = `rgba(255,250,220,${k.toFixed(3)})`;
+      ctx.beginPath(); ctx.arc(f.x, f.y, 3 * fl, 0, Math.PI * 2); ctx.fill();
     }
     ctx.restore();
   }
@@ -1450,7 +1453,7 @@ export class Game {
     ctx.fillStyle = '#1a0838'; ctx.fillRect(bx, 48, bw, 8);
     if (this.shielded) {
       ctx.fillStyle = '#96f5ff'; ctx.fillRect(bx, 48, bw * (this.shieldT / C.flareShield), 8);
-      ctx.fillText('SHIELD', bx + bw + 8, 52);
+      ctx.fillText('FLARES', bx + bw + 8, 52);
     } else if (this.flareCd > 0) {
       ctx.fillStyle = '#ff8c3c'; ctx.fillRect(bx, 48, bw * (1 - this.flareCd / C.flareCooldown), 8);
       ctx.fillStyle = NEON.ink; ctx.fillText(`${Math.ceil(this.flareCd)}s`, bx + bw + 8, 52);

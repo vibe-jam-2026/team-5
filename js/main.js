@@ -564,7 +564,7 @@ function drawTitle() {
   controlRow('Fly', ['↑', '↓', '←', '→', 'or', 'W', 'A', 'S', 'D'], lx + 20, cy);
   controlRow('Pick upgrade', ['1', '2', '3', 'or', '←', '→', 'Enter'], lx + 20, cy + 26);
   controlRow('Flares', ['F', 'or', 'Space'], lx + 20, cy + 52);
-  text('(3 s shield, every 60 s)', lx + 270, cy + 52, 12, NEON.dim, 'left', 'normal');
+  text('(2 s cover, every 60 s)', lx + 270, cy + 52, 12, NEON.dim, 'left', 'normal');
   controlRow('Pause', ['Esc'], lx + 20, cy + 78);
   controlRow('Sound', ['M'], lx + 240, cy + 78);
   controlRow('Fly again', ['Enter'], lx + 20, cy + 104);

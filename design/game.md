@@ -1,54 +1,81 @@
 # Our game
 
-This is the team's description of the game. Claude reads it before working on the game, so keep it current: when you change your minds, change it here first.
+This is the team's description of the game. Claude reads it before working on the game, so keep it current: when you change your minds, change it here first. Claude also updates it whenever a feature is added or changed.
 
 ## Pitch
 
-**Blood Diary** (working title). A survivors-like arcade game: you are a vampire caught out at night while mobs of vampire hunters close in from every side. Your powers attack on their own; you just move, collect blood and choose upgrades. Every run is one night in your diary. How long can you last, and how high can you score?
+**Midnight Afterburner**: a neon night sortie. A survivors-like arcade game in an 80s synthwave style: you fly a fighter jet through the night while swarms of drones close in from every side and anti-aircraft guns fire up from the forest. Your weapons fire on their own; you just fly, collect pickups and choose upgrades. Hold out until just before sunrise, beat the Mothership and its AI core, and dawn breaks. Then keep going in Overtime for the high score.
 
-Genre inspiration: "survivors-likes" / "bullet heaven" (e.g. Vampire Survivors). We use the genre's mechanics but our own theme, art and names. Don't copy any existing game or show: "The Vampire Diaries" is a TV series, so we don't use that name or its characters.
+Genre inspiration: "survivors-likes" / "bullet heaven" (e.g. Vampire Survivors). We use the genre's mechanics, with our own theme, art and names. The 80s jet-movie mood is fine, but we don't copy any existing game or film (no real names, characters or logos).
 
 ## How to play
 
-- You are the vampire. Hunters (villagers with torches, fast hunters, tough priests) swarm towards you.
-- Your powers attack automatically. Killed hunters drop blood drops (XP).
-- Collect blood to level up. Each level-up you pick 1 of 3 random upgrades: new powers or stronger ones.
-- Hunters touching you drain your health. Health at 0 ends the night (game over).
-- The longer you survive, the more and tougher the hunters.
-- Goal: highest score. Score comes from kills (with a kill-streak multiplier) and survival time.
+- Pick one of three aircraft before each round: Interceptor (fast, fragile), Striker (all-rounder) or Gunship (slow, tough, hits hard).
+- Drones swarm towards you: quadcopters, fast kamikaze darts and armoured hexacopters. Some drones carry guns and fire at you (they glow red first).
+- Anti-aircraft guns in the forest at the bottom of the screen fire flak at the jet. Your cannon can destroy them. Flying into the trees is a crash (game over); "PULL UP!" warns you.
+- Weapons fire automatically. Downed drones drop pickups (XP). Each level-up you pick 1 of 3 upgrades: new weapons or stronger ones.
+- Power-up crates sometimes drop and give a special weapon for 10 seconds: Scatter Cannon, Pulse Laser or Rocket Swarm.
+- Health at 0 ends the run. The longer you survive, the more and tougher the drones.
+- Score comes from kills (with a kill-streak multiplier), destroyed guns, pickups and survival time.
+
+## The final boss: survive until dawn
+
+Every run builds towards a climax just before sunrise.
+
+1. **Sky lightens:** in the last minute before the boss, the night sky starts to warm up.
+2. **WARNING:** at 6:00 a flashing warning banner and siren appear, and the **Mothership** descends: the hive carrier the drones have been coming from all night. Normal drone spawns drop to a trickle.
+3. **Mothership fight:** it hovers near the top of the screen and drifts over the jet.
+   - Four turrets fire aimed 3-shot bursts (red glow first). Shooting them off earns points and drops a power-up crate.
+   - Its core eye charges up, then fires a ring of bullets (two rings once it's below half health).
+   - The hangar launches waves of drones.
+   - Ramming the hull hurts.
+4. **"Final final" boss:** when the hull breaks, it explodes in a chain, and the glowing **AI core** breaks loose. The core circles the jet spraying a bullet spiral, and every few seconds it charges straight at you (a red dashed line shows where).
+5. **Dawn breaks:** beating the core shoots down every drone in the sky, a striped synthwave sun rises, and you get a big **Dawn Bonus** (more for health left) plus a full heal.
+6. **Overtime:** the run continues with all points worth x2 until you go down. The game-over screen says "NIGHT CLEARED".
+
+Losing during the boss keeps everything you scored before it. All boss numbers (arrival time, health, attack rates, bonuses) are in `CONFIG.boss` in `js/config.js`.
+
+### Testing the boss
+
+- **Shift+B** during a run jumps straight to the boss with a mid-game loadout (level 15 weapons).
+- **Shift+N** skips the current boss phase (warning → fight → breakup → core → dawn).
+- Opening the page with **`?boss`** at the end of the address starts every run at the boss.
+- Runs that use any of these show "TEST RUN" and are not saved to the high scores.
 
 ## Controls
 
-- Arrow keys or WASD: move
-- 1 / 2 / 3, or arrows + Enter: pick an upgrade
-- P or Esc: pause · M: mute · R: restart after game over
+- Arrow keys or WASD: fly
+- 1 / 2 / 3, or arrows + Enter: pick an upgrade or aircraft
+- P or Esc: pause · M: mute · R: fly again after game over
 
 ## Core loop
 
-Move to dodge the swarm → powers kill hunters → collect blood → level up → choose an upgrade → swarm gets bigger → repeat until you fall. Then try again for a better diary entry.
+Fly to dodge the swarm → weapons shoot drones down → collect pickups → level up → choose an upgrade → swarm gets bigger → the Mothership arrives before sunrise → beat it for dawn → Overtime until you fall. Then try again for a better score.
 
 ## Look and sound
 
-- Dark night palette: near-black purple background, blood red, pale moonlight accents. Simple shapes are fine.
-- Short synth sound effects (generated in the browser).
-- Music: TBD.
+- 80s neon synthwave: dark purple night sky with stars and a crescent moon, neon magenta, cyan and yellow, chrome titles, a pine-forest silhouette along the bottom.
+- Title and aircraft screens: striped synthwave sun and a neon perspective grid.
+- Sound effects are synth tones generated in the browser. Music: a driving 80s jet-rock track, also generated in the browser.
 
 ## Scope for the jam
 
-**Must have:** the smallest version that's playable and fun.
+**Done:**
 
-- Vampire always in the centre of the screen, walking around an endless scrolling world; hunters always chase from all sides
-- Auto-attacking powers: Blood Bolt (shoots nearest hunter), Bat Swarm (orbiting bats), Mist Aura (damage around you)
-- Blood drops (XP), level-up with a choice of 3 upgrades
-- Health bar, game over, score with kill-streak multiplier
-- Local top-10 high scores ("the diary") with initials
+- Endless scrolling sky with the jet centred; drones chase from all sides
+- Three aircraft to choose from
+- Auto-firing weapons and upgrades (Guns Guns Guns, Fox Two missiles, Danger Zone, Weapons Hot, Afterburner, Wingman, Radar Lock)
+- Three drone types, armed drones, anti-aircraft guns in the forest, crashing into the trees
+- Power-up crates with timed special weapons
+- Health, game over, score with kill-streak multiplier, local top-10 high scores with initials
+- Music and sound effects
+- Final boss before dawn (Mothership → AI core → dawn bonus → Overtime)
 
 **Nice to have:** only if there's time.
 
-- More powers and hunter types, boss hunter every few minutes
-- Dawn: surviving to a set time ends the night with a big bonus
-- Diary-style game-over screen ("Night 12: lasted 4:32, drained 210 hunters")
-- Nicer graphics (sprites), music
+- More weapons and drone types, mini-bosses earlier in the night
+- Debrief-style game-over screen with more stats
+- Nicer graphics
 
 **Out of scope:** things we've decided not to do.
 
@@ -58,9 +85,11 @@ Move to dodge the swarm → powers kill hunters → collect blood → level up �
 
 ## Tech
 
-Plain HTML, JavaScript modules and canvas. No libraries, no build step. Gameplay is in `js/game.js`, tunables in `js/config.js`, menus/high scores in `js/main.js`.
+Plain HTML, JavaScript modules and canvas. No libraries, no build step. Gameplay is in `js/game.js`, the final boss in `js/boss.js`, tunables in `js/config.js`, menus/HUD/high scores in `js/main.js`, sound and music in `js/audio.js`.
 
 ## Decisions and changes
 
-- 2026-11-09: Arcade, high-score focused, survivors-like genre. Vampire theme with a diary framing; working title "Blood Diary" (not "The Vampire Diaries", which is an existing TV series).
-- 2026-11-09: Camera follows the vampire, who stays centred while the world scrolls (like Vampire Survivors). Hunters spawn just off-screen and always chase.
+- 2026-11-09: Arcade, high-score focused, survivors-like genre. Started with a vampire theme ("Blood Diary").
+- 2026-11-09: Camera follows the player, who stays centred while the world scrolls. Enemies spawn just off-screen and always chase.
+- 2026-11-09: Theme changed to an 80s neon night sortie, "Midnight Afterburner": fighter jet, drones, anti-aircraft guns, forest you can crash into, aircraft selection, power-ups, 80s music.
+- 2026-11-09: New requirement: a final final boss. To fit the endless genre, it's a timed climax just before sunrise (Mothership, then its AI core). Beating it gives a dawn bonus and Overtime at double points, so the high-score chase continues. Test shortcuts: Shift+B, Shift+N, `?boss`.

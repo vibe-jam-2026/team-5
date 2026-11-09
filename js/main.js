@@ -29,8 +29,12 @@ function openSelect() {
   sfx.select();
 }
 
+// Testing: open the page with ?boss to start every run right at the final boss.
+const BOSS_TEST = new URLSearchParams(location.search).has('boss');
+
 function startGame() {
   game = new Game(CONFIG.aircraft[aircraftIndex]);
+  if (BOSS_TEST) game.skipToBoss();
   state = 'playing';
   lastRank = -1;
   sfx.unlock();
@@ -40,7 +44,7 @@ function startGame() {
 function endGame() {
   const score = Math.floor(game.score);
   isNewBest = score > highscores.best();
-  if (highscores.qualifies(score)) {
+  if (!game.testRun && highscores.qualifies(score)) {
     state = 'entry';
     entryName = '';
     input.takeTyped();
@@ -85,6 +89,9 @@ function update(dt) {
         if (e === 'pop' && soundBudget-- > 0) sfx.pop();
         if (e === 'levelup') sfx.levelUp();
         if (e === 'choose') sfx.choose();
+        if (e === 'bossWarn') sfx.bossWarn();
+        if (e === 'bossDown') { sfx.bossDown(); shake = Math.max(shake, 14); }
+        if (e === 'dawn') { sfx.dawn(); shake = Math.max(shake, 10); }
         if (e === 'over') { sfx.gameOver(); shake = 20; endGame(); }
       }
       break;
@@ -220,8 +227,40 @@ function drawBackground() {
   g.addColorStop(1, '#0a0610');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, W, H);
+  const day = game && state !== 'select' ? game.daylight : 0;
+  if (day > 0) drawDawn(day);
+  ctx.save(); ctx.globalAlpha = Math.max(0, 1 - day * 1.4);
   drawSky(performance.now() / 1000);
+  ctx.restore();
   // Ground detail scrolls with the camera; it's drawn in game.js.
+}
+
+// Sunrise near the end of the night: the sky warms up from the bottom, and once
+// the boss is beaten a striped synthwave sun rises behind the forest.
+function drawDawn(k) {
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, `rgba(70,20,120,${(0.5 * k).toFixed(3)})`);
+  g.addColorStop(0.55, `rgba(255,60,140,${(0.45 * k).toFixed(3)})`);
+  g.addColorStop(1, `rgba(255,170,80,${(0.8 * k).toFixed(3)})`);
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+  const rise = Math.max(0, (k - 0.3) / 0.7);
+  if (rise <= 0) return;
+  const r = 120, cx = W / 2, cy = H + r - rise * 250;
+  const halo = ctx.createRadialGradient(cx, cy, r * 0.6, cx, cy, r * 2.4);
+  halo.addColorStop(0, 'rgba(255,42,109,0.5)');
+  halo.addColorStop(1, 'rgba(255,42,109,0)');
+  ctx.fillStyle = halo;
+  ctx.fillRect(0, 0, W, H);
+  ctx.save();
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.clip();
+  const sg = ctx.createLinearGradient(0, cy - r, 0, cy + r * 0.4);
+  sg.addColorStop(0, NEON.yellow); sg.addColorStop(0.45, '#ff9e3d'); sg.addColorStop(1, NEON.pink);
+  ctx.fillStyle = sg;
+  ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+  ctx.fillStyle = 'rgba(120,30,90,0.9)';
+  for (let i = 0; i < 6; i++) ctx.fillRect(cx - r, cy - r * 0.2 + i * 16, r * 2, 2 + i * 1.5);
+  ctx.restore();
 }
 
 function drawHud() {
@@ -423,6 +462,7 @@ function drawTitle() {
     'Each level: pick 1 of 3 new or stronger weapons.',
     'AA guns in the forest fire flak. Dodge or destroy!',
     'Quick kills build a streak multiplier. Stay airborne!',
+    'Before sunrise the Mothership comes. Beat it for dawn!',
   ];
   how.forEach((l, i) => text('▸ ' + l, lx + 20, ly + 50 + i * 19, 13, NEON.ink, 'left', 'normal'));
 
@@ -573,7 +613,9 @@ function draw() {
 
   if (state === 'gameover') {
     overlay(0.82);
-    chromeTitle(game.crashed ? 'CRASHED' : 'SHOT DOWN', W / 2, 52, 52);
+    chromeTitle(game.cleared ? 'NIGHT CLEARED' : game.crashed ? 'CRASHED' : 'SHOT DOWN', W / 2, 52, 52);
+    if (game.cleared) neonText(`Survived to dawn at ${fmtTime(game.clearedAt)}, then went down in overtime`, W / 2, H - 78, 15, NEON.yellow);
+    if (game.testRun) text('TEST RUN · not logged in the high scores', W / 2, H - 56, 13, '#ffb703');
     neonText(`Airborne ${fmtTime(game.time)}  ·  ${game.kills} bandits splashed  ·  level ${game.level}  ·  ${Math.floor(game.score)} pts`, W / 2, 96, 15, NEON.cyan);
     const boardRows = Math.max(2, Math.min(highscores.list.length, CONFIG.highscoreCount));
     neonPanel(W / 2 - 220, 116, 440, 64 + boardRows * 20, NEON.magenta);

@@ -6,7 +6,7 @@ We're a team building a web game in a few hours.
 
 - Before working on the game, read `design/game.md`. It's the team's description of the game and the source of truth for what to build.
 - If a request conflicts with `design/game.md`, point out the conflict and ask which one wins.
-- Edit `design/game.md` only when asked to.
+- Keep `design/game.md` up to date automatically: whenever you add or change a feature, update the matching sections (and add a line under "Decisions and changes") in the same branch, without being asked. Don't change the team's decisions in it unless they ask.
 - Build the "Must have" list first. Get something playable early, then add to it.
 
 ## Constraints

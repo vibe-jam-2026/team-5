@@ -4,8 +4,11 @@
 //   new Game(aircraft), game.update(dt, input), game.draw(ctx), game.drawUi(ctx),
 //   game.score, game.level, game.time, game.kills, game.multiplier, game.streakTimer,
 //   game.over, game.choosing, game.events
-// `events` are strings the shell reacts to: 'pickup', 'kill', 'hit', 'levelup', 'choose', 'over'.
+//   game.cleared (survived to dawn), game.testRun (used a test shortcut), game.daylight
+// `events` are strings the shell reacts to: 'pickup', 'kill', 'hit', 'levelup', 'choose', 'over',
+// plus boss events 'bossWarn', 'bossDown', 'dawn'.
 import { CONFIG as C } from './config.js';
+import { Boss } from './boss.js';
 
 const W = C.width, H = C.height;
 const rand = (a, b) => a + Math.random() * (b - a);
@@ -213,7 +216,35 @@ export class Game {
     this.choiceIndex = 0;
     this.over = false;
     this.crashed = false;     // true if the night ended by flying into the ground
+    this.boss = null;         // final boss state (see boss.js), set when it arrives
+    this.cleared = false;     // true once the boss is beaten and dawn breaks
+    this.testRun = false;     // a test shortcut was used: not saved to high scores
     this.events = [];
+  }
+
+  // All points go through here, so Overtime can multiply them.
+  addScore(n) {
+    const pts = Math.round(n * (this.boss?.phase === 'overtime' || this.boss?.phase === 'dawn' ? C.boss.overtimeMult : 1));
+    this.score += pts;
+    return pts;
+  }
+
+  get daylight() { return Boss.daylight(this); }
+  get floorY() { return CRASH_Y; }
+
+  // Testing shortcut: jump to just before the boss with a mid-game loadout.
+  skipToBoss() {
+    this.testRun = true;
+    if (this.boss) return;
+    this.time = Math.max(this.time, C.boss.at - 2);
+    this.enemies = []; this.bullets = []; this.shells = [];
+    if (this.level < 15) {
+      Object.assign(this.lv, { bolt: 6, bats: 3, aura: 2, might: 3, speed: 1, vigor: 2, magnet: 1 });
+      this.level = 15; this.xp = 0; this.pendingLevels = 0;
+      this.player.maxHp = Math.round(C.playerMaxHp * this.aircraft.health) + 50;
+    }
+    this.player.hp = this.player.maxHp;
+    this.player.y = Math.min(this.player.y, CRASH_Y - 160);
   }
 
   // Camera centre y: follows the jet, but never shows below the ground.
@@ -229,11 +260,16 @@ export class Game {
     this.events.length = 0;
     if (this.over) return;
     if (this.choosing) { this.updateChoice(input); return; }
+    if (input.isDown('ShiftLeft', 'ShiftRight')) {   // test shortcuts
+      if (input.wasPressed('KeyB')) this.skipToBoss();
+      if (input.wasPressed('KeyN')) { this.testRun = true; Boss.skipPhase(this); }
+    }
 
     this.time += dt;
-    this.score += C.survivalPointsPerSecond * dt;
+    this.score += C.survivalPointsPerSecond * dt * (this.boss?.phase === 'overtime' ? C.boss.overtimeMult : 1);
     this.movePlayer(dt, input);
     this.spawn(dt);
+    Boss.update(this, dt);
     this.moveEnemies(dt);
     this.droneGuns(dt);
     this.antiAircraft(dt);
@@ -284,24 +320,30 @@ export class Game {
 
   spawn(dt) {
     const T = this.time;
-    this.spawnAcc += (C.spawnBase + T / C.spawnRamp + (T / C.spawnCurve) ** 2) * dt;
+    this.spawnAcc += (C.spawnBase + T / C.spawnRamp + (T / C.spawnCurve) ** 2) * Boss.spawnScale(this) * dt;
     const types = Object.entries(ENEMIES).filter(([, t]) => T >= t.from);
-    const hpScale = 1 + T / C.hpScaleSeconds;
-    const speedScale = Math.min(C.maxSpeedScale, 1 + T / C.speedScaleSeconds);
-    const dpsScale = 1 + T / C.dpsScaleSeconds;
     // Plain quadcopters get rarer as the night goes on; tougher types take over.
     const basic = C.basicShareStart + (C.basicShareEnd - C.basicShareStart) * Math.min(1, T / C.basicShareSeconds);
     while (this.spawnAcc >= 1) {
       this.spawnAcc--;
       if (this.enemies.length >= C.maxEnemies) continue;
-      const [kind, t] = types[Math.random() < basic ? 0 : Math.floor(Math.random() * types.length)];
+      const [kind] = types[Math.random() < basic ? 0 : Math.floor(Math.random() * types.length)];
       const { x, y } = this.around(SPAWN_RADIUS + rand(0, 60));
-      const armed = kind === 'heavy' || (kind === 'quad' && T >= C.armedQuadFrom && Math.random() < C.armedQuadShare);
-      const gun = armed ? C.droneGuns[kind] : null;
-      this.enemies.push({ kind, x, y, r: t.r, hp: t.hp * hpScale, maxHp: t.hp * hpScale,
-        speed: t.speed * speedScale * rand(0.85, 1.15), dps: t.dps * dpsScale, xp: t.xp, color: t.color, flash: 0, batCd: 0, seed: Math.random(),
-        gun, gunCd: gun ? gun.interval * rand(0.6, 1.2) : 0, muzzle: 0 });
+      this.addEnemy(kind, x, y);
     }
+  }
+
+  // Add one drone, scaled to how far into the night it is.
+  addEnemy(kind, x, y) {
+    const T = this.time, t = ENEMIES[kind];
+    const hpScale = 1 + T / C.hpScaleSeconds;
+    const speedScale = Math.min(C.maxSpeedScale, 1 + T / C.speedScaleSeconds);
+    const dpsScale = 1 + T / C.dpsScaleSeconds;
+    const armed = kind === 'heavy' || (kind === 'quad' && T >= C.armedQuadFrom && Math.random() < C.armedQuadShare);
+    const gun = armed ? C.droneGuns[kind] : null;
+    this.enemies.push({ kind, x, y, r: t.r, hp: t.hp * hpScale, maxHp: t.hp * hpScale,
+      speed: t.speed * speedScale * rand(0.85, 1.15), dps: t.dps * dpsScale, xp: t.xp, color: t.color, flash: 0, batCd: 0, seed: Math.random(),
+      gun, gunCd: gun ? gun.interval * rand(0.6, 1.2) : 0, muzzle: 0 });
   }
 
   // Random point on a ring of radius d around the player.
@@ -352,8 +394,7 @@ export class Game {
       this.streak++;
       this.streakTimer = C.streakWindow;
       this.multiplier = Math.min(C.maxMultiplier, 1 + Math.floor(this.streak / C.killsPerMultiplier));
-      const pts = C.killPoints * e.xp * this.multiplier;
-      this.score += pts;
+      const pts = this.addScore(C.killPoints * e.xp * this.multiplier);
       if (e.xp > 1 || this.multiplier > 1) this.floaters.push({ x: e.x, y: e.y - 10, text: `+${pts}`, life: 0.7 });
       this.gems.push({ x: e.x, y: e.y, v: e.xp, big: e.xp > 1 });
       if (Math.random() < (e.kind === 'heavy' ? C.powerupChanceHeavy : C.powerupChance)) this.dropCrate(e.x, e.y);
@@ -363,16 +404,16 @@ export class Game {
   }
 
   weapons(dt) {
-    const p = this.player, m = this.might, guns = this.liveGuns();
+    const p = this.player, m = this.might, guns = this.liveGuns(), parts = Boss.parts(this);
 
     // Guns, Guns, Guns: fire at the nearest hunters.
     if (this.lv.bolt > 0) {
       this.boltTimer -= dt;
-      if (this.boltTimer <= 0 && (this.enemies.length || guns.length)) {
+      if (this.boltTimer <= 0 && (this.enemies.length || guns.length || parts.length)) {
         const l = this.lv.bolt;
         this.boltTimer = 0.65 * Math.pow(0.88, l - 1);
         const count = 1 + Math.floor(l / 3);
-        const targets = [...this.enemies, ...guns].sort((a, b) => dist2(a, p) - dist2(b, p)).slice(0, count);
+        const targets = [...this.enemies, ...guns, ...parts].sort((a, b) => dist2(a, p) - dist2(b, p)).slice(0, count);
         for (const t of targets) {
           const a = Math.atan2(t.y - p.y, t.x - p.x);
           this.bolts.push({ x: p.x, y: p.y, vx: Math.cos(a) * 480, vy: Math.sin(a) * 480,
@@ -395,6 +436,12 @@ export class Game {
           if (b.pierce-- <= 0) b.life = 0;
         }
       }
+      for (const q of parts) {
+        if (b.life > 0 && !q.dead && Boss.touches(q, b, 4)) {
+          Boss.damage(this, q, b.dmg);
+          if (b.pierce-- <= 0) b.life = 0;
+        }
+      }
     }
     this.bolts = this.bolts.filter((b) => b.life > 0 && dist2(b, p) < SPAWN_RADIUS ** 2);
 
@@ -407,12 +454,16 @@ export class Game {
           e.batCd = 0.35;
         }
       }
+      for (const q of parts) {
+        if (!q.dead && q.batCd <= 0 && Boss.touches(q, bat, 9)) { Boss.damage(this, q, 8 * m); q.batCd = 0.35; }
+      }
     }
 
     // Danger Zone: steady damage around the player.
     if (this.lv.aura > 0) {
       const r = this.auraRadius(), dps = 6 * this.lv.aura * m;
       for (const e of this.enemies) if (!e.dead && dist2(e, p) < (r + e.r) ** 2) this.damage(e, dps * dt);
+      for (const q of parts) if (Boss.touches(q, p, r)) Boss.damage(this, q, dps * dt);
     }
 
     this.enemies = this.enemies.filter((e) => !e.dead);
@@ -534,8 +585,7 @@ export class Game {
     g.hitFlash = 0.08;
     if (g.hp > 0 || g.dead) return;
     g.dead = true;
-    const pts = C.aaPoints * this.multiplier;
-    this.score += pts;
+    const pts = this.addScore(C.aaPoints * this.multiplier);
     this.kills++;
     this.floaters.push({ x: g.x, y: g.y - 24, text: `+${pts}`, life: 1 });
     this.burst(g.x, g.y, '#ffb703', 24);
@@ -553,7 +603,7 @@ export class Game {
   }
 
   powerups(dt) {
-    const p = this.player, m = this.might;
+    const p = this.player, m = this.might, parts = Boss.parts(this);
     // Pick up crates (they drift towards you a little, like blood).
     for (const c of this.crates) {
       c.life -= dt;
@@ -596,11 +646,15 @@ export class Game {
             const rx = g.x - p.x, ry = g.y - p.y, along = rx * ux + ry * uy;
             if (along > 0 && along < LASER_LEN && Math.abs(rx * uy - ry * ux) < g.r + 5) this.damageGun(g, dps * dt);
           }
+          for (const q of parts) {
+            const rx = q.x - p.x, ry = q.y - p.y, along = rx * ux + ry * uy;
+            if (along > 0 && along < LASER_LEN + q.r && Math.abs(rx * uy - ry * ux) < q.r + 5) Boss.damage(this, q, dps * dt);
+          }
         }
       } else if (pw.kind === 'rocket' && this.powerCd <= 0) {
         // Two rockets every volley, each locking onto a random nearby target.
         this.powerCd = 0.22;
-        const near = [...this.enemies, ...this.liveGuns()].filter((e) => dist2(e, p) < 420 ** 2);
+        const near = [...this.enemies, ...this.liveGuns(), ...parts].filter((e) => dist2(e, p) < 420 ** 2);
         for (let i = 0; i < 2; i++) {
           const a = rand(0, Math.PI * 2);
           this.rockets.push({ x: p.x, y: p.y, vx: Math.cos(a) * 160, vy: Math.sin(a) * 160, life: 2.5,
@@ -627,7 +681,8 @@ export class Game {
       r.x += r.vx * dt; r.y += r.vy * dt;
       if (Math.random() < 0.6) this.particles.push({ x: r.x, y: r.y, vx: rand(-20, 20), vy: rand(-20, 20), life: 0.25, color: '#8a7a9a' });
       const hit = this.enemies.some((e) => !e.dead && dist2(e, r) < (e.r + 5) ** 2)
-        || this.liveGuns().some((g) => dist2(g, r) < (g.r + 5) ** 2);
+        || this.liveGuns().some((g) => dist2(g, r) < (g.r + 5) ** 2)
+        || parts.some((q) => !q.dead && Boss.touches(q, r, 5));
       if (hit || r.life <= 0) {
         r.done = true;
         const blast = 48, dmg = 22 * m;
@@ -635,6 +690,7 @@ export class Game {
         this.burst(r.x, r.y, '#ffb703', 8);
         for (const e of this.enemies) if (!e.dead && dist2(e, r) < (blast + e.r) ** 2) this.damage(e, dmg);
         for (const g of this.liveGuns()) if (dist2(g, r) < (blast + g.r) ** 2) this.damageGun(g, dmg);
+        for (const q of parts) if (Boss.touches(q, r, blast)) Boss.damage(this, q, dmg);
         this.events.push('pop');
       }
     }
@@ -663,7 +719,7 @@ export class Game {
       if (d < p.r + 6) {
         g.taken = true;
         this.xp += g.v;
-        this.score += g.v;
+        this.addScore(g.v);
         this.events.push('pickup');
         while (this.xp >= this.xpToNext) {
           this.xp -= this.xpToNext;
@@ -697,7 +753,7 @@ export class Game {
     if (pick < 0) return;
 
     const key = this.choosing[pick];
-    if (key === 'feast') { this.player.hp = Math.min(this.player.maxHp, this.player.hp + 30); this.score += 500; }
+    if (key === 'feast') { this.player.hp = Math.min(this.player.maxHp, this.player.hp + 30); this.addScore(500); }
     else {
       this.lv[key]++;
       if (key === 'vigor') { this.player.maxHp += 25; this.player.hp = Math.min(this.player.maxHp, this.player.hp + 25); }
@@ -797,6 +853,7 @@ export class Game {
       drawDrone(ctx, e, this.time);
       ctx.restore();
     }
+    Boss.draw(ctx, this);
     // Cannon tracers: thin bright streaks along their flight path
     ctx.lineCap = 'butt';
     for (const b of this.bolts) {
@@ -1053,6 +1110,12 @@ export class Game {
       }
       ctx.fillStyle = '#000'; ctx.fillRect(W / 2 - 70, 100, 140, 5);
       ctx.fillStyle = pu.color; ctx.fillRect(W / 2 - 70, 100, 140 * k, 5);
+    }
+
+    Boss.drawUi(ctx, this);
+    if (this.testRun) {
+      ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.font = 'bold 12px monospace';
+      ctx.fillStyle = '#ffb703'; ctx.fillText('TEST RUN · not logged', 16, H - 16);
     }
 
     if (!this.choosing) return;

@@ -13,7 +13,7 @@ branch = sys.argv[2] if len(sys.argv) > 2 else 'this branch'
 
 # Module order matters: each file may only use modules listed before it.
 MODS = [('config', 'CONFIG'), ('input', 'input'), ('highscores', 'highscores'),
-        ('audio', 'sfx'), ('game', 'Game'), ('main', None)]
+        ('audio', 'sfx'), ('boss', 'Boss'), ('game', 'Game'), ('main', None)]
 known = {f'{m}.js' for m, _ in MODS}
 extra = sorted(set(os.listdir('js')) - known)
 if extra:

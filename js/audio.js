@@ -213,4 +213,8 @@ export const sfx = {
   rocket() { tone(500, 0.1, 'sawtooth', 0.03, 400); },
   pop() { tone(110, 0.12, 'square', 0.05, -60); },
   select() { tone(660, 0.05, 'square', 0.08); },
+  // Boss: a two-tone siren, a big crunch, and a rising fanfare at dawn.
+  bossWarn() { for (let i = 0; i < 6; i++) setTimeout(() => tone(i % 2 ? 520 : 780, 0.22, 'square', 0.09), i * 230); },
+  bossDown() { tone(70, 0.9, 'sawtooth', 0.2, -50); setTimeout(() => tone(160, 0.5, 'square', 0.12, -120), 120); },
+  dawn() { [523, 659, 784, 1046, 1318].forEach((f, i) => setTimeout(() => tone(f, i === 4 ? 0.6 : 0.16, 'square', 0.1), i * 120)); },
 };

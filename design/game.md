@@ -17,7 +17,7 @@ Genre inspiration: "survivors-likes" / "bullet heaven" (e.g. Vampire Survivors).
 - The jet only moves while you hold WASD or the arrow keys; let go and it hovers in place. It can't climb more than 900 px above the ground ("MAX ALTITUDE" warns you).
 - **Flares** (F or Space): the jet fires a salvo of burning flares that shoot out backwards in pairs, trailing smoke, and for 2 seconds nothing hurts you (drones, bullets, flak, the boss). While it lasts, the jet's contours glow blue (flickering just before it ends). It can only be used once a minute; the FL bar under XP shows the time left, the cooldown, or READY. Crashing into the trees still ends the run. Tunable in `js/config.js` (`flareShield`, `flareCooldown`).
 - From level 10, power-up crates sometimes drop and give a special weapon for 6 seconds: Scatter Cannon, Pulse Laser or Rocket Swarm.
-- Health at 0 ends the run. The longer you survive, the more and tougher the drones.
+- Health at 0 ends the run: the jet is shot down and catches fire, the pilot ejects right away and parachutes down while the burning jet spirals into the forest and explodes (the same zoomed-in ejection scene, ENTER skips), then the game-over screen says "SHOT DOWN". The longer you survive, the more and tougher the drones.
 - Score comes from kills (with a kill-streak multiplier), destroyed guns, pickups and survival time.
 
 ## The final boss: survive until dawn
@@ -115,3 +115,4 @@ Plain HTML, JavaScript modules and canvas. No libraries, no build step. Gameplay
 - 2026-11-09: Added flares (F or Space): a 3 s shield that blocks all damage and burns up enemy bullets, usable once every 60 s. The streak counter moved down a little to make room for the flare bar.
 - 2026-11-09: Flares tweaked: no blue shield circle, protection lasts 2 s instead of 3 s, and the flares now fly out backwards trailing smoke.
 - 2026-11-09: The jet's outline glows blue while the flare protection is active.
+- 2026-11-09: Running out of health now also plays the ejection: the burning jet is abandoned, the pilot parachutes down, then game over.

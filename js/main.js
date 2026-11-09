@@ -53,10 +53,21 @@ function endGame() {
   }
 }
 
+// Which soundtrack fits right now: 0 sunset/day, 1 midnight, 2 boss.
+function musicTrack() {
+  if (!game || state === 'title' || state === 'select') return 0;
+  const M = CONFIG.music, h = game.hour;
+  if (game.boss && !game.cleared) return 2;
+  if (!game.cleared && h >= M.bossMusicHour && h < 6) return 2;
+  if (h >= M.midnightHour && h < 6) return 1;
+  return 0;
+}
+
 function update(dt) {
   clock += dt;
+  sfx.music(musicTrack());
   shake = Math.max(0, shake - dt * 30);
-  if (input.wasPressed('KeyM')) sfx.toggleMute();
+  if (input.wasPressed('KeyM') && !input.wasPressed('Shift+KeyM')) sfx.toggleMute();   // Shift+M is a test shortcut
 
   switch (state) {
     case 'title':

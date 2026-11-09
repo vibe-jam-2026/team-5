@@ -40,8 +40,9 @@ An in-game clock under the score maps the run to one night: **6:00 PM at the sta
 
 Losing during the boss keeps everything you scored before it. All boss numbers (arrival time, health, attack rates, bonuses) are in `CONFIG.boss` in `js/config.js`.
 
-### Testing the boss
+### Testing shortcuts
 
+- **Shift+M** during a run jumps to just before midnight (2:28 of play), so you hear the switch to the Midnight Drive music. Gives a level 8 loadout.
 - **Shift+B** during a run jumps straight to the boss with a mid-game loadout (level 15 weapons).
 - **Shift+N** skips the current boss phase (warning → fight → breakup → core → dawn).
 - Opening the page with **`?boss`** at the end of the address starts every run at the boss.
@@ -62,7 +63,11 @@ Fly to dodge the swarm → weapons shoot drones down → collect pickups → lev
 
 - 80s neon synthwave: a neon sky that goes from sunset (striped sun on the horizon) to deep purple night with stars, and back to sunrise at dawn; neon magenta, cyan and yellow, chrome titles, a pine-forest silhouette along the bottom.
 - Title and aircraft screens: striped synthwave sun and a neon perspective grid.
-- Sound effects are synth tones generated in the browser. Music: a driving 80s jet-rock track, also generated in the browser.
+- Sound effects are synth tones generated in the browser. Music: three very cheesy 80s neon tracks, also generated in the browser, that crossfade (with a noise whoosh) as the night goes on:
+  - **Neon Sunset** (title, start of the run at 6 PM, and daytime after dawn): laid-back synthwave with octave-bouncing bass, gated snare, lush pad, sparkly arp and a vibrato lead.
+  - **Midnight Drive** (from 12:00 AM): darker and faster, four-on-the-floor, rolling bass, a rolling arp and brass stabs.
+  - **Dawn Strike** (from 4:30 AM, about 40 s before the Mothership, through the whole boss fight): power chords, orchestra hits, a heroic lead and a key change up.
+  - Switch times are in `CONFIG.music` in `js/config.js`.
 
 ## Scope for the jam
 
@@ -74,7 +79,7 @@ Fly to dodge the swarm → weapons shoot drones down → collect pickups → lev
 - Three drone types, armed drones, anti-aircraft guns in the forest, crashing into the trees
 - Power-up crates with timed special weapons
 - Health, game over, score with kill-streak multiplier, local top-10 high scores with initials
-- Music and sound effects
+- Music (three tracks that change with the time of night) and sound effects
 - Final boss before dawn (Mothership → AI core → dawn bonus → Overtime)
 - Day cycle sky tied to an in-game clock: 6 PM sunset at the start, night with moon and stars, twilight at the 6 AM boss, sunrise after the boss, then day and sunset again in Overtime
 - Big red button trap card in the level-up choices
@@ -116,4 +121,6 @@ Plain HTML, JavaScript modules and canvas. No libraries, no build step. Gameplay
 - 2026-11-09: Flares tweaked: no blue shield circle, protection lasts 2 s instead of 3 s, and the flares now fly out backwards trailing smoke.
 - 2026-11-09: The jet's outline glows blue while the flare protection is active.
 - 2026-11-09: Running out of health now also plays the ejection: the burning jet is abandoned, the pilot parachutes down, then game over.
+- 2026-11-09: The single jet-rock music loop became three cheesy 80s neon tracks that crossfade: Neon Sunset at the start, Midnight Drive from midnight, and Dawn Strike from 4:30 AM through the boss.
+- 2026-11-09: Added a Shift+M test shortcut that jumps to just before midnight to hear the Midnight Drive music. Plain M still mutes.
 - 2026-11-09: The ejection parachute (big red button, crash and shot down) now matches the synthwave theme: a sunset-gradient dome with sun slats, a glowing magenta rim and cyan lines.

@@ -12,12 +12,13 @@ Genre inspiration: "survivors-likes" / "bullet heaven" (e.g. Vampire Survivors).
 
 - Pick one of three aircraft before each round: Interceptor (fast, fragile), Striker (all-rounder) or Gunship (slow, tough, hits hard).
 - Drones swarm towards you: quadcopters, fast kamikaze darts and armoured hexacopters. Some drones carry guns and fire at you (they glow red first).
-- Anti-aircraft guns in the forest at the bottom of the screen fire flak at the jet. Your cannon can destroy them. Flying into the trees is a crash (game over); "PULL UP!" warns you. When you crash, the jet explodes in the trees and the pilot ejects out of the fireball and floats down under the parachute (the same zoomed-in ejection scene as the Big Red Button, ENTER skips), then the game-over screen says "CRASHED INTO THE TREES".
+- Anti-aircraft guns in the forest at the bottom of the screen fire flak at the jet. Your cannon can destroy them. Flying into the trees is a crash (game over); "PULL UP!" warns you. When you crash, the jet explodes in the trees and the pilot ejects out of the fireball and floats down under the parachute (the same zoomed-in ejection scene as the Big Red Button, ENTER skips; in all ejections the jet's afterburner trail fades out instead of staying in the sky), then the game-over screen says "CRASHED INTO THE TREES".
 - Weapons fire automatically. Downed drones drop SSD cards (XP). Each level-up you pick 1 of 3 upgrades: new weapons or stronger ones. Trap: from level 3, each level-up has a 50% chance that one card is a **Big Red Button** ("Do not press"). Picking it ends the run: "EJECT! EJECT! EJECT!" flashes, the canopy blows off, the pilot rockets out on the ejection seat and floats down under a synthwave parachute (striped like the sunset sun, with a neon glow) while the empty jet spirals down and explodes. The camera zooms in to follow it. After about 7 seconds (ENTER skips) comes the high-score name entry / game-over screen ("YOU PRESSED THE BIG RED BUTTON"). Tunable in `js/config.js` (`redButtonFromLevel`, `redButtonChance`, `ejectDuration`).
 - The jet only moves while you hold WASD or the arrow keys; let go and it hovers in place. It can't climb more than 900 px above the ground ("MAX ALTITUDE" warns you).
 - **Flares** (F or Space): the jet fires a salvo of burning flares that shoot out backwards in pairs, trailing smoke, and for 2 seconds nothing hurts you (drones, bullets, flak, the boss). While it lasts, the jet flies at double speed with flames blasting out of its tail, and its contours glow blue (flickering just before it ends). It can only be used once a minute; the FL bar under XP shows the time left, the cooldown, or READY. Crashing into the trees still ends the run. Tunable in `js/config.js` (`flareShield`, `flareCooldown`, `flareSpeedBoost`).
 - From level 10, power-up crates sometimes drop and give a special weapon for 6 seconds: Scatter Cannon, Pulse Laser or Rocket Swarm.
 - Health at 0 ends the run: the jet is shot down and catches fire, the pilot ejects right away and parachutes down while the burning jet spirals into the forest and explodes (the same zoomed-in ejection scene, ENTER skips), then the game-over screen says "SHOT DOWN". The longer you survive, the more and tougher the drones.
+- **Death quotes:** every time you go down, the name-entry and game-over screens show a short quote. There are three sets: **War books** (Sun Tzu, Clausewitz, Moltke, Wellington, Churchill, Wilfred Owen and others), **Pilot sayings** (old aviation folklore) and **Documentary** (our own lines in the voice of an 80s war-documentary narrator; some only appear for a crash, the Big Red Button, being shot down or dying in Overtime). Q on the game-over screen switches to the next set (War books → Pilot sayings → Documentary → Mix) and shows a new quote. The default set is `deathQuotes` in `js/config.js` (currently War books); the quotes are in `js/quotes.js`. Only public-domain texts, folk sayings and our own lines, no quotes from modern copyrighted books or documentaries.
 - Score comes from kills (with a kill-streak multiplier), destroyed guns, pickups and survival time.
 
 ## The final boss: survive until dawn
@@ -54,7 +55,7 @@ Losing during the boss keeps everything you scored before it. All boss numbers (
 - Arrow keys or WASD: fly
 - F or Space: flares (2 s of cover and double speed, once a minute)
 - 1 / 2 / 3, or arrows + Enter: pick an upgrade or aircraft
-- Esc: pause and resume · M: mute · Enter: fly again after game over
+- Esc: pause and resume · M: mute · Enter: fly again after game over · Q on the game-over screen: next quote set
 
 ## Core loop
 
@@ -90,6 +91,7 @@ Fly to dodge the swarm → weapons shoot drones down → collect pickups → lev
 - Day cycle sky tied to an in-game clock: 6 PM sunset at the start, night with moon and stars, twilight at the 6 AM boss, sunrise after the boss, then day and sunset again in Overtime
 - Big red button trap card in the level-up choices
 - Flares: 2 seconds of cover on F/Space, once a minute
+- A war/pilot/documentary quote on the game-over screen each death
 
 **Nice to have:** only if there's time.
 
@@ -105,7 +107,7 @@ Fly to dodge the swarm → weapons shoot drones down → collect pickups → lev
 
 ## Tech
 
-Plain HTML, JavaScript modules and canvas. No libraries, no build step. Gameplay is in `js/game.js`, the final boss in `js/boss.js`, tunables in `js/config.js`, menus/HUD/high scores in `js/main.js`, sound and music in `js/audio.js`.
+Plain HTML, JavaScript modules and canvas. No libraries, no build step. Gameplay is in `js/game.js`, the final boss in `js/boss.js`, tunables in `js/config.js`, menus/HUD/high scores in `js/main.js`, death quotes in `js/quotes.js`, sound and music in `js/audio.js`.
 
 ## Decisions and changes
 
@@ -137,3 +139,5 @@ Plain HTML, JavaScript modules and canvas. No libraries, no build step. Gameplay
 - 2026-11-10: Renamed the game from Midnight Afterburner to the shorter **Night Ace** (start screen logo, page title), with the subtitle "a neon sortie".
 - 2026-11-10: The start-screen prompt now reads "PRESS ENTER TO START" (Enter still opens the aircraft screen).
 - 2026-11-10: Added a Shift+I developer shortcut that makes the jet invisible and immune to damage, for easier testing (marks the run as TEST RUN).
+- 2026-11-10: Every death now shows a short quote on the name-entry and game-over screens. Three sets to compare (War books, Pilot sayings, Documentary narrator, plus Mix); Q cycles them. Default is War books until the team picks one.
+- 2026-11-10: During the ejection scene the jet's afterburner trail fades away right after the pilot ejects. It used to hang frozen in the sky until the end of the scene.

@@ -21,6 +21,8 @@ export const input = {
   isDown: (...codes) => codes.some((c) => down.has(c)),
   wasPressed: (...codes) => codes.some((c) => pressed.has(c)),
   takeTyped: () => typed.splice(0),
+  // Act as if a key was pressed this frame (voice commands use it).
+  trigger: (code) => pressed.add(code),
   // Movement axis in [-1, 1] from arrows or WASD.
   axis() {
     const x = (this.isDown('ArrowRight', 'KeyD') ? 1 : 0) - (this.isDown('ArrowLeft', 'KeyA') ? 1 : 0);

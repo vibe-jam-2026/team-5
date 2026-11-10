@@ -2,6 +2,7 @@
 // fixed-timestep loop, HUD, high scores ("top pilots") and screen shake.
 import { CONFIG } from './config.js';
 import { input } from './input.js';
+import { voice } from './voice.js';
 import { highscores } from './highscores.js';
 import { sfx } from './audio.js';
 import { Game } from './game.js';
@@ -71,6 +72,9 @@ function musicTrack() {
 
 function update(dt) {
   clock += dt;
+  voice.allowToggle = state !== 'entry';   // V is a letter while typing initials
+  // The mic turns on with the key press that starts a run (it has to happen inside the key press).
+  voice.autoStartKeys = state === 'select' ? [...START, ...CONFIG.aircraft.flatMap((_, i) => ['Digit' + (i + 1), 'Numpad' + (i + 1)])] : [];
   sfx.music(musicTrack());
   shake = Math.max(0, shake - dt * 30);
   if (input.wasPressed('KeyM') && !input.wasPressed('Shift+KeyM')) sfx.toggleMute();   // Shift+M is a test shortcut
@@ -703,7 +707,7 @@ function drawTitle() {
   const cy = ly + 200, row = 30, note = (str, x, y) => text(str, x + 8, y, 12, NEON.dim, 'left', 'normal');
   controlRow('Fly', ['↑', '↓', '←', '→', 'or', 'W', 'A', 'S', 'D'], lx + 20, cy);
   controlRow('Pick upgrade', ['1', '2', '3', 'or', '←', '→', 'Enter'], lx + 20, cy + row);
-  note('(2 s cover, every 60 s)', controlRow('Flares', ['F', 'or', 'Space'], lx + 20, cy + row * 2), cy + row * 2);
+  note('(V: mic on/off · say "flares")', controlRow('Flares', ['F', 'or', 'Space'], lx + 20, cy + row * 2), cy + row * 2);
   note('(after you go down)', controlRow('Fly again', ['Enter'], lx + 20, cy + row * 3), cy + row * 3);
   const afterEsc = controlRow('Pause', ['Esc'], lx + 20, cy + row * 4);
   controlRow('Sound', ['M'], afterEsc + 40, cy + row * 4, 60);
@@ -862,6 +866,18 @@ function fitCanvas() {
   ctx.setTransform(w / W, 0, 0, h / H, 0, 0);
 }
 
+// Mic status, bottom right: press V to talk, say "flares".
+const VOICE_LABEL = {
+  off: ['V: VOICE OFF', NEON.dim], loading: ['MIC LOADING, PRESS V AGAIN', NEON.dim], starting: ['MIC STARTING…', NEON.cyan],
+  on: ['● MIC ON · SAY "FLARES"', '#ff4d6d'], denied: ['MIC BLOCKED', NEON.dim], unsupported: ['NO VOICE IN THIS BROWSER', NEON.dim],
+};
+function drawVoice() {
+  const [label, color] = VOICE_LABEL[voice.state] || VOICE_LABEL.off;
+  if (voice.state === 'on' && Math.floor(clock * 1.5) % 2) text(label.replace('●', ' '), W - 16, H - 16, 12, color, 'right');
+  else text(label, W - 16, H - 16, 12, color, 'right');
+  if (voice.heard && performance.now() - voice.heard.t < 900) neonText(voice.heard.text, W - 16, H - 36, 18, NEON.yellow, 'right');
+}
+
 function draw() {
   fitCanvas();
   ctx.save();
@@ -878,6 +894,7 @@ function draw() {
     drawHud();
     game.drawUi(ctx);
   }
+  if (state !== 'entry' && state !== 'gameover') drawVoice();
 
   if (state === 'paused') {
     overlay();

@@ -135,4 +135,5 @@ Plain HTML, JavaScript modules and canvas. No libraries, no build step. Gameplay
 - 2026-11-10: Fixed the start-screen layout: the last briefing line no longer runs into FLIGHT CONTROLS, the "(after you go down)" note no longer overlaps the Enter key, and every control row fits inside its panel.
 - 2026-11-10: Shortened the start-screen mission briefing from eight lines to four (swarm and auto-fire, level up, AA flak, beat the Mothership by sunrise), with more room between the controls.
 - 2026-11-10: Renamed the game from Midnight Afterburner to the shorter **Night Ace** (start screen logo, page title), with the subtitle "a neon sortie".
+- 2026-11-10: The start-screen prompt now reads "PRESS ENTER TO START" (Enter still opens the aircraft screen).
 - 2026-11-10: Added a Shift+I developer shortcut that makes the jet invisible and immune to damage, for easier testing (marks the run as TEST RUN).

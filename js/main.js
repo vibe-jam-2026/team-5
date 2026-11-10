@@ -706,7 +706,7 @@ function drawTitle() {
   neonPanel(rx, ly, rw, lh, NEON.cyan);
   drawPilotLog(rx, ly + 24, rw, CONFIG.highscoreCount, PILOT_LOG);
 
-  if (Math.floor(clock * 2) % 2 === 0) neonText('PRESS ENTER TO CHOOSE YOUR AIRCRAFT', W / 2, H - 28, 22, NEON.yellow);
+  if (Math.floor(clock * 2) % 2 === 0) neonText('PRESS ENTER TO START', W / 2, H - 28, 22, NEON.yellow);
 }
 
 // Aircraft selection: three cards with a preview and stat bars, on the same neon backdrop.

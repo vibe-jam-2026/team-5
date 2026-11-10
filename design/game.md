@@ -63,6 +63,11 @@ Fly to dodge the swarm → weapons shoot drones down → collect pickups → lev
 
 - 80s neon synthwave: a neon sky that goes from sunset (striped sun on the horizon) to deep purple night with stars, and back to sunrise at dawn; neon magenta, cyan and yellow, chrome titles, a pine-forest silhouette along the bottom.
 - Title and aircraft screens: striped synthwave sun and a neon perspective grid.
+- In-game scene in the same neon style as the menus: a dense twinkling star field with sparkles and the odd shooting star, long cloud streaks lit by the sun (pink at dusk, moonlit lavender at night, white by day), neon wireframe mountains on the horizon, and faint sky dust that drifts past as you fly.
+- Forest: three rows of pines (misty far row, middle row, black near row) rim-lit by the sun or moon, drifting ground mist and fireflies at night.
+- AA trucks: dark hulls with magenta neon trim, a glowing cab, headlights, a cyan-lit radar panel and a searchlight that sweeps the night sky, follows the jet and turns red just before the gun fires. Flak is glowing tracers that burst into a flash, a neon shock ring and dark smoke.
+- Jets: shaded metal with a neon leading edge in each aircraft's colour (Interceptor cyan, Striker magenta, Gunship yellow), panel lines, a glass canopy, wing missiles or gun pods and blinking wing-tip lights. On the aircraft screen the model banks from side to side over its shadow with a hologram scan.
+- Ejection: a detailed seat with a neon rocket flame and smoke trail, the pilot in a harness and a white helmet with a mirrored sunset visor, and the jet blowing up in a fireball with a neon shockwave.
 - Sound effects are synth tones generated in the browser. Music: three very cheesy 80s neon tracks, also generated in the browser, that crossfade (with a noise whoosh) as the night goes on:
   - **Neon Sunset** (title, start of the run at 6 PM, and daytime after dawn): laid-back synthwave with octave-bouncing bass, gated snare, lush pad, sparkly arp and a vibrato lead.
   - **Midnight Drive** (from 12:00 AM): darker and faster, four-on-the-floor, rolling bass, a rolling arp and brass stabs.
@@ -124,3 +129,4 @@ Plain HTML, JavaScript modules and canvas. No libraries, no build step. Gameplay
 - 2026-11-09: The single jet-rock music loop became three cheesy 80s neon tracks that crossfade: Neon Sunset at the start, Midnight Drive from midnight, and Dawn Strike from 4:30 AM through the boss.
 - 2026-11-09: Added a Shift+M test shortcut that jumps to just before midnight to hear the Midnight Drive music. Plain M still mutes.
 - 2026-11-09: The ejection parachute (big red button, crash and shot down) now matches the synthwave theme: a sunset-gradient dome with sun slats, a glowing magenta rim and cyan lines.
+- 2026-11-10: Made the game screen look more advanced and match the menus: neon sky (stars, clouds, wireframe mountains), layered rim-lit forest with mist and fireflies, neon AA trucks with searchlights, glowing flak, detailed jets (also on the aircraft screen, which now banks the model with a hologram scan) and a more detailed ejection with a fireball and shockwave. Gameplay is unchanged.

@@ -103,6 +103,7 @@ function update(dt) {
         if (e === 'pickup' && soundBudget-- > 0) sfx.pickup();
         if (e === 'hit') { sfx.hit(); shake = Math.max(shake, 6); }
         if (e === 'flak') sfx.flak();
+        if (e === 'stall') sfx.stall();
         if (e === 'zap' && soundBudget-- > 0) sfx.zap();
         if (e === 'boom') { sfx.boom(); shake = Math.max(shake, 3); }
         if (e === 'power') sfx.power();

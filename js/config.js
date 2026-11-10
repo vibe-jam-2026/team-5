@@ -16,7 +16,10 @@ export const CONFIG = {
   crashHeight: 40,               // flying lower than this above the ground crashes into the trees
   pullUpWarning: 90,
   maxAltitude: 900,              // the jet can't climb higher than this above the ground
-  ceilingWarning: 90,            // "MAX ALTITUDE" shows when this close to the ceiling             // "PULL UP!" shows when this close above the crash height
+  ceilingWarning: 90,            // "MAX ALTITUDE" shows when this close to the ceiling
+  stallDuration: 1.8,            // touching the ceiling stalls the jet for this many seconds
+  stallSink: 170,                // top sinking speed (px/s) during a stall; it builds up slowly
+  stallControl: 0.35,            // share of normal steering left while stalled (can't climb)
 
   // Aircraft picked before each round. Stats are 0..1 (shown as %, 100% max)
   // and multiply playerSpeed, playerMaxHp and all weapon damage.

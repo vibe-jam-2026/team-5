@@ -4,9 +4,9 @@
 //   new Game(aircraft), game.update(dt, input), game.draw(ctx), game.drawUi(ctx),
 //   game.score, game.level, game.time, game.kills, game.multiplier, game.streakTimer,
 //   game.over, game.choosing, game.events
-//   game.cleared (survived to dawn), game.testRun (used a test shortcut), game.hour (in-game clock)
+//   game.cleared (survived to dawn), game.won (landed at home base after the boss), game.testRun (used a test shortcut), game.hour (in-game clock)
 // `events` are strings the shell reacts to: 'pickup', 'kill', 'hit', 'levelup', 'choose', 'over', 'eject', 'seatFire', 'chute',
-// plus boss events 'bossWarn', 'bossDown', 'dawn'.
+// plus boss events 'bossWarn', 'bossDown', 'dawn' and victory-landing events 'touchdown', 'cheer', 'firework'.
 import { CONFIG as C } from './config.js';
 import { Boss } from './boss.js';
 
@@ -415,6 +415,58 @@ function drawPilot(ctx, wave, safe) {
   ctx.fillStyle = '#5a5274'; ctx.beginPath(); ctx.ellipse(0, -5.4, 1.3, 0.9, 0, 0, Math.PI * 2); ctx.fill();
 }
 
+// ---------- Victory landing: crowd and fireworks ----------
+const RUNWAY_Y = GROUND_Y - 14;               // world y of the far edge of the home-base runway
+const LAND_SCALE = 2.4;                       // the jet grows to this size as it comes in (closer to the camera)
+const FAN_SHIRTS = ['#ff71ce', '#05d9e8', '#fffb96', '#ff9e3d', '#b967ff', '#7ae582', '#ff2a6d', '#e8dcff'];
+const FAN_SKIN = ['#f1c7a5', '#d9a07a', '#a86b4a', '#6e4630', '#f6d8c0'];
+const FAN_HAIR = ['#1b1528', '#5a3a20', '#e0b050', '#8a2a1a', '#3a3a48'];
+const FIREWORK_COLORS = ['#ff71ce', '#05d9e8', '#fffb96', '#ff2a6d', '#b967ff', '#7ae582', '#ffffff'];
+
+// One of the ground crew, front view, origin at the feet (about 22 units
+// tall). Runs to their spot, then jumps up and down with arms in the air,
+// some waving neon light sticks.
+function drawFan(ctx, f, t) {
+  const cheer = f.arrived, run = f.moving;
+  const jump = cheer ? Math.abs(Math.sin(t * f.js + f.ph)) * 5 : 0;
+  const step = run ? Math.sin(t * 16 + f.ph) : 0;
+  ctx.save();
+  ctx.translate(f.x, f.y - jump);
+  ctx.lineCap = 'round';
+  // Legs
+  ctx.strokeStyle = '#241a38'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(-1.3, -8); ctx.lineTo(-1.8 + step * 2.5, 0); ctx.moveTo(1.3, -8); ctx.lineTo(1.8 - step * 2.5, 0); ctx.stroke();
+  // Arms: pumping in the air when cheering, swinging while running
+  const wave = Math.sin(t * f.js * 1.3 + f.ph);
+  const lh = cheer ? [-5.5 + wave, -22 + wave * 1.5] : [-4 - step * 2, -9];
+  const rh = cheer ? [5.5 - wave, -22 - wave * 1.5] : [4 + step * 2, -9];
+  ctx.strokeStyle = f.shirt; ctx.lineWidth = 1.6;
+  ctx.beginPath(); ctx.moveTo(-2.6, -14.5); ctx.lineTo(lh[0], lh[1]); ctx.moveTo(2.6, -14.5); ctx.lineTo(rh[0], rh[1]); ctx.stroke();
+  ctx.fillStyle = f.skin;
+  ctx.beginPath(); ctx.arc(lh[0], lh[1], 0.9, 0, Math.PI * 2); ctx.arc(rh[0], rh[1], 0.9, 0, Math.PI * 2); ctx.fill();
+  // Neon light stick in the right hand
+  if (f.stick && cheer) {
+    ctx.save();
+    ctx.shadowColor = f.stick; ctx.shadowBlur = 6;
+    ctx.strokeStyle = f.stick; ctx.lineWidth = 1.2;
+    const a = -Math.PI / 2 + wave * 0.6;
+    ctx.beginPath(); ctx.moveTo(rh[0], rh[1]); ctx.lineTo(rh[0] + Math.cos(a) * 6, rh[1] + Math.sin(a) * 6); ctx.stroke();
+    ctx.restore();
+  }
+  // Torso
+  ctx.fillStyle = f.shirt; ctx.strokeStyle = OUTLINE; ctx.lineWidth = 0.4;
+  ctx.beginPath(); ctx.roundRect(-2.8, -15.5, 5.6, 8, 1.2); ctx.fill(); ctx.stroke();
+  // Head with hair (or a cap)
+  ctx.fillStyle = f.skin;
+  ctx.beginPath(); ctx.arc(0, -18.6, 2.6, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = f.cap ? '#ff2a6d' : f.hair;
+  ctx.beginPath(); ctx.arc(0, -19.2, 2.7, Math.PI, Math.PI * 2); ctx.fill();
+  if (f.cap) ctx.fillRect(0, -19.6, 4, 0.9);
+  // Open mouth when cheering
+  if (cheer) { ctx.fillStyle = '#3a0a1a'; ctx.beginPath(); ctx.arc(0, -17.4, 0.7, 0, Math.PI * 2); ctx.fill(); }
+  ctx.restore();
+}
+
 export class Game {
   constructor(aircraft = C.aircraft[1]) {
     this.aircraft = aircraft;
@@ -464,12 +516,14 @@ export class Game {
     this.invisible = false;   // Shift+I developer cheat: nothing can hurt the jet
     this.pressedRed = false;  // true if the night ended by picking the big red button
     this.eject = null;        // ejection animation after the big red button (see updateEject)
+    this.landing = null;      // victory landing after the AI core falls (see updateLanding)
+    this.won = false;         // true once the pilot has landed: the night is won and the run is over
     this.events = [];
   }
 
-  // All points go through here, so Overtime can multiply them.
+  // All points go through here.
   addScore(n) {
-    const pts = Math.round(n * (this.boss?.phase === 'overtime' || this.boss?.phase === 'dawn' ? C.boss.overtimeMult : 1));
+    const pts = Math.round(n);
     this.score += pts;
     return pts;
   }
@@ -479,6 +533,8 @@ export class Game {
   get untouchable() { return this.shielded || this.invisible; }
   get hour() { return Boss.hour(this); }
   get floorY() { return CRASH_Y; }
+  // World x the camera looks at (the ejection and landing scenes move the camera off the jet).
+  get viewX() { return this.eject ? this.eject.cam.x : this.landing ? this.landing.cam.x : this.player.x; }
 
   // Testing shortcut: jump to just before the boss with a mid-game loadout.
   skipToBoss() {
@@ -514,7 +570,10 @@ export class Game {
   // Camera centre y: follows the jet, but never shows below the ground.
   get camY() { return Math.min(this.player.y, CAM_MAX_Y); }
   // How far the forest strip is pushed down the screen while the jet is high.
-  get groundOffset() { return CAM_MAX_Y - this.camY; }
+  get groundOffset() {
+    if (this.landing) { const c = this.landing.cam; return H / 2 + c.z * (GROUND_Y - c.y) - H; }   // zoomed landing camera
+    return CAM_MAX_Y - this.camY;
+  }
 
   get xpToNext() { return C.xpBase + (this.level - 1) * C.xpPerLevel; }
   get might() { return this.aircraft.damage * (1 + this.lv.might * 0.2); }
@@ -524,6 +583,7 @@ export class Game {
     this.events.length = 0;
     if (this.over) return;
     if (this.eject) { this.updateEject(dt, input); return; }
+    if (this.landing) { this.updateLanding(dt, input); return; }
     if (this.choosing) { this.updateChoice(input); return; }
     // Test shortcuts
     if (input.wasPressed('Shift+KeyB')) this.skipToBoss();
@@ -533,7 +593,7 @@ export class Game {
 
     this.time += dt;
     this.updateFlares(dt, input);
-    this.score += C.survivalPointsPerSecond * dt * (this.boss?.phase === 'overtime' ? C.boss.overtimeMult : 1);
+    this.score += C.survivalPointsPerSecond * dt;
     this.movePlayer(dt, input);
     this.spawn(dt);
     Boss.update(this, dt);
@@ -544,6 +604,7 @@ export class Game {
     this.collectGems(dt);
     this.powerups(dt);
     this.updateEffects(dt);
+    if (this.landing) return;   // the AI core just fell: the victory landing takes over
 
     if (this.streakTimer > 0) {
       this.streakTimer -= dt;
@@ -791,6 +852,7 @@ export class Game {
   // Guns live at fixed world positions in the forest strip on the ground.
   visibleGuns() {
     const p = this.player, out = [];
+    if (this.landing) return out;   // home base: no guns in the forest
     const s0 = Math.floor((p.x - W / 2 - 40) / AA_SLOT), s1 = Math.floor((p.x + W / 2 + 40) / AA_SLOT);
     for (let slot = s0; slot <= s1; slot++) {
       if (hash(slot, 991) > AA_CHANCE) continue;
@@ -1260,6 +1322,299 @@ export class Game {
     ctx.restore();
   }
 
+  // ---------- Victory: landing at home base ----------
+  // The AI core is down and dawn breaks. The jet glides down to the home-base
+  // runway, brakes to a stop, the canopy opens and the pilot hops out. The
+  // ground crew runs out of the hangar cheering while fireworks go off in the
+  // distance. Then the run ends and the high-score entry follows (ENTER skips).
+  startLanding() {
+    const p = this.player, A = C.landing, sz = this.aircraft.size;
+    const tdy = RUNWAY_Y + 12 - 5.5 * LAND_SCALE;              // jet centre once its wheels touch the runway
+    const tdx = p.x + 650 + Math.max(0, tdy - p.y) * 1.2;      // touchdown point ahead, gentler glide from higher up
+    const v0 = (tdx - p.x) / A.approach;
+    const stopX = tdx + v0 * A.rollout / 2;
+    const hangarX = stopX + 300;
+    const pilotX = stopX + 16 * sz;
+    const crowd = [];
+    for (let i = 0; i < A.crowd; i++) {
+      const fromLeft = i % 4 === 3;                            // a few come over from the control tower
+      const tx = fromLeft ? stopX + rand(-190, -50) : pilotX + rand(28, 210);
+      crowd.push({
+        x: fromLeft ? stopX - 330 + rand(-30, 30) : hangarX + rand(-40, 40),
+        y: RUNWAY_Y + (fromLeft ? 26 : 4) + rand(-2, 2),
+        tx, ty: RUNWAY_Y + rand(26, 48),
+        delay: rand(0, 1.4) + (fromLeft ? 0.4 : 0), speed: rand(80, 120),
+        shirt: FAN_SHIRTS[i % FAN_SHIRTS.length], skin: FAN_SKIN[(i * 7) % FAN_SKIN.length],
+        hair: FAN_HAIR[(i * 5) % FAN_HAIR.length], stick: i % 3 === 0 ? (i % 2 ? NEON.cyan : NEON.magenta) : null,
+        cap: i % 5 === 1, ph: rand(0, 6.28), js: rand(7, 10), arrived: false,
+      });
+    }
+    this.landing = {
+      t: 0, phase: 'approach', x0: p.x, y0: p.y, tdx, tdy, v0, vx: v0, stopX, pilotX,
+      touchT: -1, stopT: -1, rw0: tdx - 420, rw1: stopX + 560, hangarX, towerX: stopX - 360,
+      jet: { x: p.x, y: p.y, a: p.heading, squash: 1, scale: 1, gear: 0, burner: 4, canopy: 0 },
+      cam: { x: p.x, y: this.camY, z: 1 },
+      pilot: null, crowd, fireworks: [], sparks: [], nextFirework: 1.2, puffs: [], cheers: 0,
+    };
+    // Clear the battlefield: no weapons, pickups or flares on the way home.
+    this.bolts = []; this.rockets = []; this.bullets = []; this.shells = []; this.gems = []; this.crates = [];
+    this.flares = []; this.smoke = []; this.flames = []; this.power = null; this.choosing = null; this.pendingLevels = 0;
+    this.shieldT = 0;
+  }
+
+  updateLanding(dt, input) {
+    const L = this.landing, A = C.landing, j = L.jet, p = this.player, sz = this.aircraft.size;
+    L.t += dt;
+    this.time += dt;
+    Boss.update(this, dt);                                     // keeps the DAWN BREAKS banner timing
+    const turn = (want, k) => { const d = Math.atan2(Math.sin(want - j.a), Math.cos(want - j.a)); j.a += d * Math.min(1, dt * k); };
+    if (L.phase === 'approach') {
+      // Glide: steady speed forward, eased height so it flares out level at the runway.
+      const s = Math.min(1, L.t / A.approach), e = s * s * (3 - 2 * s);
+      const nx = L.x0 + (L.tdx - L.x0) * s, ny = L.y0 + (L.tdy - L.y0) * e;
+      turn(Math.atan2(ny - j.y, nx - j.x) - 0.14 * s * s, 5);
+      j.x = nx; j.y = ny;
+      const g = Math.max(0, Math.min(1, (s - 0.35) / 0.5));
+      j.squash = 1 - 0.55 * g * g * (3 - 2 * g);               // tilts to a low side-on view near the ground
+      j.scale = 1 + (LAND_SCALE - 1) * g * g * (3 - 2 * g);
+      j.gear = Math.max(0, Math.min(1, (s - 0.5) / 0.25));      // landing gear comes down
+      j.burner = 4 - 2 * s;
+      if (s >= 1) {
+        L.phase = 'rollout'; L.touchT = L.t;
+        for (let i = 0; i < 10; i++) L.puffs.push({ x: j.x + rand(-14, 4) * sz * j.scale, y: RUNWAY_Y + 11, vx: rand(-60, -10), r: rand(3, 6), life: rand(0.8, 1.4), max: 1.4 });
+        this.events.push('touchdown');
+      }
+    } else if (L.phase === 'rollout') {
+      L.vx = Math.max(0, L.vx - (L.v0 / A.rollout) * dt);
+      j.x += L.vx * dt;
+      turn(0, 4);
+      j.burner = Math.max(0, j.burner - dt);
+      if (L.t - L.touchT < 0.7 && Math.random() < 0.6) L.puffs.push({ x: j.x - 5 * sz * j.scale, y: RUNWAY_Y + 11, vx: rand(-50, -20), r: rand(2, 4), life: rand(0.6, 1), max: 1 });
+      if (L.vx <= 0) { L.phase = 'stopped'; L.stopT = L.t; }
+    } else {
+      const k = L.t - L.stopT;
+      j.canopy = Math.max(0, Math.min(1, (k - 0.3) / 0.5));
+      // The pilot climbs out of the cockpit, hops down in front of the jet and celebrates.
+      const cx = j.x + 4 * sz * j.scale;                       // cockpit
+      if (!L.pilot && k >= 0.8) L.pilot = { x: cx, y: j.y - 2, t: 0, sx: cx, sy: j.y - 2 };
+      const pi = L.pilot;
+      if (pi) {
+        pi.t += dt;
+        const feetY = RUNWAY_Y + 30 - 14;                      // pilot origin when standing (drawn 1.4x, feet 14 below)
+        if (pi.t < 0.5) { pi.y = pi.sy - 14 * (pi.t / 0.5); }  // climbs up out of the seat
+        else if (pi.t < 1.2) {                                 // hops down in a little arc
+          const q = (pi.t - 0.5) / 0.7, top = pi.sy - 14;
+          pi.x = pi.sx + (L.pilotX - pi.sx) * q;
+          pi.y = top + (feetY - top) * q - Math.sin(q * Math.PI) * 18;
+        } else { pi.x = L.pilotX; pi.y = feetY - Math.abs(Math.sin((pi.t - 1.2) * 4)) * 4; }
+        if (L.cheers === 0 && pi.t >= 1.2) { L.cheers = 1; this.events.push('cheer'); }
+        if (L.cheers === 1 && pi.t >= 5) { L.cheers = 2; this.events.push('cheer'); }
+      }
+      // Ground crew runs out and cheers around the pilot.
+      for (const f of L.crowd) {
+        if (k < f.delay) continue;
+        const dx = f.tx - f.x, dy = f.ty - f.y, d = Math.hypot(dx, dy);
+        f.moving = d > 2;
+        if (f.moving) { f.x += dx / d * Math.min(d, f.speed * dt); f.y += dy / d * Math.min(d, f.speed * dt); }
+        else f.arrived = true;
+      }
+    }
+    // Fireworks over the trees, from touchdown on.
+    if (L.touchT >= 0) {
+      L.nextFirework -= dt;
+      if (L.nextFirework <= 0) {
+        L.nextFirework = L.phase === 'stopped' ? rand(0.25, 0.6) : rand(0.6, 1);
+        const ground = H + this.groundOffset;
+        L.fireworks.push({ x: rand(60, W - 60), y: ground - 50, vx: rand(-25, 25), vy: -rand(300, 380),
+          burstY: rand(50, Math.max(90, ground - 230)), color: FIREWORK_COLORS[Math.floor(rand(0, FIREWORK_COLORS.length))],
+          kind: Math.floor(rand(0, 3)) });
+      }
+    }
+    for (const r of L.fireworks) {
+      r.x += r.vx * dt; r.y += r.vy * dt; r.vy += 60 * dt;
+      if (Math.random() < 0.7) L.sparks.push({ x: r.x, y: r.y, vx: rand(-10, 10), vy: rand(10, 40), life: 0.4, max: 0.4, color: '#ffd9a0', size: 1.5 });
+      if (r.y <= r.burstY || r.vy >= 0) {
+        r.done = true;
+        const n = r.kind === 1 ? 60 : 44, two = FIREWORK_COLORS[Math.floor(rand(0, FIREWORK_COLORS.length))];
+        for (let i = 0; i < n; i++) {
+          const a = (i / n) * Math.PI * 2 + rand(-0.05, 0.05);
+          const s = r.kind === 0 ? 120 : r.kind === 1 ? rand(40, 140) : rand(70, 110);    // ring, peony, willow
+          const life = r.kind === 2 ? rand(1.6, 2.2) : rand(0.9, 1.3);
+          L.sparks.push({ x: r.x, y: r.y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life, max: life,
+            color: r.kind === 2 ? '#ffd166' : i % 2 ? r.color : two, size: 2.2, drag: r.kind === 2 ? 1.6 : 1.1 });
+        }
+        L.flash = { x: r.x, y: r.y, t: 0.25 };
+        this.events.push('firework');
+      }
+    }
+    L.fireworks = L.fireworks.filter((r) => !r.done);
+    for (const q of L.sparks) {
+      q.px = q.x; q.py = q.y;
+      const drag = 1 - (q.drag || 1) * dt;
+      q.vx *= drag; q.vy = q.vy * drag + 45 * dt;
+      q.x += q.vx * dt; q.y += q.vy * dt; q.life -= dt;
+    }
+    L.sparks = L.sparks.filter((q) => q.life > 0);
+    if (L.flash && (L.flash.t -= dt) <= 0) L.flash = null;
+    for (const q of L.puffs) { q.x += q.vx * dt; q.vx *= 0.95; q.y -= 6 * dt; q.r += 12 * dt; q.life -= dt; }
+    L.puffs = L.puffs.filter((q) => q.life > 0);
+    // Camera: follow the jet down, then close in on the pilot and the crowd.
+    const cam = L.cam;
+    let fx, fy, fz;
+    if (L.phase === 'approach') { const s = L.t / A.approach; fx = j.x + 120; fy = Math.min(j.y, RUNWAY_Y - 70); fz = 1 + 0.6 * s; }
+    else if (L.phase === 'rollout') { fx = j.x + 90; fy = RUNWAY_Y - 45; fz = 1.8; }
+    else { fx = L.stopX + 60; fy = RUNWAY_Y - 30; fz = 2.3; }
+    const ck = Math.min(1, dt * 2.5);
+    cam.x += (fx - cam.x) * ck; cam.y += (fy - cam.y) * ck; cam.z += (fz - cam.z) * ck;
+    p.x = j.x; p.y = j.y; p.heading = j.a;
+    this.updateEffects(dt);
+    const end = L.stopT >= 0 && L.t - L.stopT >= A.celebrate;
+    if (end || (L.t > 2 && input.wasPressed('Enter', 'NumpadEnter'))) {
+      this.won = true;
+      this.over = true;
+      this.events.push('over');
+    }
+  }
+
+  // Fireworks in screen space, far behind the treeline.
+  drawFireworks(ctx) {
+    const L = this.landing;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    if (L.flash) {
+      const k = L.flash.t / 0.25, fg = ctx.createRadialGradient(L.flash.x, L.flash.y, 0, L.flash.x, L.flash.y, 90);
+      fg.addColorStop(0, `rgba(255,240,220,${(0.5 * k).toFixed(3)})`); fg.addColorStop(1, 'rgba(255,240,220,0)');
+      ctx.fillStyle = fg; ctx.fillRect(L.flash.x - 90, L.flash.y - 90, 180, 180);
+    }
+    ctx.lineCap = 'round';
+    for (const q of L.sparks) {
+      const k = q.life / q.max;
+      if (k < 0.3 && Math.random() < 0.4) continue;            // twinkle as they burn out
+      ctx.strokeStyle = q.color; ctx.globalAlpha = Math.min(1, k * 1.5);
+      ctx.lineWidth = q.size;
+      ctx.beginPath(); ctx.moveTo(q.px ?? q.x, q.py ?? q.y); ctx.lineTo(q.x + 0.1, q.y + 0.1); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    for (const r of L.fireworks) { ctx.fillStyle = '#fff4d0'; ctx.beginPath(); ctx.arc(r.x, r.y, 2, 0, Math.PI * 2); ctx.fill(); }
+    ctx.restore();
+  }
+
+  // The airfield in front of the forest: apron with a neon grid, runway,
+  // hangar and control tower, then the jet, the pilot and the crowd.
+  drawLanding(ctx) {
+    const L = this.landing, cam = L.cam, j = L.jet, sz = this.aircraft.size, t = this.time;
+    const lit = sceneLight(this.hour);
+    ctx.save();
+    ctx.translate(W / 2, H / 2); ctx.scale(cam.z, cam.z); ctx.translate(-cam.x, -cam.y);
+    const vx0 = cam.x - W / (2 * cam.z) - 20, vx1 = cam.x + W / (2 * cam.z) + 20;
+    // Apron: dark ground with a synthwave perspective grid
+    const ag = ctx.createLinearGradient(0, RUNWAY_Y, 0, RUNWAY_Y + 160);
+    ag.addColorStop(0, '#1c1030'); ag.addColorStop(1, '#07040b');
+    ctx.fillStyle = ag; ctx.fillRect(vx0, RUNWAY_Y - 1, vx1 - vx0, 400);
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.strokeStyle = 'rgba(255,113,206,0.22)'; ctx.lineWidth = 0.6;
+    ctx.beginPath();
+    for (let i = 0; i < 7; i++) { const y = RUNWAY_Y + 22 + i * i * 4 + i * 4; ctx.moveTo(vx0, y); ctx.lineTo(vx1, y); }
+    for (let x = Math.floor(vx0 / 40) * 40; x < vx1; x += 40) { ctx.moveTo(x, RUNWAY_Y + 22); ctx.lineTo(x + (x - cam.x) * 1.4, RUNWAY_Y + 260); }
+    ctx.stroke();
+    ctx.restore();
+    // Control tower on the left: a stalk with a glowing glass cab and a beacon
+    {
+      const x = L.towerX, b = RUNWAY_Y;
+      ctx.fillStyle = '#1a1028'; ctx.fillRect(x - 6, b - 70, 12, 70);
+      ctx.fillStyle = '#2a1a40'; ctx.beginPath(); ctx.moveTo(x - 18, b - 70); ctx.lineTo(x + 18, b - 70); ctx.lineTo(x + 14, b - 86); ctx.lineTo(x - 14, b - 86); ctx.fill();
+      const gg = ctx.createLinearGradient(0, b - 84, 0, b - 72);
+      gg.addColorStop(0, '#9ff3ff'); gg.addColorStop(1, '#2b8ed8');
+      ctx.fillStyle = gg; ctx.fillRect(x - 13, b - 83, 26, 10);
+      ctx.fillStyle = '#120a1c'; ctx.fillRect(x - 16, b - 90, 32, 4);
+      navLight(ctx, x, b - 93, '#ff2a6d', 1.4, Math.floor(t * 2) % 2 === 0);
+    }
+    // Hangar on the right with its doors open and a WELCOME HOME sign
+    {
+      const x = L.hangarX, b = RUNWAY_Y + 2, w = 170, h = 66;
+      ctx.beginPath();
+      ctx.moveTo(x - w / 2, b); ctx.lineTo(x - w / 2, b - h * 0.55);
+      ctx.quadraticCurveTo(x, b - h * 1.35, x + w / 2, b - h * 0.55); ctx.lineTo(x + w / 2, b); ctx.closePath();
+      const hg = ctx.createLinearGradient(0, b - h, 0, b);
+      hg.addColorStop(0, '#3a2458'); hg.addColorStop(1, '#140a22');
+      ctx.fillStyle = hg; ctx.fill();
+      ctx.save(); ctx.shadowColor = NEON.magenta; ctx.shadowBlur = 8; ctx.strokeStyle = NEON.magenta; ctx.lineWidth = 1.2; ctx.stroke(); ctx.restore();
+      const dg = ctx.createLinearGradient(0, b - 40, 0, b);
+      dg.addColorStop(0, '#ffcf7a'); dg.addColorStop(1, '#ff8a50');
+      ctx.fillStyle = dg; ctx.fillRect(x - 55, b - 40, 110, 40);
+      ctx.fillStyle = '#2a1a40'; ctx.fillRect(x - 70, b - 40, 15, 40); ctx.fillRect(x + 55, b - 40, 15, 40);
+      ctx.save();
+      ctx.font = 'bold 10px monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.shadowColor = NEON.cyan; ctx.shadowBlur = 8;
+      ctx.fillStyle = Math.floor(t * 3) % 4 ? NEON.cyan : '#e8fbff';
+      ctx.fillText('WELCOME HOME', x, b - h * 0.78);
+      ctx.restore();
+    }
+    // Runway: asphalt strip, piano-key threshold, centre dashes and edge lights
+    const r0 = L.rw0, r1 = L.rw1, top = RUNWAY_Y, bot = RUNWAY_Y + 20;
+    ctx.fillStyle = '#2a2438'; ctx.fillRect(r0, top, r1 - r0, bot - top);
+    ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.fillRect(r0, top, r1 - r0, 1.5);
+    ctx.fillStyle = '#d8d4e8';
+    for (let i = 0; i < 6; i++) ctx.fillRect(r0 + 14 + i * 7, top + 3, 4, bot - top - 6);
+    for (let x = r0 + 70; x < r1 - 20; x += 36) ctx.fillRect(x, top + 9.2, 18, 1.6);
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    for (let x = r0; x <= r1; x += 26) {
+      const chase = Math.floor(t * 12 - x / 26) % 16 === 0;
+      for (const y of [top + 0.5, bot - 0.5]) navLight(ctx, x, y, chase ? '#ffffff' : (x < r0 + 40 ? '#7ae582' : NEON.cyan), 1);
+    }
+    ctx.restore();
+    // Tyre smoke
+    for (const q of L.puffs) {
+      ctx.fillStyle = `rgba(220,210,235,${(0.45 * q.life / q.max).toFixed(3)})`;
+      ctx.beginPath(); ctx.arc(q.x, q.y, q.r, 0, Math.PI * 2); ctx.fill();
+    }
+    // The jet: tilted to a low side-on view as it lands, with its gear down
+    if (j.gear > 0) {
+      const k = j.scale;
+      ctx.strokeStyle = '#3d3456'; ctx.lineWidth = 0.6 * k; ctx.fillStyle = '#0d0716';
+      for (const ox of [9, -5]) {
+        const wx = j.x + ox * sz * k * Math.cos(j.a), wy = j.y + 5.5 * k * j.gear;
+        ctx.beginPath(); ctx.moveTo(wx, j.y + 1); ctx.lineTo(wx, wy - k); ctx.stroke();
+        ctx.beginPath(); ctx.arc(wx, wy, 1.1 * k * j.gear, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+    ctx.save();
+    ctx.translate(j.x, j.y); ctx.scale(j.scale, j.scale * j.squash); ctx.rotate(j.a);
+    drawJet(ctx, this.aircraft, j.burner > 0.2 ? j.burner + Math.sin(t * 50) : 0);
+    if (j.canopy > 0) {   // canopy hinges open at the back of the cockpit
+      ctx.scale(sz, sz);
+      poly(ctx, [11, 0, 7, -1.9, 0.5, -1.6, 0.5, 1.6, 7, 1.9], '#0d0716', 0.3);
+      ctx.translate(0.5, 0); ctx.rotate(-1.1 * j.canopy); ctx.translate(-0.5, 0);
+      const cg = ctx.createLinearGradient(1, -1.8, 10, 1.8);
+      cg.addColorStop(0, '#0b1a3a'); cg.addColorStop(0.5, '#2b8ed8'); cg.addColorStop(1, '#9ff3ff');
+      poly(ctx, [11, 0, 7, -1.9, 0.5, -1.6, 0.5, 1.6, 7, 1.9], cg, 0.3);
+    }
+    ctx.restore();
+    // Shadows, then the crowd and the pilot, back to front
+    const people = L.crowd.map((f) => ({ y: f.y, f }));
+    if (L.pilot) people.push({ y: RUNWAY_Y + 30, pilot: L.pilot });
+    people.sort((a, b) => a.y - b.y);
+    for (const q of people) {
+      const sx = q.f ? q.f.x : q.pilot.x, sy = q.f ? q.f.y : RUNWAY_Y + 30;
+      if (q.pilot && q.pilot.t < 1.2) continue;
+      ctx.fillStyle = 'rgba(5,2,10,0.45)';
+      ctx.beginPath(); ctx.ellipse(sx, sy + 0.5, 5, 1.5, 0, 0, Math.PI * 2); ctx.fill();
+    }
+    for (const q of people) {
+      if (q.f) { drawFan(ctx, q.f, t); continue; }
+      const pi = q.pilot;
+      ctx.save();
+      ctx.translate(pi.x, pi.y); ctx.scale(1.4, 1.4);
+      drawPilot(ctx, pi.t > 1.2 ? Math.sin(pi.t * 9) * 4 : 0, false);
+      ctx.restore();
+    }
+    ctx.restore();
+    // Morning light washes over the airfield
+    ctx.fillStyle = `rgba(${lit.rim},0.06)`; ctx.fillRect(0, 0, W, H);
+  }
+
   // ---------- Effects ----------
   burst(x, y, color, n = 12) {
     for (let i = 0; i < n; i++) {
@@ -1387,16 +1742,18 @@ export class Game {
 
   draw(ctx) {
     const p = this.player;
+    const L = this.landing;
     this.drawSearchlights(ctx);
+    if (L) this.drawFireworks(ctx);   // far away, behind the trees
     ctx.save();
     // World space: the camera is centred on the jet.
-    if (this.eject) {   // ejection: the camera zooms in and follows the action
-      const cam = this.eject.cam;
+    if (this.eject || L) {   // ejection / landing: the camera zooms in and follows the action
+      const cam = (this.eject || L).cam;
       ctx.translate(W / 2, H / 2); ctx.scale(cam.z, cam.z); ctx.translate(-cam.x, -cam.y);
     } else ctx.translate(Math.round(W / 2 - p.x), Math.round(H / 2 - this.camY));
     this.drawGround(ctx);
     // Danger Zone
-    if (this.lv.aura > 0) {   // Danger Zone: tinted disc with a crisp rotating dashed ring
+    if (this.lv.aura > 0 && !L) {   // Danger Zone: tinted disc with a crisp rotating dashed ring
       const r = this.auraRadius();
       ctx.fillStyle = 'rgba(255,77,109,0.08)';
       ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2); ctx.fill();
@@ -1455,7 +1812,7 @@ export class Game {
       ctx.beginPath(); ctx.moveTo(b.x - b.vx * 0.018, b.y - b.vy * 0.018); ctx.lineTo(b.x + b.vx * 0.004, b.y + b.vy * 0.004); ctx.stroke();
     }
     // Missiles (Fox Two), nose pointing along the orbit
-    for (const m of this.batPositions()) {
+    for (const m of L ? [] : this.batPositions()) {
       ctx.save();
       ctx.translate(m.x, m.y); ctx.rotate(m.a);
       // Exhaust flame
@@ -1470,7 +1827,7 @@ export class Game {
       ctx.restore();
     }
     // Pulse laser beams
-    if (this.power && this.power.kind === 'laser') {
+    if (this.power && this.power.kind === 'laser' && !L) {
       ctx.lineCap = 'round';
       for (const a of this.laserAngles()) {
         const ex = p.x + Math.cos(a) * LASER_LEN, ey = p.y + Math.sin(a) * LASER_LEN;
@@ -1494,7 +1851,7 @@ export class Game {
       ctx.restore();
     }
     // Afterburner trail: a fading ribbon from hot pink to cyan
-    const trail = p.trail || [];
+    const trail = (!L && p.trail) || [];
     if (trail.length > 1) {
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
@@ -1510,6 +1867,7 @@ export class Game {
     this.drawFlames(ctx);
     // Fighter jet, pointing where it flies (or the ejection, after the big red button)
     if (this.eject) this.drawEject(ctx);
+    else if (L) { /* drawn in front of the forest by drawLanding */ }
     else if (!(this.hurtCd > 0.2 && Math.floor(this.hurtCd * 30) % 2)) {
       ctx.save();
       ctx.translate(p.x, p.y); ctx.rotate(p.heading);
@@ -1585,7 +1943,13 @@ export class Game {
     ctx.globalAlpha = 1;
     ctx.restore();
     const oy = this.groundOffset;
-    if (oy < H) {             // forest strip, pushed down while the jet is high
+    if (L) {                  // landing: the forest is zoomed with the camera, the airfield drawn in front
+      ctx.save();
+      ctx.translate(W / 2, H / 2); ctx.scale(L.cam.z, L.cam.z); ctx.translate(-W / 2, -H / 2 - L.cam.y);
+      this.drawForest(ctx);
+      ctx.restore();
+      this.drawLanding(ctx);
+    } else if (oy < H) {      // forest strip, pushed down while the jet is high
       ctx.save();
       ctx.translate(0, Math.round(oy));
       this.drawForest(ctx);
@@ -1598,7 +1962,7 @@ export class Game {
   // anti-aircraft trucks standing in clearings and fireflies at night.
   drawForest(ctx) {
     const p = this.player, guns = this.visibleGuns(), L = sceneLight(this.hour);
-    const camX = this.eject ? this.eject.cam.x : p.x;
+    const camX = this.viewX;
     // Pine: trunk plus four drooping tiers. Adds to the current path; the
     // rim-lit right edges go into `rims` to stroke afterwards.
     const pine = (x, base, h, w, rims) => {
@@ -1958,7 +2322,7 @@ export class Game {
     ctx.strokeStyle = 'rgba(232,220,255,0.35)'; ctx.strokeRect(bx + 0.5, 48.5, bw - 1, 7);
     // Low-altitude warning when the jet nears the treetops
     const alt = CRASH_Y - p.y;
-    if (!this.over && !this.eject && alt < C.pullUpWarning && Math.floor(this.time * 6) % 2 === 0) {
+    if (!this.over && !this.eject && !this.landing && alt < C.pullUpWarning && Math.floor(this.time * 6) % 2 === 0) {
       ctx.save();
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.font = 'italic 900 28px Impact, "Arial Black", sans-serif';
@@ -1968,7 +2332,7 @@ export class Game {
       ctx.restore();
     }
     // Ceiling notice when the jet nears its max height
-    if (!this.over && p.y - CEIL_Y < C.ceilingWarning && Math.floor(this.time * 4) % 2 === 0) {
+    if (!this.over && !this.landing && p.y - CEIL_Y < C.ceilingWarning && Math.floor(this.time * 4) % 2 === 0) {
       ctx.save();
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.font = 'italic 900 24px Impact, "Arial Black", sans-serif';
@@ -2012,6 +2376,31 @@ export class Game {
         ctx.fillText(this.eject.crash ? 'The pilot got out. The jet is firewood.'
           : this.eject.shot ? 'Shot down! The pilot made it out.' : 'The pilot is fine. The jet is not.', W / 2, H - 70);
       }
+    }
+
+    if (this.landing && !this.over) {
+      const L = this.landing;
+      ctx.save();
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      if (L.stopT >= 0) {
+        ctx.globalAlpha = Math.min(1, (L.t - L.stopT) / 0.8);
+        const y = 122, gr = ctx.createLinearGradient(0, y - 25, 0, y + 25);
+        gr.addColorStop(0, '#fff8e0'); gr.addColorStop(0.45, '#ffb703'); gr.addColorStop(0.55, '#ff2a6d'); gr.addColorStop(1, '#fff0fa');
+        ctx.font = 'italic 900 50px Impact, "Arial Black", sans-serif';
+        ctx.lineWidth = 6; ctx.strokeStyle = '#12032b'; ctx.lineJoin = 'round';
+        ctx.strokeText('MISSION COMPLETE', W / 2 + 3, y + 3);
+        ctx.shadowColor = '#ff2a6d'; ctx.shadowBlur = 20;
+        ctx.fillStyle = gr; ctx.fillText('MISSION COMPLETE', W / 2, y);
+        ctx.shadowColor = NEON.cyan; ctx.shadowBlur = 8;
+        ctx.font = 'bold 16px monospace'; ctx.fillStyle = '#ffffff';
+        ctx.fillText('The night is clear. Welcome home, pilot!', W / 2, y + 42);
+      }
+      ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+      if (L.t > 2 && Math.floor(this.time * 2) % 2 === 0) {
+        ctx.font = 'bold 13px monospace'; ctx.fillStyle = NEON.yellow;
+        ctx.fillText('ENTER  continue', W / 2, H - 18);
+      }
+      ctx.restore();
     }
 
     if (!this.choosing) return;

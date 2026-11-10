@@ -108,7 +108,7 @@ export const CONFIG = {
   },
 
   // Final boss, just before sunrise: the Mothership, then its AI core.
-  // Beat the core and dawn breaks: big bonus, full heal, then Overtime.
+  // Beat the core and dawn breaks: big bonus, then the jet lands at home base and the run ends.
   // Testing: Shift+B jumps to the boss, Shift+M to just before midnight, Shift+N skips the current boss phase,
   // or open the page with ?boss to start every run at the boss. Test runs
   // aren't saved to the high scores.
@@ -137,7 +137,16 @@ export const CONFIG = {
     points: { turret: 2000, hull: 15000, core: 20000 },
     dawnBonus: 25000,            // for clearing the night...
     dawnHpBonus: 25000,          // ...plus up to this much for health left
-    dawnTime: 6,                 // seconds of sunrise celebration (no spawns)
-    overtimeMult: 2,             // all points are worth this much more after dawn
+    dawnTime: 6,                 // seconds the DAWN BREAKS banner shows
+  },
+
+  // Victory ending after the AI core is beaten: the jet glides down to the
+  // home-base runway, the pilot climbs out, the ground crew runs out cheering
+  // and fireworks go off in the distance. Then high-score entry (ENTER skips).
+  landing: {
+    approach: 5,                 // seconds of the glide down to the runway
+    rollout: 2.6,                // seconds of braking on the runway
+    celebrate: 10,               // seconds of cheering and fireworks before the score screen
+    crowd: 18,                   // people running out to cheer
   },
 };

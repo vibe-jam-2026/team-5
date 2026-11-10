@@ -16,6 +16,7 @@ Genre inspiration: "survivors-likes" / "bullet heaven" (e.g. Vampire Survivors).
 - Weapons fire automatically. Downed drones drop SSD cards (XP). Each level-up you pick 1 of 3 upgrades: new weapons or stronger ones. Trap: from level 3, each level-up has a 50% chance that one card is a **Big Red Button** ("Do not press"). Picking it ends the run: "EJECT! EJECT! EJECT!" flashes, the canopy blows off, the pilot rockets out on the ejection seat and floats down under a synthwave parachute (striped like the sunset sun, with a neon glow) while the empty jet spirals down and explodes. The camera zooms in to follow it. After about 7 seconds (ENTER skips) comes the high-score name entry / game-over screen ("YOU PRESSED THE BIG RED BUTTON"). Tunable in `js/config.js` (`redButtonFromLevel`, `redButtonChance`, `ejectDuration`).
 - The jet only moves while you hold WASD or the arrow keys; let go and it hovers in place. It can't climb more than 900 px above the ground ("MAX ALTITUDE" warns you).
 - **Flares** (F or Space): the jet fires a salvo of burning flares that shoot out backwards in pairs, trailing smoke, and for 2 seconds nothing hurts you (drones, bullets, flak, the boss). While it lasts, the jet flies at double speed with flames blasting out of its tail, and its contours glow blue (flickering just before it ends). It can only be used once a minute; the FL bar under XP shows the time left, the cooldown, or READY. Crashing into the trees still ends the run. Tunable in `js/config.js` (`flareShield`, `flareCooldown`, `flareSpeedBoost`).
+- **Voice command:** press V to turn the microphone on, then say **"flares"** to fire flares (same cooldown). The mic status shows bottom right. On the live site it uses the browser's speech recognition (best in Chrome or Edge; browsers without it show "no voice in this browser"); on claude.ai test pages it uses the page's dictation. Code in `js/voice.js`.
 - From level 10, power-up crates sometimes drop and give a special weapon for 6 seconds: Scatter Cannon, Pulse Laser or Rocket Swarm.
 - Health at 0 ends the run: the jet is shot down and catches fire, the pilot ejects right away and parachutes down while the burning jet spirals into the forest and explodes (the same zoomed-in ejection scene, ENTER skips), then the game-over screen says "SHOT DOWN". The longer you survive, the more and tougher the drones.
 - Score comes from kills (with a kill-streak multiplier), destroyed guns, pickups and survival time.
@@ -52,6 +53,7 @@ Losing during the boss keeps everything you scored before it. All boss numbers (
 
 - Arrow keys or WASD: fly
 - F or Space: flares (2 s of cover and double speed, once a minute)
+- V: microphone on/off; say "flares" to fire flares
 - 1 / 2 / 3, or arrows + Enter: pick an upgrade or aircraft
 - Esc: pause and resume · M: mute · Enter: fly again after game over
 
@@ -99,7 +101,7 @@ Fly to dodge the swarm → weapons shoot drones down → collect pickups → lev
 
 ## Tech
 
-Plain HTML, JavaScript modules and canvas. No libraries, no build step. Gameplay is in `js/game.js`, the final boss in `js/boss.js`, tunables in `js/config.js`, menus/HUD/high scores in `js/main.js`, sound and music in `js/audio.js`.
+Plain HTML, JavaScript modules and canvas. No libraries, no build step. Gameplay is in `js/game.js`, the final boss in `js/boss.js`, tunables in `js/config.js`, menus/HUD/high scores in `js/main.js`, sound and music in `js/audio.js`, voice commands in `js/voice.js`.
 
 ## Decisions and changes
 
@@ -125,3 +127,4 @@ Plain HTML, JavaScript modules and canvas. No libraries, no build step. Gameplay
 - 2026-11-09: Added a Shift+M test shortcut that jumps to just before midnight to hear the Midnight Drive music. Plain M still mutes.
 - 2026-11-09: The ejection parachute (big red button, crash and shot down) now matches the synthwave theme: a sunset-gradient dome with sun slats, a glowing magenta rim and cyan lines.
 - 2026-11-10: During the 2 s flare cover the jet also flies at double speed, with flames shooting out behind it.
+- 2026-11-10: Voice command: press V to turn on the mic, then say "flares" to fire flares.

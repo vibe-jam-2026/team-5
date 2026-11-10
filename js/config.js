@@ -2,10 +2,11 @@
 export const CONFIG = {
   width: 960,
   height: 540,
-  title: 'MIDNIGHT AFTERBURNER', // shown on the start screen
-  subtitle: 'a neon night sortie',
+  title: 'NIGHT ACE', // shown on the start screen
+  subtitle: 'a neon sortie',
   highscoreCount: 10,
   highscoreKey: 'team5.highscores.v2',
+  deathQuotes: 'war',            // quote set on the game-over screen: 'war' | 'pilot' | 'doc' | 'mix' (Q cycles in game)
 
   // Player
   playerSpeed: 190,

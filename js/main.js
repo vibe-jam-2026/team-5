@@ -2,9 +2,11 @@
 // fixed-timestep loop, HUD, high scores ("top pilots") and screen shake.
 import { CONFIG } from './config.js';
 import { input } from './input.js';
+import { voice } from './voice.js';
 import { highscores } from './highscores.js';
 import { sfx } from './audio.js';
 import { Game } from './game.js';
+import { quotes } from './quotes.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -18,7 +20,9 @@ let entryName = '';
 let lastRank = -1;
 let isNewBest = false;
 let aircraftIndex = 1;    // remembered between rounds
-let soundBudget = 0;      // limits kill/pickup sounds per frame when many happen at once
+let soundBudget = 0;
+let quoteSet = CONFIG.deathQuotes;   // Q on the game-over screen cycles the sets
+let quote = null;                    // the quote shown for this death      // limits kill/pickup sounds per frame when many happen at once
 
 const START = ['Enter', 'Space', 'NumpadEnter'];
 const fmtTime = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
@@ -41,7 +45,10 @@ function startGame() {
   sfx.select();
 }
 
+const deathReason = () => (game.won ? 'won' : game.pressedRed ? 'red' : game.crashed ? 'crash' : 'shot');
+
 function endGame() {
+  quote = quotes.pick(quoteSet, deathReason());
   const score = Math.floor(game.score);
   isNewBest = score > highscores.best();
   if (!game.testRun && highscores.qualifies(score)) {
@@ -65,6 +72,9 @@ function musicTrack() {
 
 function update(dt) {
   clock += dt;
+  voice.allowToggle = state !== 'entry';   // V is a letter while typing initials
+  // The mic turns on with the key press that starts a run (it has to happen inside the key press).
+  voice.autoStartKeys = state === 'select' ? [...START, ...CONFIG.aircraft.flatMap((_, i) => ['Digit' + (i + 1), 'Numpad' + (i + 1)])] : [];
   sfx.music(musicTrack());
   shake = Math.max(0, shake - dt * 30);
   if (input.wasPressed('KeyM') && !input.wasPressed('Shift+KeyM')) sfx.toggleMute();   // Shift+M is a test shortcut
@@ -138,6 +148,7 @@ function update(dt) {
     case 'gameover':
       if (input.wasPressed('Enter', 'NumpadEnter')) openSelect();
       if (input.wasPressed('Escape')) state = 'title';
+      if (input.wasPressed('KeyQ')) { quoteSet = quotes.next(quoteSet); quote = quotes.pick(quoteSet, deathReason()); sfx.select(); }
       break;
   }
 }
@@ -186,13 +197,14 @@ function keycap(label, x, y) {
 }
 
 // One controls line: a label, then key caps. 'or' is drawn as plain text.
-function controlRow(label, keys, x, y) {
+function controlRow(label, keys, x, y, labelW = 118) {
   text(label, x, y, 14, NEON.ink, 'left', 'normal');
-  let cx = x + 110;
+  let cx = x + labelW;
   for (const k of keys) {
     if (k === 'or') { text('or', cx + 4, y, 12, NEON.dim, 'left', 'normal'); cx += 26; continue; }
     cx += keycap(k, cx, y) + 4;
   }
+  return cx; // x just after the last key, for a note beside it
 }
 
 // Fixed star positions, shared by the title and in-game skies.
@@ -676,44 +688,39 @@ function drawTitle() {
   drawSynthwaveSky(t);
   drawSynthwaveGround(t);
 
-  chromeTitle(CONFIG.title, W / 2, 58, 58);
+  chromeTitle(CONFIG.title, W / 2, 56, 68);
   ctx.fillStyle = 'rgba(9,2,28,0.85)';
   ctx.fillRect(W / 2 - 150, 94, 300, 24);
   neonText(`★  ${CONFIG.subtitle.toUpperCase()}  ★`, W / 2, 106, 14, NEON.cyan);
 
   // Left: mission briefing + controls
-  const lx = 30, ly = 136, lw = 490, lh = 344;
+  const lx = 30, ly = 134, lw = 490, lh = 352;
   neonPanel(lx, ly, lw, lh, NEON.magenta);
-  neonText('MISSION BRIEFING', lx + 20, ly + 24, 16, NEON.magenta, 'left');
+  neonText('MISSION BRIEFING', lx + 20, ly + 22, 16, NEON.magenta, 'left');
   const how = [
-    'Pick your jet, then fly it through the neon night.',
-    'Hostiles swarm in from every side of the sky.',
-    'Your weapons fire on their own: you just fly.',
-    'Shoot them down, grab the SSD cards to level up.',
-    'Each level: pick 1 of 3 new or stronger weapons.',
-    'AA guns in the forest fire flak. Dodge or destroy!',
-    'Quick kills build a streak multiplier. Stay airborne!',
-    'Before sunrise the Mothership comes. Beat it for dawn!',
+    'Drones swarm in. Your guns fire on their own.',
+    'Grab SSD cards to level up and pick upgrades.',
+    'Dodge flak from the AA guns in the forest.',
+    'Beat the Mothership before sunrise for dawn!',
   ];
-  how.forEach((l, i) => text('▸ ' + l, lx + 20, ly + 50 + i * 19, 13, NEON.ink, 'left', 'normal'));
+  how.forEach((l, i) => text('▸ ' + l, lx + 20, ly + 48 + i * 22, 14, NEON.ink, 'left', 'normal'));
 
-  neonText('FLIGHT CONTROLS', lx + 20, ly + 196, 16, NEON.magenta, 'left');
-  const cy = ly + 222;
+  // Controls: one row per action, 30 px apart so the 24 px key caps never touch.
+  neonText('FLIGHT CONTROLS', lx + 20, ly + 168, 16, NEON.magenta, 'left');
+  const cy = ly + 200, row = 30, note = (str, x, y) => text(str, x + 8, y, 12, NEON.dim, 'left', 'normal');
   controlRow('Fly', ['↑', '↓', '←', '→', 'or', 'W', 'A', 'S', 'D'], lx + 20, cy);
-  controlRow('Pick upgrade', ['1', '2', '3', 'or', '←', '→', 'Enter'], lx + 20, cy + 26);
-  controlRow('Flares', ['F', 'or', 'Space'], lx + 20, cy + 52);
-  text('(2 s cover, every 60 s)', lx + 270, cy + 52, 12, NEON.dim, 'left', 'normal');
-  controlRow('Pause', ['Esc'], lx + 20, cy + 78);
-  controlRow('Sound', ['M'], lx + 240, cy + 78);
-  controlRow('Fly again', ['Enter'], lx + 20, cy + 104);
-  text('(after you go down)', lx + 160, cy + 104, 12, NEON.dim, 'left', 'normal');
+  controlRow('Pick upgrade', ['1', '2', '3', 'or', '←', '→', 'Enter'], lx + 20, cy + row);
+  note('(V: mic on/off · say "flares")', controlRow('Flares', ['F', 'or', 'Space'], lx + 20, cy + row * 2), cy + row * 2);
+  note('(after you go down)', controlRow('Fly again', ['Enter'], lx + 20, cy + row * 3), cy + row * 3);
+  const afterEsc = controlRow('Pause', ['Esc'], lx + 20, cy + row * 4);
+  controlRow('Sound', ['M'], afterEsc + 40, cy + row * 4, 60);
 
   // Right: high scores
   const rx = 540, rw = 390;
   neonPanel(rx, ly, rw, lh, NEON.cyan);
   drawPilotLog(rx, ly + 24, rw, CONFIG.highscoreCount, PILOT_LOG);
 
-  if (Math.floor(clock * 2) % 2 === 0) neonText('PRESS ENTER TO CHOOSE YOUR AIRCRAFT', W / 2, H - 28, 22, NEON.yellow);
+  if (Math.floor(clock * 2) % 2 === 0) neonText('PRESS ENTER TO START', W / 2, H - 28, 22, NEON.yellow);
 }
 
 // Aircraft selection: three cards with a preview and stat bars, on the same neon backdrop.
@@ -821,6 +828,33 @@ function cardName(str, x, y, sel) {
   glow(NEON.pink, 12, () => { ctx.fillStyle = g; ctx.fillText(str, x, y); });
 }
 
+// Split text into lines that fit maxW at the current font.
+function wrap(str, maxW) {
+  const lines = [];
+  let line = '';
+  for (const word of str.split(' ')) {
+    const tryLine = line ? line + ' ' + word : word;
+    if (line && ctx.measureText(tryLine).width > maxW) { lines.push(line); line = word; } else line = tryLine;
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
+// The death quote: italic white lines with a dim magenta attribution.
+function drawQuote(y, showSet) {
+  if (!quote) return;
+  ctx.font = 'italic 16px Georgia, "Times New Roman", serif';
+  const lines = wrap(`“${quote.q}”`, 640);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  lines.forEach((l, i) => glow(NEON.purple, 8, () => {
+    ctx.font = 'italic 16px Georgia, "Times New Roman", serif';
+    ctx.fillStyle = '#fff0fa';
+    ctx.fillText(l, W / 2, y + i * 20);
+  }));
+  const by = `— ${quote.by}` + (showSet ? `   ·   Q: next quote [${quotes.label(quoteSet)}]` : '');
+  text(by, W / 2, y + lines.length * 20 + 2, 12, NEON.dim, 'center', 'normal');
+}
+
 function overlay(alpha = 0.6) {
   ctx.fillStyle = `rgba(9,2,28,${alpha})`;
   ctx.fillRect(0, 0, W, H);
@@ -833,6 +867,18 @@ function fitCanvas() {
   const w = Math.round((canvas.clientWidth || W) * dpr), h = Math.round(w * H / W);
   if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
   ctx.setTransform(w / W, 0, 0, h / H, 0, 0);
+}
+
+// Mic status, bottom right: press V to talk, say "flares".
+const VOICE_LABEL = {
+  off: ['V: VOICE OFF', NEON.dim], loading: ['MIC LOADING, PRESS V AGAIN', NEON.dim], starting: ['MIC STARTING…', NEON.cyan],
+  on: ['● MIC ON · SAY "FLARES"', '#ff4d6d'], denied: ['MIC BLOCKED', NEON.dim], unsupported: ['NO VOICE IN THIS BROWSER', NEON.dim],
+};
+function drawVoice() {
+  const [label, color] = VOICE_LABEL[voice.state] || VOICE_LABEL.off;
+  if (voice.state === 'on' && Math.floor(clock * 1.5) % 2) text(label.replace('●', ' '), W - 16, H - 16, 12, color, 'right');
+  else text(label, W - 16, H - 16, 12, color, 'right');
+  if (voice.heard && performance.now() - voice.heard.t < 900) neonText(voice.heard.text, W - 16, H - 36, 18, NEON.yellow, 'right');
 }
 
 function draw() {
@@ -851,6 +897,7 @@ function draw() {
     drawHud();
     game.drawUi(ctx);
   }
+  if (state !== 'entry' && state !== 'gameover') drawVoice();
 
   if (state === 'paused') {
     overlay();
@@ -867,6 +914,7 @@ function draw() {
     const shown = (entryName + (Math.floor(clock * 3) % 2 ? '_' : ' ')).padEnd(3, ' ').slice(0, 3);
     neonText(shown.split('').join(' '), W / 2, 325, 40, NEON.yellow);
     text('type letters · ENTER to confirm', W / 2, 385, 14, NEON.dim);
+    drawQuote(432, false);
   }
 
   if (state === 'gameover') {
@@ -874,10 +922,11 @@ function draw() {
     chromeTitle(game.won ? 'MISSION COMPLETE' : 'GAME OVER', W / 2, 46, 52);
     neonText(game.won ? 'NIGHT CLEARED · THE AI CORE IS DOWN AND THE PILOT IS HOME' : game.pressedRed ? 'YOU PRESSED THE BIG RED BUTTON' : game.crashed ? 'CRASHED INTO THE TREES' : 'SHOT DOWN', W / 2, 86, 16, game.won ? NEON.yellow : NEON.magenta);
     neonText(`Airborne ${fmtTime(game.time)}  ·  ${game.kills} bandits splashed  ·  level ${game.level}  ·  ${Math.floor(game.score)} pts`, W / 2, 110, 15, NEON.cyan);
-    if (game.testRun) text('TEST RUN · not logged in the high scores', W / 2, H - 56, 13, '#ffb703');
+    if (game.testRun) text('TEST RUN · not logged in the high scores', W / 2, H - 12, 11, '#ffb703');
     const boardRows = Math.max(2, Math.min(highscores.list.length, CONFIG.highscoreCount));
     neonPanel(W / 2 - 220, 128, 440, 64 + boardRows * 20, NEON.magenta);
     drawPilotLog(W / 2 - 200, 150, 400);
+    drawQuote(422, true);
     if (Math.floor(clock * 2) % 2 === 0) neonText('ENTER choose aircraft & fly again   ·   ESC title', W / 2, H - 30, 18, NEON.yellow);
   }
 

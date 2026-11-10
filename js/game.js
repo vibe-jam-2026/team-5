@@ -1151,6 +1151,9 @@ export class Game {
   updateEject(dt, input) {
     const e = this.eject, j = e.jet, pi = e.pilot, c = e.canopy;
     e.t += dt;
+    // The afterburner trail fades out instead of hanging frozen in the sky
+    const p = this.player;
+    if (p.trail) p.trail = p.trail.filter((q) => (q.life -= dt) > 0);
     // Canopy tumbles away
     c.x += c.vx * dt; c.y += c.vy * dt; c.vy += 500 * dt; c.a += c.va * dt;
     // Seat fires after a beat

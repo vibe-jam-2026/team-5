@@ -12,8 +12,8 @@ out = sys.argv[1]
 branch = sys.argv[2] if len(sys.argv) > 2 else 'this branch'
 
 # Module order matters: each file may only use modules listed before it.
-MODS = [('config', 'CONFIG'), ('input', 'input'), ('highscores', 'highscores'),
-        ('audio', 'sfx'), ('boss', 'Boss'), ('game', 'Game'), ('main', None)]
+MODS = [('config', 'CONFIG'), ('input', 'input'), ('voice', 'voice'), ('highscores', 'highscores'),
+        ('audio', 'sfx'), ('quotes', 'quotes'), ('boss', 'Boss'), ('game', 'Game'), ('main', None)]
 known = {f'{m}.js' for m, _ in MODS}
 extra = sorted(set(os.listdir('js')) - known)
 if extra:
@@ -31,7 +31,7 @@ for f, name in MODS:
         parts.append(f'// ---- js/{f}.js\n{{\n{aliases}{src}\n'
                      'canvas.addEventListener("pointerdown", () => canvas.focus());\n}')
 
-head = f'''<title>Midnight Afterburner Test</title>
+head = f'''<title>Night Ace Test</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <style>
 :root {{ --bg: #050308; --ink: #8a8aa0; --canvas: #0a0610; color-scheme: dark; }}

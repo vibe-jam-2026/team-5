@@ -4,7 +4,7 @@ This is the team's description of the game. Claude reads it before working on th
 
 ## Pitch
 
-**Midnight Afterburner**: a neon night sortie. A survivors-like arcade game in an 80s synthwave style: you fly a fighter jet through the night while swarms of drones close in from every side and anti-aircraft guns fire up from the forest. Your weapons fire on their own; you just fly, collect pickups and choose upgrades. Hold out until just before sunrise, beat the Mothership and its AI core, and dawn breaks. Then keep going in Overtime for the high score.
+**Night Ace**: a neon sortie. A survivors-like arcade game in an 80s synthwave style: you fly a fighter jet through the night while swarms of drones close in from every side and anti-aircraft guns fire up from the forest. Your weapons fire on their own; you just fly, collect pickups and choose upgrades. Hold out until just before sunrise, beat the Mothership and its AI core, and dawn breaks. Then keep going in Overtime for the high score.
 
 Genre inspiration: "survivors-likes" / "bullet heaven" (e.g. Vampire Survivors). We use the genre's mechanics, with our own theme, art and names. The 80s jet-movie mood is fine, but we don't copy any existing game or film (no real names, characters or logos).
 
@@ -132,4 +132,8 @@ Plain HTML, JavaScript modules and canvas. No libraries, no build step. Gameplay
 - 2026-11-09: The ejection parachute (big red button, crash and shot down) now matches the synthwave theme: a sunset-gradient dome with sun slats, a glowing magenta rim and cyan lines.
 - 2026-11-10: During the 2 s flare cover the jet also flies at double speed, with flames shooting out behind it.
 - 2026-11-10: Made the game screen look more advanced and match the menus: neon sky (stars, clouds, wireframe mountains), layered rim-lit forest with mist and fireflies, neon AA trucks with searchlights, glowing flak, detailed jets (also on the aircraft screen, which now banks the model with a hologram scan) and a more detailed ejection with a fireball and shockwave. Gameplay is unchanged.
+- 2026-11-10: Fixed the start-screen layout: the last briefing line no longer runs into FLIGHT CONTROLS, the "(after you go down)" note no longer overlaps the Enter key, and every control row fits inside its panel.
+- 2026-11-10: Shortened the start-screen mission briefing from eight lines to four (swarm and auto-fire, level up, AA flak, beat the Mothership by sunrise), with more room between the controls.
+- 2026-11-10: Renamed the game from Midnight Afterburner to the shorter **Night Ace** (start screen logo, page title), with the subtitle "a neon sortie".
+- 2026-11-10: The start-screen prompt now reads "PRESS ENTER TO START" (Enter still opens the aircraft screen).
 - 2026-11-10: Added a Shift+I developer shortcut that makes the jet invisible and immune to damage, for easier testing (marks the run as TEST RUN).

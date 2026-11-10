@@ -149,3 +149,4 @@ Plain HTML, JavaScript modules and canvas. No libraries, no build step. Gameplay
 - 2026-11-10: When the Big Red Button is the only level-up card left (everything maxed), an Autopilot card is offered next to it: no more upgrade screens until the boss.
 - 2026-11-10: Killing the AI core now ends the game (Overtime is gone): an ending where the jet lands at home base, the pilot climbs out, the crowd cheers and fireworks go off in the distance, then high-score entry and restart.
 - 2026-11-10: Favicon changed from the ✈️ emoji to a neon synthwave icon (`favicon.svg`).
+- 2026-11-10: The Documentary quotes are now credited to "Night Ace: The Untold Story" to match the new game title.

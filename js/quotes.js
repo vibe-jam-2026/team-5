@@ -36,18 +36,18 @@ const PILOT = [
 // C: our own lines, read like an 80s TV war-documentary narrator.
 // Some only fit one way the run ends (crash / shot / red / won).
 const DOC = [
-  { q: 'By 0300 hours the swarm had tripled. Radio contact was lost shortly after.', by: 'Midnight Afterburner: The Untold Story' },
-  { q: 'Nobody had told them the drones didn\'t sleep.', by: 'Midnight Afterburner: The Untold Story' },
-  { q: 'Of the pilots who flew that night, few saw the sunrise. This was not one of them.', by: 'Midnight Afterburner: The Untold Story' },
-  { q: 'Command would later call it a tactical withdrawal. The pilot called it a very long walk home.', by: 'Midnight Afterburner: The Untold Story' },
-  { q: 'Somewhere above the treeline, the Mothership was still waiting for dawn.', by: 'Midnight Afterburner: The Untold Story' },
-  { q: 'The parachute was the last part of the aircraft that worked as designed.', by: 'Midnight Afterburner: The Untold Story' },
-  { q: 'The forest kept its secrets. It kept the wreckage too.', by: 'Midnight Afterburner: The Untold Story', only: 'crash' },
-  { q: 'The trees, as ever, did not move.', by: 'Midnight Afterburner: The Untold Story', only: 'crash' },
-  { q: 'Investigators found the button clearly labelled. It had been pressed anyway.', by: 'Midnight Afterburner: The Untold Story', only: 'red' },
-  { q: 'The manual gave the red button a whole page. The page said: don\'t.', by: 'Midnight Afterburner: The Untold Story', only: 'red' },
+  { q: 'By 0300 hours the swarm had tripled. Radio contact was lost shortly after.', by: 'Night Ace: The Untold Story' },
+  { q: 'Nobody had told them the drones didn\'t sleep.', by: 'Night Ace: The Untold Story' },
+  { q: 'Of the pilots who flew that night, few saw the sunrise. This was not one of them.', by: 'Night Ace: The Untold Story' },
+  { q: 'Command would later call it a tactical withdrawal. The pilot called it a very long walk home.', by: 'Night Ace: The Untold Story' },
+  { q: 'Somewhere above the treeline, the Mothership was still waiting for dawn.', by: 'Night Ace: The Untold Story' },
+  { q: 'The parachute was the last part of the aircraft that worked as designed.', by: 'Night Ace: The Untold Story' },
+  { q: 'The forest kept its secrets. It kept the wreckage too.', by: 'Night Ace: The Untold Story', only: 'crash' },
+  { q: 'The trees, as ever, did not move.', by: 'Night Ace: The Untold Story', only: 'crash' },
+  { q: 'Investigators found the button clearly labelled. It had been pressed anyway.', by: 'Night Ace: The Untold Story', only: 'red' },
+  { q: 'The manual gave the red button a whole page. The page said: don\'t.', by: 'Night Ace: The Untold Story', only: 'red' },
   { q: 'The night was won. The ground crew had been saving those fireworks since sunset.', by: 'Night Ace: The Untold Story', only: 'won' },
-  { q: 'The flak came up from the forest like sparks from a campfire. One spark was enough.', by: 'Midnight Afterburner: The Untold Story', only: 'shot' },
+  { q: 'The flak came up from the forest like sparks from a campfire. One spark was enough.', by: 'Night Ace: The Untold Story', only: 'shot' },
 ];
 
 const SETS = { war: ['WAR BOOKS', WAR], pilot: ['PILOT SAYINGS', PILOT], doc: ['DOCUMENTARY', DOC] };

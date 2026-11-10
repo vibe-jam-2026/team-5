@@ -34,7 +34,7 @@ const PILOT = [
 ];
 
 // C: our own lines, read like an 80s TV war-documentary narrator.
-// Some only fit one way of going down (crash / shot / red / cleared).
+// Some only fit one way the run ends (crash / shot / red / won).
 const DOC = [
   { q: 'By 0300 hours the swarm had tripled. Radio contact was lost shortly after.', by: 'Midnight Afterburner: The Untold Story' },
   { q: 'Nobody had told them the drones didn\'t sleep.', by: 'Midnight Afterburner: The Untold Story' },
@@ -46,7 +46,7 @@ const DOC = [
   { q: 'The trees, as ever, did not move.', by: 'Midnight Afterburner: The Untold Story', only: 'crash' },
   { q: 'Investigators found the button clearly labelled. It had been pressed anyway.', by: 'Midnight Afterburner: The Untold Story', only: 'red' },
   { q: 'The manual gave the red button a whole page. The page said: don\'t.', by: 'Midnight Afterburner: The Untold Story', only: 'red' },
-  { q: 'The night was won. The day, it turned out, had drones too.', by: 'Midnight Afterburner: The Untold Story', only: 'cleared' },
+  { q: 'The night was won. The ground crew had been saving those fireworks since sunset.', by: 'Night Ace: The Untold Story', only: 'won' },
   { q: 'The flak came up from the forest like sparks from a campfire. One spark was enough.', by: 'Midnight Afterburner: The Untold Story', only: 'shot' },
 ];
 
@@ -58,7 +58,7 @@ export const quotes = {
   order: ORDER,
   label: (set) => (set === 'mix' ? 'MIX' : SETS[set][0]),
   next: (set) => ORDER[(ORDER.indexOf(set) + 1) % ORDER.length],
-  // reason: 'crash' | 'shot' | 'red' | 'cleared'. Never the same quote twice in a row.
+  // reason: 'crash' | 'shot' | 'red' | 'won'. Never the same quote twice in a row.
   pick(set, reason) {
     const pool = (set === 'mix' ? [...WAR, ...PILOT, ...DOC] : SETS[set][1])
       .filter((x) => !x.only || x.only === reason);

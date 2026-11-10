@@ -4,7 +4,7 @@ This is the team's description of the game. Claude reads it before working on th
 
 ## Pitch
 
-**Night Ace**: a neon sortie. A survivors-like arcade game in an 80s synthwave style: you fly a fighter jet through the night while swarms of drones close in from every side and anti-aircraft guns fire up from the forest. Your weapons fire on their own; you just fly, collect pickups and choose upgrades. Hold out until just before sunrise, beat the Mothership and its AI core, and dawn breaks. Then keep going in Overtime for the high score.
+**Night Ace**: a neon sortie. A survivors-like arcade game in an 80s synthwave style: you fly a fighter jet through the night while swarms of drones close in from every side and anti-aircraft guns fire up from the forest. Your weapons fire on their own; you just fly, collect pickups and choose upgrades. Hold out until just before sunrise, beat the Mothership and its AI core, and dawn breaks: the pilot lands at home base to a cheering crowd and fireworks, and the night is won.
 
 Genre inspiration: "survivors-likes" / "bullet heaven" (e.g. Vampire Survivors). We use the genre's mechanics, with our own theme, art and names. The 80s jet-movie mood is fine, but we don't copy any existing game or film (no real names, characters or logos).
 
@@ -19,7 +19,7 @@ Genre inspiration: "survivors-likes" / "bullet heaven" (e.g. Vampire Survivors).
 - **Voice command:** say **"flares"** to fire flares (same cooldown). The microphone turns on by itself when a run starts (the browser asks for permission the first time); V turns it off or on again, and once you switch it off it stays off for later runs until you press V again. The mic status shows bottom right. On the live site it uses the browser's speech recognition (best in Chrome or Edge; browsers without it show "no voice in this browser"); on claude.ai test pages it uses the page's dictation. Code in `js/voice.js`.
 - From level 10, power-up crates sometimes drop and give a special weapon for 6 seconds: Scatter Cannon, Pulse Laser or Rocket Swarm.
 - Health at 0 ends the run: the jet is shot down and catches fire, the pilot ejects right away and parachutes down while the burning jet spirals into the forest and explodes (the same zoomed-in ejection scene, ENTER skips), then the game-over screen says "SHOT DOWN". The longer you survive, the more and tougher the drones.
-- **Death quotes:** every time you go down, the name-entry and game-over screens show a short quote. There are three sets: **War books** (Sun Tzu, Clausewitz, Moltke, Wellington, Churchill, Wilfred Owen and others), **Pilot sayings** (old aviation folklore) and **Documentary** (our own lines in the voice of an 80s war-documentary narrator; some only appear for a crash, the Big Red Button, being shot down or dying in Overtime). Q on the game-over screen switches to the next set (War books → Pilot sayings → Documentary → Mix) and shows a new quote. The default set is `deathQuotes` in `js/config.js` (currently War books); the quotes are in `js/quotes.js`. Only public-domain texts, folk sayings and our own lines, no quotes from modern copyrighted books or documentaries.
+- **Death quotes:** every time you go down, the name-entry and game-over screens show a short quote. There are three sets: **War books** (Sun Tzu, Clausewitz, Moltke, Wellington, Churchill, Wilfred Owen and others), **Pilot sayings** (old aviation folklore) and **Documentary** (our own lines in the voice of an 80s war-documentary narrator; some only appear for a crash, the Big Red Button, being shot down or winning the night). Q on the game-over screen switches to the next set (War books → Pilot sayings → Documentary → Mix) and shows a new quote. The default set is `deathQuotes` in `js/config.js` (currently War books); the quotes are in `js/quotes.js`. Only public-domain texts, folk sayings and our own lines, no quotes from modern copyrighted books or documentaries.
 - Score comes from kills (with a kill-streak multiplier), destroyed guns, pickups and survival time.
 
 ## The final boss: survive until dawn
@@ -37,8 +37,8 @@ An in-game clock under the score maps the run to one night: **6:00 PM at the sta
    - The hangar launches waves of drones.
    - Ramming the hull hurts.
 5. **"Final final" boss:** when the hull breaks, it explodes in a chain, and the glowing **AI core** breaks loose. The core circles the jet spraying a bullet spiral, and every few seconds it charges straight at you (a red dashed line shows where).
-6. **Dawn breaks:** the clock holds at 6:00 AM (blinking) until the boss is beaten. Beating the core shoots down every drone in the sky, the striped sun rises again on the other side of the sky, and you get a big **Dawn Bonus** (more for health left) plus a full heal.
-7. **Overtime:** the run continues with all points worth x2 until you go down. The clock runs on: full daylight by about 8:30 AM, and sunset again at 6 PM. The game-over screen says "NIGHT CLEARED".
+6. **Dawn breaks:** the clock holds at 6:00 AM (blinking) until the boss is beaten. Beating the core shoots down every drone in the sky, the striped sun rises again on the other side of the sky, and you get a big **Dawn Bonus** (more for health left). "RETURNING TO BASE".
+7. **The ending: landing at home base.** Killing the AI core ends the game. The controls hand over to autopilot and the camera zooms in: the jet glides down to the home-base runway (neon edge lights, a control tower, a hangar with a WELCOME HOME sign and a synthwave grid on the apron), drops its landing gear, touches down in a puff of tyre smoke and brakes to a stop. The canopy opens, the pilot climbs out and hops down, and the ground crew runs out of the hangar and from the tower to cheer around the pilot, jumping with their arms up, some waving neon light sticks, while fireworks go off in the distance over the trees. "MISSION COMPLETE" shows. After about 18 seconds (ENTER skips) comes the high-score name entry, then the score screen ("MISSION COMPLETE · NIGHT CLEARED"), and ENTER starts a new run. Timings are in `CONFIG.landing` in `js/config.js`.
 
 Losing during the boss keeps everything you scored before it. All boss numbers (arrival time, health, attack rates, bonuses) are in `CONFIG.boss` in `js/config.js`.
 
@@ -61,7 +61,7 @@ Losing during the boss keeps everything you scored before it. All boss numbers (
 
 ## Core loop
 
-Fly to dodge the swarm → weapons shoot drones down → collect pickups → level up → choose an upgrade → swarm gets bigger → the Mothership arrives before sunrise → beat it for dawn → Overtime until you fall. Then try again for a better score.
+Fly to dodge the swarm → weapons shoot drones down → collect pickups → level up → choose an upgrade → swarm gets bigger → the Mothership arrives before sunrise → beat it and its AI core for dawn → land at home base and enter your high score. Then try again for a better score.
 
 ## Look and sound
 
@@ -73,7 +73,7 @@ Fly to dodge the swarm → weapons shoot drones down → collect pickups → lev
 - Jets: shaded metal with a neon leading edge in each aircraft's colour (Interceptor cyan, Striker magenta, Gunship yellow), panel lines, a glass canopy, wing missiles or gun pods and blinking wing-tip lights. On the aircraft screen the model banks from side to side over its shadow with a hologram scan.
 - Ejection: a detailed seat with a neon rocket flame and smoke trail, the pilot in a harness and a white helmet with a mirrored sunset visor, and the jet blowing up in a fireball with a neon shockwave.
 - Sound effects are synth tones generated in the browser. Music: three very cheesy 80s neon tracks, also generated in the browser, that crossfade (with a noise whoosh) as the night goes on:
-  - **Neon Sunset** (title, start of the run at 6 PM, and daytime after dawn): laid-back synthwave with octave-bouncing bass, gated snare, lush pad, sparkly arp and a vibrato lead.
+  - **Neon Sunset** (title, start of the run at 6 PM, and the victory landing after dawn): laid-back synthwave with octave-bouncing bass, gated snare, lush pad, sparkly arp and a vibrato lead.
   - **Midnight Drive** (from 12:00 AM): darker and faster, four-on-the-floor, rolling bass, a rolling arp and brass stabs.
   - **Dawn Strike** (from 4:30 AM, about 40 s before the Mothership, through the whole boss fight): power chords, orchestra hits, a heroic lead and a key change up.
   - Switch times are in `CONFIG.music` in `js/config.js`.
@@ -89,8 +89,8 @@ Fly to dodge the swarm → weapons shoot drones down → collect pickups → lev
 - Power-up crates with timed special weapons
 - Health, game over, score with kill-streak multiplier, local top-10 high scores with initials
 - Music (three tracks that change with the time of night) and sound effects
-- Final boss before dawn (Mothership → AI core → dawn bonus → Overtime)
-- Day cycle sky tied to an in-game clock: 6 PM sunset at the start, night with moon and stars, twilight at the 6 AM boss, sunrise after the boss, then day and sunset again in Overtime
+- Final boss before dawn (Mothership → AI core → dawn bonus → victory landing with cheering crowd and fireworks → high score)
+- Day cycle sky tied to an in-game clock: 6 PM sunset at the start, night with moon and stars, twilight at the 6 AM boss, sunrise during the victory landing
 - Big red button trap card in the level-up choices
 - Flares: 2 seconds of cover on F/Space, once a minute
 - A war/pilot/documentary quote on the game-over screen each death
@@ -146,3 +146,4 @@ Plain HTML, JavaScript modules and canvas. No libraries, no build step. Gameplay
 - 2026-11-10: Voice command: press V to turn on the mic, then say "flares" to fire flares.
 - 2026-11-10: The microphone turns on automatically when a run starts (V still switches it off).
 - 2026-11-10: When the Big Red Button is the only level-up card left (everything maxed), an Autopilot card is offered next to it: no more upgrade screens until the boss.
+- 2026-11-10: Killing the AI core now ends the game (Overtime is gone): an ending where the jet lands at home base, the pilot climbs out, the crowd cheers and fireworks go off in the distance, then high-score entry and restart.

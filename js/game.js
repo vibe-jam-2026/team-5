@@ -637,6 +637,28 @@ export class Game {
     const p = this.player, ax = input.axis();
     const speed = C.playerSpeed * this.aircraft.speed * (1 + this.lv.speed * 0.1) * (this.shielded ? C.flareSpeedBoost : 1);
     if (ax.x) p.face = Math.sign(ax.x);
+    if (p.stall > 0) {
+      // Stalled at max altitude: the nose drops, the jet wobbles and sinks
+      // slowly (picking up speed), with only weak steering and no climbing.
+      p.stall -= dt;
+      const k = 1 - p.stall / C.stallDuration;                 // 0 → 1 over the stall
+      const right = ax.x ? ax.x > 0 : Math.cos(p.heading) >= 0;
+      const nose = (right ? 1.0 : Math.PI - 1.0) + Math.sin(this.time * 9) * 0.18 * (1 - k);
+      let d = nose - p.heading;
+      d = Math.atan2(Math.sin(d), Math.cos(d));
+      p.heading += d * Math.min(1, dt * 1.8);
+      const sink = C.stallSink * Math.min(1, 0.15 + k * 1.2);
+      p.vx = ax.x * speed * C.stallControl + Math.sin(this.time * 7) * 18 * (1 - k);
+      p.vy = sink + Math.max(0, ax.y) * speed * C.stallControl;
+      p.x += p.vx * dt;
+      p.y = Math.max(CEIL_Y, p.y + p.vy * dt);
+      p.moving = true;
+      const back = 12 * this.aircraft.size;
+      p.trail = (p.trail || []).filter((q) => (q.life -= dt) > 0);
+      p.trail.push({ x: p.x - Math.cos(p.heading) * back, y: p.y - Math.sin(p.heading) * back, life: 0.3, max: 0.3 });
+      if (this.hurtCd > 0) this.hurtCd -= dt;
+      return;
+    }
     if (ax.x || ax.y) {
       // Turn the jet smoothly towards the direction of travel.
       let d = Math.atan2(ax.y, ax.x) - p.heading;
@@ -653,6 +675,7 @@ export class Game {
     p.vx = ax.x * speed; p.vy = ax.y * speed;
     p.x += p.vx * dt;
     p.y = Math.max(CEIL_Y, p.y + p.vy * dt);   // max height
+    if (p.y <= CEIL_Y && p.vy < 0) { p.stall = C.stallDuration; this.events.push('stall'); }   // climbed into the ceiling: stall
     p.moving = !!(ax.x || ax.y);
     // Neon exhaust trail left behind the nozzle.
     const back = 12 * this.aircraft.size;
@@ -2341,8 +2364,18 @@ export class Game {
       ctx.fillText('PULL UP!', W / 2, H / 2 - 120);
       ctx.restore();
     }
+    // Stall warning while the jet falls away from the ceiling
+    if (!this.over && !this.eject && !this.landing && p.stall > 0 && Math.floor(this.time * 6) % 2 === 0) {
+      ctx.save();
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = 'italic 900 28px Impact, "Arial Black", sans-serif';
+      ctx.shadowColor = NEON.yellow; ctx.shadowBlur = 12;
+      ctx.fillStyle = NEON.yellow;
+      ctx.fillText('STALL!', W / 2, H / 2 - 120);
+      ctx.restore();
+    }
     // Ceiling notice when the jet nears its max height
-    if (!this.over && !this.landing && p.y - CEIL_Y < C.ceilingWarning && Math.floor(this.time * 4) % 2 === 0) {
+    else if (!this.over && !this.landing && !(p.stall > 0) && p.y - CEIL_Y < C.ceilingWarning && Math.floor(this.time * 4) % 2 === 0) {
       ctx.save();
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.font = 'italic 900 24px Impact, "Arial Black", sans-serif';

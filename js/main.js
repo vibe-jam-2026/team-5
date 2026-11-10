@@ -45,7 +45,7 @@ function startGame() {
   sfx.select();
 }
 
-const deathReason = () => (game.pressedRed ? 'red' : game.cleared ? 'cleared' : game.crashed ? 'crash' : 'shot');
+const deathReason = () => (game.won ? 'won' : game.pressedRed ? 'red' : game.crashed ? 'crash' : 'shot');
 
 function endGame() {
   quote = quotes.pick(quoteSet, deathReason());
@@ -117,7 +117,10 @@ function update(dt) {
         if (e === 'bossWarn') sfx.bossWarn();
         if (e === 'bossDown') { sfx.bossDown(); shake = Math.max(shake, 14); }
         if (e === 'dawn') { sfx.dawn(); shake = Math.max(shake, 10); }
-        if (e === 'over') { sfx.gameOver(); shake = 20; endGame(); }
+        if (e === 'touchdown') { sfx.touchdown(); shake = Math.max(shake, 4); }
+        if (e === 'cheer') sfx.cheer();
+        if (e === 'firework' && soundBudget-- > 0) sfx.firework();
+        if (e === 'over') { if (game.won) sfx.dawn(); else { sfx.gameOver(); shake = 20; } endGame(); }
       }
       break;
 
@@ -237,7 +240,7 @@ function ridge(x, seed, h) {
 // In-game sky with a day cycle driven by the in-game clock (game.hour):
 // each run starts at sunset, 6 PM. Night falls, and by 6 AM (when the final
 // boss arrives) the horizon glows with twilight. The sun only rises once the
-// boss is beaten; then it's day through Overtime, and sunset again at 6 PM.
+// boss is beaten, while the jet lands at home base.
 // The horizon sits behind the forest and sinks out of view as the jet climbs,
 // so the sky darkens up high.
 const SUNSET_SUN = { x: W * 0.68, r: 90 };
@@ -292,7 +295,7 @@ function drawBackground() {
   const horizon = H - 50 + (inRun ? game.groundOffset : 0);
   const hour = inRun ? game.hour : 18;
   const tod = timeOfDay(hour);
-  const camX = inRun ? (game.eject ? game.eject.cam.x : game.player.x) : 0;
+  const camX = inRun ? game.viewX : 0;
   const sky = ctx.createLinearGradient(0, horizon - H * 1.6, 0, horizon);
   [0, 0.5, 0.8, 0.93, 1].forEach((at, j) => sky.addColorStop(at, tod.stops[j]));
   ctx.fillStyle = sky;
@@ -904,7 +907,7 @@ function draw() {
 
   if (state === 'entry') {
     overlay(0.8);
-    chromeTitle('GAME OVER', W / 2, 110, 52);
+    chromeTitle(game.won ? 'MISSION COMPLETE' : 'GAME OVER', W / 2, 110, 52);
     neonText(isNewBest ? 'NEW HIGH SCORE!' : 'YOU MADE THE BOARD!', W / 2, 160, 18, NEON.yellow);
     neonText(String(Math.floor(game.score)), W / 2, 210, 32, '#fff');
     neonText('ENTER YOUR CALLSIGN', W / 2, 270, 16, NEON.cyan);
@@ -916,8 +919,8 @@ function draw() {
 
   if (state === 'gameover') {
     overlay(0.82);
-    chromeTitle('GAME OVER', W / 2, 46, 52);
-    neonText(game.pressedRed ? 'YOU PRESSED THE BIG RED BUTTON' : game.cleared ? 'NIGHT CLEARED · SURVIVED TO DAWN, DOWNED IN OVERTIME' : game.crashed ? 'CRASHED INTO THE TREES' : 'SHOT DOWN', W / 2, 86, 16, game.cleared && !game.pressedRed ? NEON.yellow : NEON.magenta);
+    chromeTitle(game.won ? 'MISSION COMPLETE' : 'GAME OVER', W / 2, 46, 52);
+    neonText(game.won ? 'NIGHT CLEARED · THE AI CORE IS DOWN AND THE PILOT IS HOME' : game.pressedRed ? 'YOU PRESSED THE BIG RED BUTTON' : game.crashed ? 'CRASHED INTO THE TREES' : 'SHOT DOWN', W / 2, 86, 16, game.won ? NEON.yellow : NEON.magenta);
     neonText(`Airborne ${fmtTime(game.time)}  ·  ${game.kills} bandits splashed  ·  level ${game.level}  ·  ${Math.floor(game.score)} pts`, W / 2, 110, 15, NEON.cyan);
     if (game.testRun) text('TEST RUN · not logged in the high scores', W / 2, H - 12, 11, '#ffb703');
     const boardRows = Math.max(2, Math.min(highscores.list.length, CONFIG.highscoreCount));

@@ -33,6 +33,8 @@ const AA_SLOT = 520;                          // at most one gun per this many p
 const AA_Y = H - 34;                          // screen y of a gun's turret
 const AA_CHANCE = 0.65;                       // share of slots that hold a gun
 const AA_TX = 4, AA_TY = -7;                  // roof gun turret, relative to AA_Y (before the 1.4x scale)
+const FOREST_PERIOD = 1320, FOREST_RES = 2;   // cached tree rows: repeat length (px) and resolution
+const forestCache = new Map();
 
 // Deterministic per-tile noise so ground decoration stays put as you walk.
 function hash(x, y) {
@@ -43,6 +45,27 @@ function hash(x, y) {
 
 // 80s neon palette (same as the title screen in main.js) for the level-up picker.
 const NEON = { magenta: '#ff71ce', cyan: '#05d9e8', yellow: '#fffb96', ink: '#e8dcff', dim: '#9a86c4' };
+
+// Light colour on the scene for the in-game hour (same 6 PM → 6 PM cycle as
+// the sky in main.js): rim light on trees and trucks, and how dark it is.
+const LIGHT = [
+  { u: 0.00, rim: [255, 95, 162], night: 0.35 },   // 6 PM sunset
+  { u: 0.10, rim: [120, 170, 255], night: 1 },     // night: cool moonlight
+  { u: 0.44, rim: [120, 170, 255], night: 1 },
+  { u: 0.50, rim: [255, 128, 110], night: 0.7 },   // 6 AM twilight
+  { u: 0.52, rim: [255, 170, 110], night: 0.3 },   // sunrise
+  { u: 0.60, rim: [255, 240, 205], night: 0 },     // day
+  { u: 0.88, rim: [255, 240, 205], night: 0 },
+  { u: 1.00, rim: [255, 95, 162], night: 0.35 },
+];
+function sceneLight(hour) {
+  const u = (((hour - 18) / 24) % 1 + 1) % 1;
+  let i = 0;
+  while (u > LIGHT[i + 1].u) i++;
+  const a = LIGHT[i], b = LIGHT[i + 1], k = (u - a.u) / (b.u - a.u);
+  const rim = a.rim.map((v, j) => Math.round(v + (b.rim[j] - v) * k));
+  return { rim: rim.join(','), night: a.night + (b.night - a.night) * k };
+}
 
 // ---------- Enemy drone types ----------
 // The first entry is the "basic" spawn (see basicShare* in config.js).
@@ -114,8 +137,10 @@ function drawDrone(ctx, e, t) {
 
 // ---------- Upgrades ----------
 // Each upgrade has a max level; `apply` runs when picked.
+let gun = C.aircraft[1].gun;   // the current aircraft's cannon
 const UPGRADES = {
-  bolt:   { name: 'Guns, Guns, Guns', max: 8, desc: (l) => l === 0 ? 'Cannon fire at nearest threat' : 'Faster, harder, more tracers' },
+  // The cannon is different on every aircraft (CONFIG.aircraft[].gun).
+  bolt:   { get name() { return gun.name; }, max: 8, desc: (l) => l === 0 ? gun.desc : 'Faster, harder, more shells' },
   bats:   { name: 'Fox Two',        max: 6, desc: (l) => l === 0 ? 'A Sidewinder circles you' : '+1 missile, faster orbit' },
   aura:   { name: 'Danger Zone',    max: 5, desc: (l) => l === 0 ? 'Shreds anything up close' : 'Bigger, deadlier zone' },
   might:  { name: 'Weapons Hot',    max: 5, desc: () => '+20% damage' },
@@ -175,44 +200,225 @@ function drawAfterburner(ctx, burner) {
   ctx.restore();
 }
 
+// Colour helpers for shading: mix a hex colour towards another.
+const hexRgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+function mix(a, b, k) {
+  const A = hexRgb(a), B = hexRgb(b);
+  return '#' + A.map((v, i) => Math.round(v + (B[i] - v) * k).toString(16).padStart(2, '0')).join('');
+}
+const shade = (c, k) => (k > 0 ? mix(c, '#ffffff', k) : mix(c, '#0a0418', -k));
+
+// Each aircraft gets a neon accent for its leading edges, stripes and lights.
+const JET_ACCENT = { interceptor: '#05d9e8', striker: '#ff71ce', gunship: '#ffd166' };
+
+// Glowing light (additive): a soft halo and a hot core.
+function navLight(ctx, x, y, color, r = 1, on = true) {
+  if (!on) return;
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  const g = ctx.createRadialGradient(x, y, 0, x, y, r * 4);
+  g.addColorStop(0, color); g.addColorStop(0.3, color + '88'); g.addColorStop(1, color + '00');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r * 4, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(x, y, r * 0.55, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+
+// A wing-mounted missile (pointing +x) for the hardpoints.
+function wingMissile(ctx, x, y, lw) {
+  poly(ctx, [x + 5, y, x + 3.5, y - 0.6, x - 4, y - 0.6, x - 4, y + 0.6, x + 3.5, y + 0.6], '#e8e8f2', lw * 0.6);
+  ctx.fillStyle = '#ff2a6d'; ctx.fillRect(x + 3.2, y - 0.6, 1, 1.2);
+  ctx.fillStyle = '#3a3448'; ctx.fillRect(x - 4, y - 1.2, 1.2, 2.4);
+}
+
 // Draw an aircraft at the origin pointing along +x (callers translate/rotate).
+// Top-down: shaded metal wings with a neon leading edge, panel lines,
+// intakes, a glass canopy, hardpoints and blinking wing-tip lights.
 // outline: optional contour colour; it also gets a thicker line and a glow.
 function drawJet(ctx, a, burner = 0, outline = null) {
   ctx.save();
   ctx.scale(a.size, a.size);
   if (burner) drawAfterburner(ctx, burner);
-  const lw = (outline ? 1.8 : 0.9) / a.size;
+  const lw = (outline ? 1.8 : 0.8) / a.size;
+  const acc = JET_ACCENT[a.id] || NEON.magenta;
+  const t = performance.now() / 1000;
   if (outline) { outlineColor = outline; ctx.shadowColor = outline; ctx.shadowBlur = 10; }
-  if (a.id === 'interceptor') {        // slim delta wing
-    poly(ctx, [9, -2, -10, -13, -12, -12, -11, -2, -11, 2, -12, 12, -10, 13, 9, 2], a.wing, lw);
-  } else if (a.id === 'gunship') {     // broad straight wings with pointed tips, twin engines
-    poly(ctx, [5, -3, 3, -18, -3, -18, -5, -3, -5, 3, -3, 18, 3, 18, 5, 3], a.wing, lw);
-    poly(ctx, [-9, -3, -12, -9, -15, -9, -14, -3, -14, 3, -15, 9, -12, 9, -9, 3], a.wing, lw);
-    poly(ctx, [6, -12.5, -3, -11, -3, -8.5, 6, -9.5], '#3a3226', lw);
-    poly(ctx, [6, 12.5, -3, 11, -3, 8.5, 6, 9.5], '#3a3226', lw);
+  // Metal shading: lit from the top of the plane (−y), darker on the far wing.
+  const wingFill = (span) => {
+    const g = ctx.createLinearGradient(0, -span, 0, span);
+    g.addColorStop(0, shade(a.wing, 0.28)); g.addColorStop(0.45, a.wing);
+    g.addColorStop(0.55, shade(a.wing, -0.15)); g.addColorStop(1, shade(a.wing, -0.42));
+    return g;
+  };
+  const edge = (pts) => {       // neon strip along a leading edge
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.strokeStyle = acc; ctx.globalAlpha = 0.85; ctx.lineWidth = 0.9; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(pts[0], pts[1]);
+    for (let i = 2; i < pts.length; i += 2) ctx.lineTo(pts[i], pts[i + 1]);
+    ctx.stroke();
+    ctx.restore();
+  };
+  const lines = (segs, alpha = 0.35) => {   // panel lines
+    ctx.strokeStyle = `rgba(10,4,24,${alpha})`; ctx.lineWidth = 0.35;
+    ctx.beginPath();
+    for (const [x1, y1, x2, y2] of segs) { ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); }
+    ctx.stroke();
+  };
+  let tips, nose, w;
+  if (a.id === 'interceptor') {        // slim cranked delta
+    poly(ctx, [10, -2, 0, -6, -10, -13.5, -12.5, -12.5, -11, -2, -11, 2, -12.5, 12.5, -10, 13.5, 0, 6, 10, 2], wingFill(13.5), lw);
+    lines([[-2, -5.5, -9, -11.5], [-2, 5.5, -9, 11.5], [-6, -3, -6, -9], [-6, 3, -6, 9]]);
+    edge([10, -2, 0, -6, -10, -13.5]); edge([10, 2, 0, 6, -10, 13.5]);
+    wingMissile(ctx, -3, -9, lw); wingMissile(ctx, -3, 9, lw);
+    // Canards
+    poly(ctx, [8, -2.5, 4, -6, 3, -6, 4.5, -2.5], wingFill(6), lw * 0.8);
+    poly(ctx, [8, 2.5, 4, 6, 3, 6, 4.5, 2.5], wingFill(6), lw * 0.8);
+    tips = [-11, 13]; nose = 22; w = 3.4;
+  } else if (a.id === 'gunship') {     // broad straight wings, twin engines, gun pods
+    poly(ctx, [6, -3, 4, -18.5, -3.5, -18.5, -5.5, -3, -5.5, 3, -3.5, 18.5, 4, 18.5, 6, 3], wingFill(18.5), lw);
+    lines([[1, -4, 0.5, -18], [1, 4, 0.5, 18], [-4.5, -9, 4.8, -9], [-4.5, 9, 4.8, 9]]);
+    edge([6, -3, 4, -18.5]); edge([6, 3, 4, 18.5]);
+    poly(ctx, [-9, -3, -12, -9.5, -15.5, -9.5, -14.5, -3, -14.5, 3, -15.5, 9.5, -12, 9.5, -9, 3], wingFill(9.5), lw);
+    // Engine nacelles with glowing exhausts
+    for (const sy of [-6, 6]) {
+      const ng = ctx.createLinearGradient(0, sy - 2.2, 0, sy + 2.2);
+      ng.addColorStop(0, shade(a.body, 0.25)); ng.addColorStop(1, shade(a.body, -0.4));
+      poly(ctx, [4, sy - 1.8, -11, sy - 2.2, -11, sy + 2.2, 4, sy + 1.8], ng, lw);
+      ctx.fillStyle = '#120a1c'; ctx.fillRect(3, sy - 1.4, 1.2, 2.8);
+      navLight(ctx, -11.3, sy, '#ff9e3d', 0.9);
+    }
+    // Gun pods
+    for (const sy of [-11, 11]) {
+      poly(ctx, [7.5, sy - 1.5, -3, sy - 1.8, -3, sy + 1.8, 7.5, sy + 1.5], '#3a3226', lw);
+      ctx.fillStyle = '#111'; ctx.fillRect(7.5, sy - 0.5, 2.5, 1);
+    }
+    tips = [0, 18.5]; nose = 18; w = 4.6;
   } else {                             // swept wings
-    poly(ctx, [5, -2, -6, -16, -10, -16, -5, -2, -5, 2, -10, 16, -6, 16, 5, 2], a.wing, lw);
+    poly(ctx, [6, -2.2, -5.5, -16, -10, -16, -5.5, -2.2, -5.5, 2.2, -10, 16, -5.5, 16, 6, 2.2], wingFill(16), lw);
+    lines([[0, -4, -6, -14], [0, 4, -6, 14], [-5.5, -2.5, -8, -13], [-5.5, 2.5, -8, 13]]);
+    edge([6, -2.2, -5.5, -16]); edge([6, 2.2, -5.5, 16]);
+    wingMissile(ctx, -3.5, -10, lw); wingMissile(ctx, -3.5, 10, lw);
+    tips = [-7.5, 16]; nose = 18; w = 3.6;
   }
-  // Tail fins
-  poly(ctx, [-7, -2, -14, -8, -12, -2], a.wing, lw);
-  poly(ctx, [-7, 2, -14, 8, -12, 2], a.wing, lw);
-  // Fuselage with a needle nose
-  const nose = a.id === 'interceptor' ? 21 : 18, w = a.id === 'gunship' ? 4.5 : 3.5;
-  poly(ctx, [nose, 0, 6, -w, -12, -3, -12, 3, 6, w], a.body, lw);
-  // Spine highlight
-  ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 0.6 / a.size;
-  ctx.beginPath(); ctx.moveTo(nose - 2, 0); ctx.lineTo(-11, 0); ctx.stroke();
-  // Angular canopy
-  poly(ctx, [10, 0, 6, -1.8, 1, -1.5, 1, 1.5, 6, 1.8], '#4cc9f0', lw * 0.7);
-  ctx.fillStyle = 'rgba(255,255,255,0.8)';
-  ctx.fillRect(5, -1, 3, 0.8);
-  outlineColor = OUTLINE;
+  // Tail planes
+  poly(ctx, [-7, -2, -13.5, -8.5, -14.5, -8, -12.5, -2], wingFill(8.5), lw);
+  poly(ctx, [-7, 2, -13.5, 8.5, -14.5, 8, -12.5, 2], wingFill(8.5), lw);
+  // Fuselage: rounded metal (light down the spine, dark at the sides)
+  const fg = ctx.createLinearGradient(0, -w, 0, w);
+  fg.addColorStop(0, shade(a.body, -0.25)); fg.addColorStop(0.35, shade(a.body, 0.35));
+  fg.addColorStop(0.55, a.body); fg.addColorStop(1, shade(a.body, -0.5));
+  poly(ctx, [nose, 0, nose - 6, -w * 0.7, 6, -w, -12, -3, -12, 3, 6, w, nose - 6, w * 0.7], fg, lw);
+  // Intakes beside the cockpit
+  ctx.fillStyle = '#0d0716';
+  ctx.fillRect(3, -w - 0.2, 4, 1.2); ctx.fillRect(3, w - 1, 4, 1.2);
+  // Radome tip and accent stripe down the back
+  poly(ctx, [nose, 0, nose - 3.5, -w * 0.4, nose - 3.5, w * 0.4], shade(a.body, -0.55), lw * 0.6);
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.fillStyle = acc; ctx.globalAlpha = 0.7;
+  ctx.fillRect(-10, -0.35, 9, 0.7);
   ctx.restore();
+  lines([[0, -w * 0.9, 0, w * 0.9], [-6, -2.5, -6, 2.5]], 0.45);
+  // Tail fin seen from above: a thin raised blade on the spine
+  poly(ctx, [-4, -0.6, -13, -0.9, -14, 0, -13, 0.9, -4, 0.6], shade(a.wing, -0.3), lw * 0.7);
+  ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 0.35;
+  ctx.beginPath(); ctx.moveTo(-5, -0.25); ctx.lineTo(-13, -0.4); ctx.stroke();
+  // Nozzle
+  ctx.fillStyle = '#1a1424'; ctx.fillRect(-13.2, -2.4, 1.4, 4.8);
+  // Glass canopy: deep blue with a cyan sheen and a white glint
+  const cg = ctx.createLinearGradient(1, -1.8, 10, 1.8);
+  cg.addColorStop(0, '#0b1a3a'); cg.addColorStop(0.5, '#2b8ed8'); cg.addColorStop(1, '#9ff3ff');
+  poly(ctx, [11, 0, 7, -1.9, 0.5, -1.6, 0.5, 1.6, 7, 1.9], cg, lw * 0.7);
+  ctx.strokeStyle = 'rgba(10,4,24,0.6)'; ctx.lineWidth = 0.35;
+  ctx.beginPath(); ctx.moveTo(4.5, -1.8); ctx.lineTo(4.5, 1.8); ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  ctx.beginPath(); ctx.moveTo(8.5, -1.1); ctx.lineTo(5.5, -1.3); ctx.lineTo(5.8, -0.6); ctx.closePath(); ctx.fill();
+  outlineColor = OUTLINE;
+  ctx.shadowBlur = 0;
+  // Wing-tip lights (port magenta, starboard cyan) and a white strobe
+  const strobe = (t * 1.3) % 1 < 0.08;
+  navLight(ctx, tips[0], -tips[1], '#ff2a6d', 1);
+  navLight(ctx, tips[0], tips[1], '#05d9e8', 1);
+  navLight(ctx, -14, 0, '#ffffff', 1.1, strobe);
+  ctx.restore();
+}
+
+// ---------- Ejection: seat and pilot (front view, at the origin) ----------
+// Ejection seat: gunmetal back with a headrest, side rails and the striped
+// yellow-and-black firing handle.
+function drawSeat(ctx) {
+  const g = ctx.createLinearGradient(-5, 0, 5, 0);
+  g.addColorStop(0, '#2a2438'); g.addColorStop(0.4, '#5a5274'); g.addColorStop(1, '#1b1528');
+  ctx.fillStyle = g; ctx.strokeStyle = OUTLINE; ctx.lineWidth = 0.6;
+  ctx.beginPath(); ctx.roundRect(-5, -12, 10, 19, 1.5); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#1b1528'; ctx.fillRect(-4, -11.5, 8, 4);                       // headrest
+  ctx.fillStyle = '#ff2a6d'; ctx.fillRect(-4, -9.8, 8, 0.6);                       // neon trim
+  ctx.fillStyle = '#3d3456'; ctx.fillRect(-6, -4, 1.2, 11); ctx.fillRect(4.8, -4, 1.2, 11);   // rails
+  ctx.fillStyle = '#ffd400'; ctx.fillRect(-1.5, 6, 3, 2);                          // firing handle
+  ctx.fillStyle = '#111'; ctx.fillRect(-0.9, 6, 0.6, 2); ctx.fillRect(0.4, 6, 0.6, 2);
+  ctx.fillStyle = '#120a1c'; ctx.fillRect(-2.5, 7, 5, 1.6);                        // rocket nozzle
+}
+
+// Seat rocket flame pointing down, in the same neon layers as the afterburner.
+function drawSeatRocket(ctx) {
+  const len = 14 + Math.random() * 7;
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  const glow = ctx.createRadialGradient(0, 12, 0, 0, 12, len);
+  glow.addColorStop(0, 'rgba(255,200,120,0.7)'); glow.addColorStop(0.5, 'rgba(255,42,109,0.25)'); glow.addColorStop(1, 'rgba(255,42,109,0)');
+  ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(0, 12, len, 0, Math.PI * 2); ctx.fill();
+  const flame = (w, l, c) => { ctx.fillStyle = c; ctx.beginPath(); ctx.moveTo(-w, 8.5); ctx.lineTo(0, 8.5 + l); ctx.lineTo(w, 8.5); ctx.fill(); };
+  flame(3, len, 'rgba(255,42,109,0.8)'); flame(2.2, len * 0.75, '#ff71ce'); flame(1.5, len * 0.5, '#ff9e3d'); flame(0.8, len * 0.3, '#fffbe0');
+  ctx.restore();
+}
+
+// Pilot in an olive flight suit with a harness, gloves and boots, and a
+// white helmet with a neon stripe and a mirrored sunset visor.
+// wave: how far the right arm waves; safe: under the canopy (legs dangle).
+function drawPilot(ctx, wave, safe) {
+  const suit = ctx.createLinearGradient(-4, 0, 4, 0);
+  suit.addColorStop(0, '#3a5030'); suit.addColorStop(0.45, '#6a8a4c'); suit.addColorStop(1, '#2e4026');
+  ctx.lineCap = 'round';
+  // Legs (dangling apart once under the chute) and boots
+  const spread = safe ? 1.2 : 0;
+  ctx.strokeStyle = '#4f6b3a'; ctx.lineWidth = 2.2;
+  ctx.beginPath(); ctx.moveTo(-1.5, 3.5); ctx.lineTo(-2 - spread, 9); ctx.moveTo(1.5, 3.5); ctx.lineTo(2 + spread, 9); ctx.stroke();
+  ctx.fillStyle = '#3a5030'; ctx.fillRect(-3.2 - spread * 0.6, 5.2, 2, 1.5); ctx.fillRect(1.2 + spread * 0.6, 5.2, 2, 1.5);   // knee pockets
+  ctx.fillStyle = '#120a1c';
+  ctx.beginPath(); ctx.ellipse(-2.2 - spread, 9.8, 1.5, 1, 0, 0, Math.PI * 2); ctx.ellipse(2.2 + spread, 9.8, 1.5, 1, 0, 0, Math.PI * 2); ctx.fill();
+  // Arms: one holding the risers, one waving once safe
+  ctx.strokeStyle = '#557543'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(-3, -3); ctx.lineTo(-6, -7); ctx.moveTo(3, -3); ctx.lineTo(7, -9 + wave); ctx.stroke();
+  ctx.fillStyle = '#1b1528';
+  ctx.beginPath(); ctx.arc(-6.2, -7.3, 1.1, 0, Math.PI * 2); ctx.arc(7.2, -9.3 + wave, 1.1, 0, Math.PI * 2); ctx.fill();
+  // Torso with harness straps, life-vest collar and a neon squadron patch
+  ctx.fillStyle = suit; ctx.strokeStyle = OUTLINE; ctx.lineWidth = 0.5;
+  ctx.beginPath(); ctx.roundRect(-3.5, -4.5, 7, 9, 1.5); ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = '#1b1528'; ctx.lineWidth = 0.9;
+  ctx.beginPath(); ctx.moveTo(-2.8, -4.3); ctx.lineTo(0, 1.5); ctx.lineTo(2.8, -4.3); ctx.moveTo(-3.3, 3); ctx.lineTo(3.3, 3); ctx.stroke();
+  ctx.fillStyle = '#c9a227'; ctx.fillRect(-2.6, -4.8, 5.2, 1.3);                   // life vest collar
+  ctx.fillStyle = '#ff71ce'; ctx.beginPath(); ctx.arc(-1.9, -1.8, 0.8, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#d0d0dc'; ctx.fillRect(-0.7, 1, 1.4, 1);                         // buckle
+  // Helmet: white shell with shading and a magenta stripe
+  const hg = ctx.createRadialGradient(-1, -8.5, 0.5, 0, -7, 3.8);
+  hg.addColorStop(0, '#ffffff'); hg.addColorStop(0.7, '#d8d4e8'); hg.addColorStop(1, '#8a84a8');
+  ctx.fillStyle = hg; ctx.strokeStyle = OUTLINE; ctx.lineWidth = 0.5;
+  ctx.beginPath(); ctx.arc(0, -7.2, 3.4, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#ff2a6d'; ctx.fillRect(-0.5, -10.6, 1, 2.2);
+  // Mirrored visor reflecting the sunset (yellow → pink → cyan)
+  const vg = ctx.createLinearGradient(0, -8.6, 0, -6.2);
+  vg.addColorStop(0, '#fffb96'); vg.addColorStop(0.5, '#ff71ce'); vg.addColorStop(1, '#05d9e8');
+  ctx.fillStyle = vg;
+  ctx.beginPath(); ctx.ellipse(0, -7.4, 2.7, 1.3, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.fillRect(-1.8, -8.1, 1.2, 0.5);
+  // Oxygen mask
+  ctx.fillStyle = '#5a5274'; ctx.beginPath(); ctx.ellipse(0, -5.4, 1.3, 0.9, 0, 0, Math.PI * 2); ctx.fill();
 }
 
 export class Game {
   constructor(aircraft = C.aircraft[1]) {
     this.aircraft = aircraft;
+    gun = aircraft.gun;
     const maxHp = Math.round(C.playerMaxHp * aircraft.health);
     this.player = { x: 0, y: 0, r: 11 * aircraft.size, hp: maxHp, maxHp, face: 1, heading: -Math.PI / 2 };
     this.lv = { bolt: 1, bats: 0, aura: 0, might: 0, speed: 0, vigor: 0, magnet: 0 };
@@ -255,6 +461,7 @@ export class Game {
     this.boss = null;         // final boss state (see boss.js), set when it arrives
     this.cleared = false;     // true once the boss is beaten and dawn breaks
     this.testRun = false;     // a test shortcut was used: not saved to high scores
+    this.invisible = false;   // Shift+I developer cheat: nothing can hurt the jet
     this.pressedRed = false;  // true if the night ended by picking the big red button
     this.eject = null;        // ejection animation after the big red button (see updateEject)
     this.events = [];
@@ -268,6 +475,8 @@ export class Game {
   }
 
   get shielded() { return this.shieldT > 0; }
+  // Nothing hurts the jet: flare cover or the Shift+I invisibility cheat. (Trees still crash it.)
+  get untouchable() { return this.shielded || this.invisible; }
   get hour() { return Boss.hour(this); }
   get floorY() { return CRASH_Y; }
 
@@ -320,6 +529,7 @@ export class Game {
     if (input.wasPressed('Shift+KeyB')) this.skipToBoss();
     if (input.wasPressed('Shift+KeyM')) this.skipToMidnight();
     if (input.wasPressed('Shift+KeyN')) { this.testRun = true; Boss.skipPhase(this); }
+    if (input.wasPressed('Shift+KeyI')) { this.testRun = true; this.invisible = !this.invisible; }
 
     this.time += dt;
     this.updateFlares(dt, input);
@@ -433,7 +643,7 @@ export class Game {
       if (e.flash > 0) e.flash -= dt;
       if (e.batCd > 0) e.batCd -= dt;
       // Contact damage
-      if (d < e.r + p.r && !this.shielded) {
+      if (d < e.r + p.r && !this.untouchable) {
         p.hp -= e.dps * dt;
         if (this.hurtCd <= 0) { this.hurtCd = 0.4; this.events.push('hit'); }
       }
@@ -479,13 +689,18 @@ export class Game {
       this.boltTimer -= dt;
       if (this.boltTimer <= 0 && (this.enemies.length || guns.length || parts.length)) {
         const l = this.lv.bolt;
-        this.boltTimer = 0.65 * Math.pow(0.88, l - 1);
+        const g = this.aircraft.gun;
+        this.boltTimer = g.interval * Math.pow(0.88, l - 1);
         const count = 1 + Math.floor(l / 3);
         const targets = [...this.enemies, ...guns, ...parts].sort((a, b) => dist2(a, p) - dist2(b, p)).slice(0, count);
         for (const t of targets) {
-          const a = Math.atan2(t.y - p.y, t.x - p.x);
-          this.bolts.push({ x: p.x, y: p.y, vx: Math.cos(a) * 480, vy: Math.sin(a) * 480,
-            dmg: 10 * m * (1 + 0.25 * (l - 1)), pierce: l >= 6 ? 2 : 0, life: 1.5 });
+          const a = Math.atan2(t.y - p.y, t.x - p.x), ux = Math.cos(a), uy = Math.sin(a);
+          // Twin guns fire two parallel shells from either side of the nose.
+          for (const off of g.twin ? [-5, 5] : [0]) {
+            this.bolts.push({ x: p.x - uy * off, y: p.y + ux * off, vx: ux * g.speed, vy: uy * g.speed,
+              dmg: g.dmg * m * (1 + 0.25 * (l - 1)), pierce: g.pierce + (l >= 6 ? 2 : 0), life: 1.5,
+              size: g.size, color: g.color });
+          }
         }
       }
     }
@@ -493,19 +708,19 @@ export class Game {
       b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
       for (const e of this.enemies) {
         if (e.dead || b.life <= 0) continue;
-        if (dist2(b, e) < (e.r + 4) ** 2) {
+        if (dist2(b, e) < (e.r + (b.size ?? 3) + 1) ** 2) {
           this.damage(e, b.dmg);
           if (b.pierce-- <= 0) b.life = 0;
         }
       }
       for (const g of guns) {
-        if (b.life > 0 && dist2(b, g) < (g.r + 4) ** 2) {
+        if (b.life > 0 && dist2(b, g) < (g.r + (b.size ?? 3) + 1) ** 2) {
           this.damageGun(g, b.dmg);
           if (b.pierce-- <= 0) b.life = 0;
         }
       }
       for (const q of parts) {
-        if (b.life > 0 && !q.dead && Boss.touches(q, b, 4)) {
+        if (b.life > 0 && !q.dead && Boss.touches(q, b, (b.size ?? 3) + 1)) {
           Boss.damage(this, q, b.dmg);
           if (b.pierce-- <= 0) b.life = 0;
         }
@@ -563,7 +778,7 @@ export class Game {
       if (b.life <= 0) b.done = true;
       else if (dist2(b, p) < (p.r + 3) ** 2) {
         b.done = true;
-        if (this.shielded) continue;   // flares decoy it: no damage
+        if (this.untouchable) continue;   // flares decoy it (or invisible): no damage
         p.hp -= b.dmg;
         this.hurtCd = 0.4;
         this.events.push('hit');
@@ -640,7 +855,7 @@ export class Game {
     const p = this.player, r = C.aaBlast;
     this.flak.push({ x, y, t: 0, r });
     this.events.push('boom');
-    if (!this.shielded && dist2({ x, y }, p) < (r + p.r) ** 2) {
+    if (!this.untouchable && dist2({ x, y }, p) < (r + p.r) ** 2) {
       p.hp -= C.aaDamage;
       this.hurtCd = 0.4;
       this.events.push('hit');
@@ -857,7 +1072,8 @@ export class Game {
       jet: { x: p.x, y: p.y, a: p.heading, va: 0, vx: Math.cos(p.heading) * 60, vy: 0, side: h },
       canopy: { x: p.x, y: p.y - 4, vx: rand(-80, 80), vy: crash ? -380 : -260, a: 0, va: rand(-14, 14) },
       pilot: { x: p.x, y: p.y, vx: 0, vy: 0, fired: false },
-      seat: null, chute: 0,
+      seat: null, chute: 0, puffs: [],
+      boomAt: crash ? 0 : -1, boomX: p.x, boomY: p.y,
       cam: { x: p.x, y: this.camY, z: 1 },
     };
     this.bullets = []; this.shells = [];
@@ -873,6 +1089,9 @@ export class Game {
   updateEject(dt, input) {
     const e = this.eject, j = e.jet, pi = e.pilot, c = e.canopy;
     e.t += dt;
+    // The afterburner trail fades out instead of hanging frozen in the sky
+    const p = this.player;
+    if (p.trail) p.trail = p.trail.filter((q) => (q.life -= dt) > 0);
     // Canopy tumbles away
     c.x += c.vx * dt; c.y += c.vy * dt; c.vy += 500 * dt; c.a += c.va * dt;
     // Seat fires after a beat
@@ -893,6 +1112,7 @@ export class Game {
         e.seat.x += e.seat.vx * dt; e.seat.vy += 600 * dt; e.seat.y += e.seat.vy * dt; e.seat.a += dt * 6;
       } else {
         pi.vy += 500 * dt;                               // rocket burns out, gravity wins
+        e.puffs.push({ x: pi.x + rand(-2, 2), y: pi.y + 14, r: rand(3, 5), life: 1.3, max: 1.3, dark: false });
         if (Math.random() < 0.9) this.particles.push({ x: pi.x + rand(-2, 2), y: pi.y + 10, vx: rand(-30, 30), vy: rand(40, 120), life: rand(0.3, 0.6), color: Math.random() < 0.5 ? '#ffb703' : '#9a90a8' });
       }
       pi.x += pi.vx * dt; pi.y += pi.vy * dt;
@@ -905,9 +1125,11 @@ export class Game {
         j.vy += 60 * dt; j.va += dt * 2 * (j.side ? -1 : 1);
         j.a += j.va * dt; j.x += j.vx * dt; j.y += j.vy * dt;
         if (Math.random() < 0.8) this.particles.push({ x: j.x, y: j.y, vx: rand(-20, 20), vy: rand(-40, 0), life: rand(0.4, 0.9), color: Math.random() < 0.3 ? '#ff4d6d' : '#6b5f7a' });
+        if (Math.random() < 0.6) e.puffs.push({ x: j.x + rand(-3, 3), y: j.y + rand(-3, 3), r: rand(3, 6), life: 1.6, max: 1.6, dark: true });
       }
       if (e.t >= 3.2 || j.y >= CRASH_Y) {
         e.exploded = true;
+        e.boomAt = e.t; e.boomX = j.x; e.boomY = j.y;
         this.burst(j.x, j.y, '#ffb703', 90);
         this.burst(j.x, j.y, '#ff4d6d', 60);
         this.burst(j.x, j.y, '#fff1c1', 40);
@@ -921,6 +1143,8 @@ export class Game {
     const k = Math.min(1, dt * 4);
     cam.z += (wantZ - cam.z) * k; cam.x += (fx - cam.x) * k; cam.y += (fy - cam.y) * k;
     if (e.flash) e.flash = Math.max(0, e.flash - dt * 2);
+    for (const q of e.puffs) { q.r += 10 * dt; q.y -= 8 * dt; q.life -= dt; }
+    e.puffs = e.puffs.filter((q) => q.life > 0);
     this.updateEffects(dt);
     const skip = e.t > 1.2 && input.wasPressed('Enter', 'Space', 'NumpadEnter');
     if (e.t >= C.ejectDuration || skip) {
@@ -932,23 +1156,62 @@ export class Game {
 
   drawEject(ctx) {
     const e = this.eject, pi = e.pilot;
-    // Wrecked jet
+    // Smoke: grey from the seat rocket, dark from the burning jet
+    for (const q of e.puffs) {
+      const k = q.life / q.max;
+      ctx.fillStyle = q.dark ? `rgba(30,20,44,${(0.5 * k).toFixed(3)})` : `rgba(200,190,220,${(0.35 * k).toFixed(3)})`;
+      ctx.beginPath(); ctx.arc(q.x, q.y, q.r, 0, Math.PI * 2); ctx.fill();
+    }
+    // Wrecked jet (on fire if it was shot down)
     if (!e.exploded) {
       ctx.save();
       ctx.translate(e.jet.x, e.jet.y); ctx.rotate(e.jet.a);
       drawJet(ctx, this.aircraft, e.t < 0.3 ? 4 : 0);
+      if (e.shot || e.t > e.fireAt) {
+        ctx.globalCompositeOperation = 'lighter';
+        const fl = 0.7 + Math.random() * 0.3, fr = 14 * this.aircraft.size * fl;
+        const fg = ctx.createRadialGradient(-4, 0, 0, -4, 0, fr);
+        fg.addColorStop(0, 'rgba(255,240,200,0.8)'); fg.addColorStop(0.4, 'rgba(255,140,60,0.5)'); fg.addColorStop(1, 'rgba(255,42,109,0)');
+        ctx.fillStyle = fg; ctx.beginPath(); ctx.arc(-4, 0, fr, 0, Math.PI * 2); ctx.fill();
+      }
       ctx.restore();
     }
-    // Flying canopy
+    // Explosion: white-hot fireball and a neon shockwave ring
+    if (e.boomAt >= 0) {
+      const q = e.t - e.boomAt;
+      if (q < 1.4) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        const k = Math.min(1, q / 1.4), fr = 18 + 70 * Math.sqrt(k);
+        const fg = ctx.createRadialGradient(e.boomX, e.boomY, 0, e.boomX, e.boomY, fr);
+        fg.addColorStop(0, `rgba(255,250,230,${(1 - k).toFixed(3)})`);
+        fg.addColorStop(0.3, `rgba(255,170,70,${(0.85 * (1 - k)).toFixed(3)})`);
+        fg.addColorStop(0.7, `rgba(255,42,109,${(0.5 * (1 - k)).toFixed(3)})`);
+        fg.addColorStop(1, 'rgba(255,42,109,0)');
+        ctx.fillStyle = fg; ctx.beginPath(); ctx.arc(e.boomX, e.boomY, fr, 0, Math.PI * 2); ctx.fill();
+        if (q < 0.8) {
+          const rk = q / 0.8;
+          ctx.strokeStyle = `rgba(5,217,232,${(0.8 * (1 - rk)).toFixed(3)})`; ctx.lineWidth = 3 * (1 - rk) + 0.5;
+          ctx.beginPath(); ctx.arc(e.boomX, e.boomY, 10 + rk * 150, 0, Math.PI * 2); ctx.stroke();
+          ctx.strokeStyle = `rgba(255,113,206,${(0.6 * (1 - rk)).toFixed(3)})`; ctx.lineWidth = 1.5;
+          ctx.beginPath(); ctx.arc(e.boomX, e.boomY, 6 + rk * 110, 0, Math.PI * 2); ctx.stroke();
+        }
+        ctx.restore();
+      }
+    }
+    // Flying canopy: tinted glass with a glint
     ctx.save();
     ctx.translate(e.canopy.x, e.canopy.y); ctx.rotate(e.canopy.a); ctx.scale(this.aircraft.size, this.aircraft.size);
-    poly(ctx, [5, 0, 1, -2, -4, -1.6, -4, 1.6, 1, 2], '#4cc9f0', 0.6);
+    const cg = ctx.createLinearGradient(-4, -2, 5, 2);
+    cg.addColorStop(0, '#0b1a3a'); cg.addColorStop(0.5, '#2b8ed8'); cg.addColorStop(1, '#9ff3ff');
+    poly(ctx, [5, 0, 1, -2, -4, -1.6, -4, 1.6, 1, 2], cg, 0.6);
+    ctx.fillStyle = 'rgba(255,255,255,0.8)'; ctx.fillRect(0, -1.2, 3, 0.6);
     ctx.restore();
     // Empty seat falling away
     if (e.seat) {
       ctx.save();
-      ctx.translate(e.seat.x, e.seat.y); ctx.rotate(e.seat.a);
-      ctx.fillStyle = '#3a3a4a'; ctx.fillRect(-4, -6, 8, 12);
+      ctx.translate(e.seat.x, e.seat.y); ctx.rotate(e.seat.a); ctx.scale(1.4, 1.4);
+      drawSeat(ctx);
       ctx.restore();
     }
     // Parachute in the synthwave style: a dome like the striped sunset sun
@@ -991,20 +1254,12 @@ export class Game {
       ctx.restore();
     }
     ctx.scale(1.4, 1.4);   // pilot drawn a bit larger so they read when zoomed
-    // Seat (until it drops) and the pilot
-    if (!e.seat) { ctx.fillStyle = '#3a3a4a'; ctx.fillRect(-5, -6, 10, 13); }
-    if (pi.fired && !e.seat) {   // rocket flame under the seat
-      ctx.fillStyle = '#ffb703';
-      ctx.beginPath(); ctx.moveTo(-3, 7); ctx.lineTo(0, 14 + Math.random() * 8); ctx.lineTo(3, 7); ctx.fill();
+    // Seat (until it drops) with its rocket burning underneath
+    if (!e.seat) {
+      if (pi.fired) drawSeatRocket(ctx);
+      ctx.save(); ctx.translate(0, 0.5); drawSeat(ctx); ctx.restore();
     }
-    ctx.strokeStyle = '#1c1226'; ctx.lineWidth = 1;
-    ctx.fillStyle = '#4f6b3a'; ctx.fillRect(-3, -4, 6, 8);                        // flight suit
-    ctx.fillRect(-3, 4, 2, 5); ctx.fillRect(1, 4, 2, 5);                          // legs
-    const wave = e.seat ? Math.sin(e.t * 8) * 3 : 0;                              // waving once safe
-    ctx.strokeStyle = '#4f6b3a'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(-3, -3); ctx.lineTo(-6, -7); ctx.moveTo(3, -3); ctx.lineTo(7, -9 + wave); ctx.stroke();
-    ctx.fillStyle = '#e8e8f0'; ctx.beginPath(); ctx.arc(0, -7, 3.2, 0, Math.PI * 2); ctx.fill();   // helmet
-    ctx.fillStyle = '#ffb703'; ctx.fillRect(-2, -8, 4, 1.6);                                     // visor
+    drawPilot(ctx, e.seat ? Math.sin(e.t * 8) * 3 : 0, !!e.seat);
     ctx.restore();
   }
 
@@ -1105,6 +1360,8 @@ export class Game {
     ctx.restore();
   }
 
+  // Sky dust fixed in the world, so you can feel the jet move: faint
+  // twinkling motes, neon sparks and thin cloud wisps.
   drawGround(ctx) {
     const p = this.player;
     const x0 = Math.floor((p.x - W / 2) / TILE), x1 = Math.floor((p.x + W / 2) / TILE);
@@ -1112,17 +1369,20 @@ export class Game {
     for (let ty = y0; ty <= y1; ty++) {
       for (let tx = x0; tx <= x1; tx++) {
         const h = hash(tx, ty);
-        if (h < 0.55) continue;
+        if (h < 0.5) continue;
         const x = tx * TILE + hash(tx + 7, ty) * TILE, y = ty * TILE + hash(tx, ty + 7) * TILE;
-        if (h < 0.8) {            // speckles
-          ctx.fillStyle = 'rgba(255,255,255,0.04)';
-          ctx.fillRect(x, y, 2, 2); ctx.fillRect(x + 9, y + 5, 2, 2);
-        } else if (h < 0.93) {    // grass tuft
-          ctx.fillStyle = 'rgba(120,90,160,0.18)';
-          ctx.fillRect(x, y, 2, 6); ctx.fillRect(x + 4, y + 1, 2, 5); ctx.fillRect(x - 4, y + 2, 2, 4);
-        } else {                  // stone
-          ctx.fillStyle = 'rgba(150,130,170,0.14)';
-          ctx.beginPath(); ctx.ellipse(x, y, 6, 4, 0, 0, Math.PI * 2); ctx.fill();
+        if (y > GROUND_Y - 30) continue;
+        if (h < 0.86) {           // motes
+          const tw = 0.5 + 0.5 * Math.sin(this.time * 2 + h * 40);
+          ctx.fillStyle = `rgba(232,220,255,${(0.05 + 0.08 * tw).toFixed(3)})`;
+          ctx.fillRect(x, y, 1.5, 1.5);
+        } else if (h < 0.93) {    // neon spark
+          ctx.fillStyle = h < 0.9 ? 'rgba(255,113,206,0.16)' : 'rgba(5,217,232,0.16)';
+          ctx.fillRect(x - 2, y - 0.5, 4, 1); ctx.fillRect(x - 0.5, y - 2, 1, 4);
+        } else {                  // cloud wisp
+          ctx.fillStyle = 'rgba(190,160,255,0.045)';
+          ctx.beginPath(); ctx.ellipse(x, y, 34 + h * 30, 3, 0, 0, Math.PI * 2); ctx.fill();
+          ctx.beginPath(); ctx.ellipse(x + 14, y - 3, 18, 2.5, 0, 0, Math.PI * 2); ctx.fill();
         }
       }
     }
@@ -1130,6 +1390,7 @@ export class Game {
 
   draw(ctx) {
     const p = this.player;
+    this.drawSearchlights(ctx);
     ctx.save();
     // World space: the camera is centred on the jet.
     if (this.eject) {   // ejection: the camera zooms in and follows the action
@@ -1191,9 +1452,9 @@ export class Game {
     // Cannon tracers: thin bright streaks along their flight path
     ctx.lineCap = 'butt';
     for (const b of this.bolts) {
-      ctx.strokeStyle = '#ffb703'; ctx.lineWidth = 3;
+      ctx.strokeStyle = b.color ?? '#ffb703'; ctx.lineWidth = b.size ?? 3;
       ctx.beginPath(); ctx.moveTo(b.x - b.vx * 0.03, b.y - b.vy * 0.03); ctx.lineTo(b.x, b.y); ctx.stroke();
-      ctx.strokeStyle = '#fff6d6'; ctx.lineWidth = 1.2;
+      ctx.strokeStyle = '#fff6d6'; ctx.lineWidth = (b.size ?? 3) * 0.4;
       ctx.beginPath(); ctx.moveTo(b.x - b.vx * 0.018, b.y - b.vy * 0.018); ctx.lineTo(b.x + b.vx * 0.004, b.y + b.vy * 0.004); ctx.stroke();
     }
     // Missiles (Fox Two), nose pointing along the orbit
@@ -1255,6 +1516,7 @@ export class Game {
     else if (!(this.hurtCd > 0.2 && Math.floor(this.hurtCd * 30) % 2)) {
       ctx.save();
       ctx.translate(p.x, p.y); ctx.rotate(p.heading);
+      if (this.invisible) ctx.globalAlpha = 0.35 + 0.1 * Math.sin(this.time * 6);   // ghostly while invisible
       // Blue contours while the flare shield is up (flickering in its last moments).
       const shieldLine = this.shielded && (this.shieldT > 0.4 || Math.floor(this.time * 16) % 2) ? '#3da5ff' : null;
       const burner = this.shielded ? 9 + Math.sin(this.time * 60) * 2 : p.moving ? 6 + Math.sin(this.time * 50) * 2 : 2.5 + Math.sin(this.time * 40) * 0.5;
@@ -1271,27 +1533,43 @@ export class Game {
       ctx.fillStyle = '#ffd6dd';
       ctx.beginPath(); ctx.arc(b.x, b.y, 1.3, 0, Math.PI * 2); ctx.fill();
     }
-    // Flak shells and bursts
-    ctx.fillStyle = '#ffe8a3';
+    // Flak shells: glowing tracers with a hot core
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.lineCap = 'round';
     for (const s of this.shells) {
-      ctx.globalAlpha = 0.35;
-      ctx.fillRect(s.x - s.vx * 0.03 - 1, s.y - s.vy * 0.03 - 1, 2, 2);
-      ctx.globalAlpha = 1;
-      ctx.beginPath(); ctx.arc(s.x, s.y, 2.5, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,140,60,0.35)'; ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.moveTo(s.x - s.vx * 0.06, s.y - s.vy * 0.06); ctx.lineTo(s.x, s.y); ctx.stroke();
+      const sg = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, 8);
+      sg.addColorStop(0, 'rgba(255,220,150,0.8)'); sg.addColorStop(1, 'rgba(255,90,60,0)');
+      ctx.fillStyle = sg; ctx.fillRect(s.x - 8, s.y - 8, 16, 16);
+      ctx.fillStyle = '#fff8e0';
+      ctx.beginPath(); ctx.arc(s.x, s.y, 2, 0, Math.PI * 2); ctx.fill();
     }
+    ctx.restore();
+    // Flak bursts: a white-hot flash, a neon shock ring, then dark smoke lit from below
     for (const f of this.flak) {
       const k = f.t / 0.9;
-      if (f.t < 0.12) {       // bright flash
-        ctx.fillStyle = '#fff1c1';
-        ctx.beginPath(); ctx.arc(f.x, f.y, f.r * (0.4 + f.t * 5), 0, Math.PI * 2); ctx.fill();
-      }
-      ctx.fillStyle = `rgba(70,60,80,${(0.55 * (1 - k)).toFixed(3)})`;
-      for (let i = 0; i < 5; i++) {
-        const a = i * 1.26 + f.x;
+      ctx.fillStyle = `rgba(40,26,58,${(0.6 * (1 - k)).toFixed(3)})`;
+      for (let i = 0; i < 6; i++) {
+        const a = i * 1.05 + f.x;
         ctx.beginPath();
-        ctx.arc(f.x + Math.cos(a) * f.r * 0.45, f.y + Math.sin(a) * f.r * 0.45 - f.t * 10, f.r * (0.35 + k * 0.35), 0, Math.PI * 2);
+        ctx.arc(f.x + Math.cos(a) * f.r * 0.45, f.y + Math.sin(a) * f.r * 0.45 - f.t * 10, f.r * (0.32 + k * 0.38), 0, Math.PI * 2);
         ctx.fill();
       }
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      if (f.t < 0.35) {
+        const q = f.t / 0.35, fr = f.r * (0.5 + q * 0.9);
+        const fg = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, fr);
+        fg.addColorStop(0, `rgba(255,248,220,${(1 - q).toFixed(3)})`);
+        fg.addColorStop(0.35, `rgba(255,150,60,${(0.8 * (1 - q)).toFixed(3)})`);
+        fg.addColorStop(1, 'rgba(255,42,109,0)');
+        ctx.fillStyle = fg; ctx.beginPath(); ctx.arc(f.x, f.y, fr, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.strokeStyle = `rgba(255,113,206,${(0.6 * (1 - k)).toFixed(3)})`; ctx.lineWidth = 2 * (1 - k) + 0.5;
+      ctx.beginPath(); ctx.arc(f.x, f.y, f.r * (0.3 + k * 1.1), 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
     }
     // Particles
     for (const q of this.particles) {
@@ -1318,39 +1596,146 @@ export class Game {
     }
   }
 
-  // Pine silhouettes along the bottom of the screen, in two parallax layers,
-  // with the anti-aircraft guns standing in clearings between them.
+  // Layered pine forest along the bottom of the screen: a misty far row, a
+  // middle row and a black near row, rim-lit by the sun or moon, with the
+  // anti-aircraft trucks standing in clearings and fireflies at night.
   drawForest(ctx) {
-    const p = this.player, guns = this.visibleGuns();
-    const pine = (x, base, h, w) => {
-      ctx.beginPath();
-      for (let t = 0; t < 3; t++) {       // three stacked tiers
-        const ty = base - h * (0.3 + t * 0.3), tw = w * (1 - t * 0.25);
-        ctx.moveTo(x - tw / 2, base - h * t * 0.28); ctx.lineTo(x, ty - h * 0.12); ctx.lineTo(x + tw / 2, base - h * t * 0.28);
+    const p = this.player, guns = this.visibleGuns(), L = sceneLight(this.hour);
+    const camX = this.eject ? this.eject.cam.x : p.x;
+    // Pine: trunk plus four drooping tiers. Adds to the current path; the
+    // rim-lit right edges go into `rims` to stroke afterwards.
+    const pine = (x, base, h, w, rims) => {
+      ctx.rect(x - w * 0.05, base - h * 0.15, w * 0.1, h * 0.15);
+      for (let t = 0; t < 4; t++) {
+        const by = base - h * (0.1 + t * 0.2), ty = t === 3 ? base - h : base - h * (0.42 + t * 0.19), tw = w * (1 - t * 0.2);
+        ctx.moveTo(x - tw / 2, by);
+        ctx.quadraticCurveTo(x - tw * 0.12, by - (by - ty) * 0.35, x, ty);
+        ctx.quadraticCurveTo(x + tw * 0.12, by - (by - ty) * 0.35, x + tw / 2, by);
+        ctx.lineTo(x + tw * 0.22, by - 1.5); ctx.lineTo(x, by + 1); ctx.lineTo(x - tw * 0.22, by - 1.5);
+        ctx.closePath();
+        if (rims) rims.push([x, ty, x + tw * 0.12, by - (by - ty) * 0.35, x + tw / 2, by]);
       }
-      ctx.fill();
     };
-    const layer = (parallax, spacing, minH, maxH, color, seed, clearings) => {
-      ctx.fillStyle = color;
-      const cam = p.x * parallax, i0 = Math.floor((cam - W / 2) / spacing) - 1, i1 = Math.floor((cam + W / 2) / spacing) + 1;
+    const layer = (parallax, spacing, minH, maxH, color, seed, clearings, rimA) => {
+      const cam = camX * parallax, i0 = Math.floor((cam - W / 2) / spacing) - 1, i1 = Math.floor((cam + W / 2) / spacing) + 1;
+      const rims = rimA ? [] : null;
+      ctx.beginPath();
       for (let i = i0; i <= i1; i++) {
         const x = i * spacing + hash(i, seed) * spacing * 0.6 - cam + W / 2;
         if (clearings && guns.some((g) => Math.abs(g.sx - x) < 42)) continue;
         const h = minH + hash(i, seed + 1) * (maxH - minH);
-        pine(x, H, h, h * 0.55);
+        pine(x, H, h, h * (0.5 + hash(i, seed + 2) * 0.12), rims);
       }
+      ctx.fillStyle = color; ctx.fill();
+      strokeRims(rims, rimA);
     };
-    // A faint moonlit haze where the forest starts
-    const haze = ctx.createLinearGradient(0, FOREST_TOP - 30, 0, H);
-    haze.addColorStop(0, 'rgba(10,6,16,0)');
-    haze.addColorStop(1, 'rgba(10,6,16,0.85)');
+    const strokeRims = (rims, rimA) => {
+      if (!rims) return;
+      ctx.strokeStyle = `rgba(${L.rim},${rimA})`; ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (const [x0, y0, cx, cy, x1, y1] of rims) { ctx.moveTo(x0, y0); ctx.quadraticCurveTo(cx, cy, x1, y1); }
+      ctx.stroke();
+    };
+    // Rows without clearings repeat every FOREST_PERIOD px, so they are drawn
+    // once into an offscreen strip (redrawn only when the light colour
+    // changes) and blitted with parallax: far cheaper than drawing every tree.
+    const cachedLayer = (parallax, spacing, minH, maxH, color, seed, rimA) => {
+      const n = Math.round(FOREST_PERIOD / spacing), period = n * spacing, sh = maxH + 4;
+      const key = L.rim.split(',').map((v) => v >> 3).join(',');
+      let c = forestCache.get(seed);
+      if (!c || c.key !== key) {
+        c = c || { canvas: document.createElement('canvas') };
+        c.key = key;
+        c.canvas.width = period * FOREST_RES; c.canvas.height = sh * FOREST_RES;
+        const real = ctx;
+        ctx = c.canvas.getContext('2d');
+        ctx.scale(FOREST_RES, FOREST_RES);
+        const rims = [];
+        ctx.beginPath();
+        for (let i = -2; i < n + 2; i++) {
+          const m = ((i % n) + n) % n, x = i * spacing + hash(m, seed) * spacing * 0.6;
+          const h = minH + hash(m, seed + 1) * (maxH - minH);
+          pine(x, sh, h, h * (0.5 + hash(m, seed + 2) * 0.12), rims);
+        }
+        ctx.fillStyle = color; ctx.fill();
+        strokeRims(rims, rimA);
+        ctx = real;
+        forestCache.set(seed, c);
+      }
+      const off = ((((camX * parallax - W / 2) % period) + period) % period);
+      for (let x = -off; x < W; x += period) ctx.drawImage(c.canvas, x, H - sh, period, sh);
+    };
+    // Glow from the sky behind the treeline
+    const haze = ctx.createLinearGradient(0, FOREST_TOP - 60, 0, H);
+    haze.addColorStop(0, `rgba(${L.rim},0)`);
+    haze.addColorStop(0.5, `rgba(${L.rim},${(0.1 + 0.08 * (1 - L.night)).toFixed(3)})`);
+    haze.addColorStop(1, 'rgba(10,6,16,0.9)');
     ctx.fillStyle = haze;
-    ctx.fillRect(0, FOREST_TOP - 30, W, H - FOREST_TOP + 30);
-    layer(0.5, 22, 40, 78, '#1a0f26', 31, false);
+    ctx.fillRect(0, FOREST_TOP - 60, W, H - FOREST_TOP + 60);
+    cachedLayer(0.25, 15, 34, 66, '#2a1840', 13, 0.18);
+    // Drifting ground mist between the rows
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 3; i++) {
+      const mx = (((i * 420 - camX * 0.4 - this.time * (8 + i * 4)) % 1400) + 1400) % 1400 - 220;
+      const mg = ctx.createRadialGradient(mx, H - 26, 4, mx, H - 26, 220);
+      mg.addColorStop(0, `rgba(${L.rim},0.10)`); mg.addColorStop(1, `rgba(${L.rim},0)`);
+      ctx.fillStyle = mg;
+      ctx.save(); ctx.translate(mx, H - 26); ctx.scale(1, 0.18); ctx.translate(-mx, -(H - 26));
+      ctx.beginPath(); ctx.arc(mx, H - 26, 220, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+    ctx.restore();
+    cachedLayer(0.5, 22, 40, 78, '#170c24', 31, 0.32);
     for (const g of guns) this.drawGun(ctx, g);
-    layer(1, 30, 22, 50, '#06030a', 57, true);
+    layer(1, 30, 22, 50, '#06030a', 57, true, 0.45);
     ctx.fillStyle = '#06030a';
     ctx.fillRect(0, H - 10, W, 10);
+    // Fireflies drifting among the near trees at night
+    if (L.night > 0.5) {
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      for (let i = 0; i < 18; i++) {
+        const fx = ((((hash(i, 71) * 1600 - camX + Math.sin(this.time * 0.6 + i) * 30) % 1600) + 1600) % 1600) - 320;
+        const fy = H - 12 - hash(i, 72) * 46 + Math.sin(this.time * 1.3 + i * 2) * 6;
+        const on = 0.5 + 0.5 * Math.sin(this.time * (1.5 + hash(i, 73) * 2) + i);
+        if (on < 0.3) continue;
+        const a = (on * (L.night - 0.5) * 2).toFixed(3);
+        const fg = ctx.createRadialGradient(fx, fy, 0, fx, fy, 5);
+        fg.addColorStop(0, `rgba(230,255,140,${a})`); fg.addColorStop(1, 'rgba(230,255,140,0)');
+        ctx.fillStyle = fg; ctx.fillRect(fx - 5, fy - 5, 10, 10);
+      }
+      ctx.restore();
+    }
+  }
+
+  // Searchlights: each live truck sweeps a beam across the sky, drawn behind
+  // the action. It follows the jet once the guns are armed and turns red
+  // just before the gun fires.
+  drawSearchlights(ctx) {
+    const L = sceneLight(this.hour), oy = this.groundOffset;
+    if (L.night < 0.15 || oy > H) return;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    for (const g of this.visibleGuns()) {
+      if (g.dead) continue;
+      const armed = this.time >= C.aaFrom, lock = armed && g.cd < 0.6;
+      const ang = armed ? g.aim + Math.sin(this.time * 1.7 + g.x) * (lock ? 0.02 : 0.12)
+        : -Math.PI / 2 + Math.sin(this.time * 0.5 + g.x) * 0.7;
+      const sx = g.sx - 20 * 1.4, sy = AA_Y + oy - 6.5 * 1.4, len = 760, spread = lock ? 0.035 : 0.07;
+      const col = lock ? '255,60,100' : '170,200,255';
+      const a = (lock ? 0.2 : 0.09) * L.night;
+      ctx.save();
+      ctx.translate(sx, sy); ctx.rotate(ang);
+      const bg = ctx.createLinearGradient(0, 0, len, 0);
+      bg.addColorStop(0, `rgba(${col},${(a * 1.6).toFixed(3)})`);
+      bg.addColorStop(0.4, `rgba(${col},${(a * 0.6).toFixed(3)})`);
+      bg.addColorStop(1, `rgba(${col},0)`);
+      ctx.fillStyle = bg;
+      ctx.beginPath(); ctx.moveTo(0, -2); ctx.lineTo(len, -len * spread); ctx.lineTo(len, len * spread); ctx.lineTo(0, 2); ctx.closePath(); ctx.fill();
+      ctx.restore();
+    }
+    ctx.restore();
   }
 
   drawGun(ctx, g) {
@@ -1374,6 +1759,13 @@ export class Game {
       for (const wx of [-18, 4, 14]) { ctx.beginPath(); ctx.arc(x + wx, y + 12, 3.5, 0, Math.PI * 2); ctx.fill(); }
       ctx.strokeStyle = '#1c1620'; ctx.lineWidth = 2.5;
       ctx.beginPath(); ctx.moveTo(x + 18, y - 2); ctx.lineTo(x + 34, y + 6); ctx.lineTo(x + 44, y + 13); ctx.stroke();
+      ctx.save();          // embers still glowing in the wreck
+      ctx.globalCompositeOperation = 'lighter';
+      const fl = 0.6 + 0.4 * Math.sin(this.time * 13 + x) * Math.sin(this.time * 7);
+      const eg = ctx.createRadialGradient(x, y + 3, 0, x, y + 3, 16);
+      eg.addColorStop(0, `rgba(255,140,60,${(0.45 * fl).toFixed(3)})`); eg.addColorStop(1, 'rgba(255,42,109,0)');
+      ctx.fillStyle = eg; ctx.fillRect(x - 16, y - 13, 32, 32);
+      ctx.restore();
       for (let i = 0; i < 4; i++) {
         const t = (this.time * 0.6 + i / 4) % 1;
         ctx.fillStyle = `rgba(90,80,100,${(0.3 * (1 - t)).toFixed(3)})`;
@@ -1382,9 +1774,10 @@ export class Game {
       return;
     }
     const lit = g.hitFlash > 0, col = (c) => (lit ? '#fff' : c);
-    const olive = col('#4a5240'), dark = col('#353b2e'), light = col('#5d6650'), line = '#07040b';
+    const olive = col('#2c2540'), dark = col('#1b1528'), light = col('#3d3456'), line = '#07040b';
+    const L = sceneLight(this.hour);
     // Whip antennas on the shelter roof
-    ctx.strokeStyle = col('#2a2e26'); ctx.lineWidth = 0.6;
+    ctx.strokeStyle = col('#3d3456'); ctx.lineWidth = 0.6;
     ctx.beginPath();
     for (const [ax, ah] of [[-9, 22], [-4, 26], [10, 18]]) { ctx.moveTo(x + ax, y - 6); ctx.lineTo(x + ax, y - 6 - ah); }
     ctx.stroke();
@@ -1404,17 +1797,22 @@ export class Game {
     ctx.stroke();
     ctx.fillStyle = dark; ctx.beginPath(); ctx.arc(...elbow, 2, 0, Math.PI * 2); ctx.fill();
     // Hydraulic ram bracing the lower arm
-    ctx.strokeStyle = col('#8a927c'); ctx.lineWidth = 1;
+    ctx.strokeStyle = col('#8a80a8'); ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(x + 8, y - 6); ctx.lineTo(x + 21, y - 17); ctx.stroke();
     this.drawRadar(ctx, top[0], top[1] - 6, g.spin, lit);
     // Twin barrels of the roof gun
     ctx.save();
     ctx.translate(x + AA_TX, y + AA_TY); ctx.rotate(g.aim);
-    ctx.fillStyle = col('#6b745e');
+    ctx.fillStyle = col('#5a5274');
     ctx.fillRect(0, -3, 15, 2); ctx.fillRect(0, 1, 15, 2);
-    if (g.flash > 0) {
+    if (g.flash > 0) {        // muzzle flash with a hot glow
+      ctx.globalCompositeOperation = 'lighter';
+      const mf = ctx.createRadialGradient(17, 0, 0, 17, 0, 14);
+      mf.addColorStop(0, 'rgba(255,240,200,0.9)'); mf.addColorStop(0.4, 'rgba(255,140,60,0.5)'); mf.addColorStop(1, 'rgba(255,42,109,0)');
+      ctx.fillStyle = mf; ctx.beginPath(); ctx.arc(17, 0, 14, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = '#ffd166';
-      ctx.beginPath(); ctx.moveTo(15, -5); ctx.lineTo(24, 0); ctx.lineTo(15, 5); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(15, -5); ctx.lineTo(26, 0); ctx.lineTo(15, 5); ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
     }
     ctx.restore();
     ctx.fillStyle = olive;
@@ -1424,7 +1822,7 @@ export class Game {
     ctx.fillRect(x - 26, y + 7, 50, 4);
     for (const wx of [-18, 4, 14]) {
       ctx.fillStyle = '#0d0e10'; ctx.beginPath(); ctx.arc(x + wx, y + 12, 4, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = col('#3a4034'); ctx.beginPath(); ctx.arc(x + wx, y + 12, 1.6, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = col('#4a4060'); ctx.beginPath(); ctx.arc(x + wx, y + 12, 1.6, 0, Math.PI * 2); ctx.fill();
     }
     // Cab-over cab with a sloped windscreen
     ctx.fillStyle = olive; ctx.strokeStyle = line; ctx.lineWidth = 0.7;
@@ -1432,10 +1830,22 @@ export class Game {
     ctx.moveTo(x - 13, y - 4); ctx.lineTo(x - 23, y - 4); ctx.lineTo(x - 27, y + 2);
     ctx.lineTo(x - 27, y + 8); ctx.lineTo(x - 13, y + 8); ctx.closePath();
     ctx.fill(); ctx.stroke();
-    ctx.fillStyle = lit ? '#fff' : '#1b2430';
+    // Windscreen lit from inside by the instrument panel (cyan glow)
+    const wg = ctx.createLinearGradient(x - 25, 0, x - 17, 0);
+    wg.addColorStop(0, '#0a2a44'); wg.addColorStop(1, '#1fb5d6');
+    ctx.fillStyle = lit ? '#fff' : wg;
     ctx.beginPath(); ctx.moveTo(x - 22, y - 2.5); ctx.lineTo(x - 25.5, y + 2); ctx.lineTo(x - 17, y + 2); ctx.lineTo(x - 17, y - 2.5); ctx.fill();
-    ctx.fillStyle = 'rgba(200,190,230,0.35)';
+    ctx.fillStyle = 'rgba(255,255,255,0.45)';
     ctx.fillRect(x - 21, y - 2, 2, 1.2);
+    // Headlight with a short beam into the trees
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const hl = ctx.createLinearGradient(x - 27, 0, x - 60, 0);
+    hl.addColorStop(0, 'rgba(255,240,190,0.35)'); hl.addColorStop(1, 'rgba(255,240,190,0)');
+    ctx.fillStyle = hl;
+    ctx.beginPath(); ctx.moveTo(x - 27, y + 4); ctx.lineTo(x - 60, y - 1); ctx.lineTo(x - 60, y + 11); ctx.closePath(); ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = '#fff6d0'; ctx.fillRect(x - 27.5, y + 3, 1.5, 1.8);
     ctx.fillStyle = dark; ctx.fillRect(x - 27, y + 4, 3, 1.5);     // bumper / grille
     // Equipment shelter: panels, door, vent grille, ladder
     ctx.fillStyle = olive;
@@ -1448,20 +1858,32 @@ export class Game {
     ctx.fillStyle = light; ctx.fillRect(x + 8, y - 3, 4, 3);           // hatch
     ctx.fillStyle = dark;
     for (let i = 0; i < 4; i++) ctx.fillRect(x + 16, y - 4 + i * 2.6, 5, 1.2);   // vent
-    ctx.strokeStyle = col('#2a2e26'); ctx.lineWidth = 0.5;
+    ctx.strokeStyle = col('#3d3456'); ctx.lineWidth = 0.5;
     ctx.beginPath(); ctx.moveTo(x - 11, y - 6); ctx.lineTo(x - 11, y + 8); ctx.moveTo(x - 9, y - 6); ctx.lineTo(x - 9, y + 8);
     for (let i = 0; i < 5; i++) { ctx.moveTo(x - 11, y - 4 + i * 3); ctx.lineTo(x - 9, y - 4 + i * 3); }
     ctx.stroke();
-    // Moonlight on the roof edge, and a warning light that blinks before it fires
-    ctx.fillStyle = 'rgba(200,190,230,0.25)';
-    ctx.fillRect(x - 12, y - 6, 34, 1.2); ctx.fillRect(x - 23, y - 4, 10, 1);
+    // Sun- or moonlight on the roof edges, and neon trim along the body
+    ctx.fillStyle = `rgba(${L.rim},0.45)`;
+    ctx.fillRect(x - 12, y - 6, 34, 1); ctx.fillRect(x - 23, y - 4, 10, 0.8);
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.strokeStyle = 'rgba(255,113,206,0.8)'; ctx.lineWidth = 0.7;
+    ctx.beginPath(); ctx.moveTo(x - 12, y + 4.5); ctx.lineTo(x + 22, y + 4.5); ctx.moveTo(x - 27, y + 6); ctx.lineTo(x - 13, y + 6); ctx.stroke();
+    ctx.restore();
+    // Searchlight on the cab roof
+    ctx.fillStyle = dark; ctx.fillRect(x - 21.5, y - 6.5, 3, 2.5);
+    ctx.fillStyle = '#e8f0ff'; ctx.fillRect(x - 21.8, y - 6.2, 0.9, 1.9);
+    // Warning light that blinks before it fires
     const armed = this.time >= C.aaFrom;
-    ctx.fillStyle = armed && g.cd < 0.5 && Math.floor(this.time * 12) % 2 ? '#ff4d6d' : armed ? '#5a1020' : '#222';
-    ctx.fillRect(x - 16, y - 6, 2.5, 2);
+    if (armed && g.cd < 0.5 && Math.floor(this.time * 12) % 2) navLight(ctx, x - 15, y - 5, '#ff2a6d', 1);
+    else { ctx.fillStyle = armed ? '#5a1020' : '#222'; ctx.fillRect(x - 16, y - 6, 2.5, 2); }
     // Damage bar once hit
     if (g.hp < g.maxHp) {
-      ctx.fillStyle = '#000'; ctx.fillRect(x - 14, y - 22, 28, 3);
-      ctx.fillStyle = '#ffb703'; ctx.fillRect(x - 14, y - 22, 28 * (g.hp / g.maxHp), 3);
+      ctx.fillStyle = 'rgba(9,2,28,0.85)'; ctx.fillRect(x - 15, y - 23, 30, 5);
+      const k = g.hp / g.maxHp;
+      ctx.fillStyle = k > 0.5 ? '#05d9e8' : k > 0.25 ? '#fffb96' : '#ff2a6d';
+      ctx.fillRect(x - 14, y - 22, 28 * k, 3);
+      ctx.strokeStyle = 'rgba(255,113,206,0.7)'; ctx.lineWidth = 0.6; ctx.strokeRect(x - 15, y - 23, 30, 5);
     }
   }
 
@@ -1469,29 +1891,30 @@ export class Game {
   // flat antenna panel by cos(spin) makes it look like it turns, with its
   // darker back showing while it faces away.
   drawRadar(ctx, x, y, spin, lit) {
-    ctx.fillStyle = lit ? '#fff' : '#3a4034';
+    ctx.fillStyle = lit ? '#fff' : '#2c2540';
     ctx.fillRect(x - 2, y + 4, 4, 4);                 // turntable
     const c = Math.cos(spin), s = Math.sin(spin);
     const sx = Math.sign(c || 1) * Math.max(0.15, Math.abs(c));
     // Electronics box behind the panel, visible from the side
-    ctx.fillStyle = lit ? '#fff' : '#353b2e';
+    ctx.fillStyle = lit ? '#fff' : '#1b1528';
     ctx.fillRect(x - 3 - 2 * c, y - 3, 6, 7);
     ctx.save();
     ctx.translate(x + 2 * c, y);
     ctx.scale(sx, 1);
-    ctx.fillStyle = lit ? '#fff' : c >= 0 ? '#a3ad92' : '#4f5845';
+    ctx.fillStyle = lit ? '#fff' : c >= 0 ? '#3d3456' : '#221c30';
     ctx.strokeStyle = '#07040b'; ctx.lineWidth = 0.8;
     ctx.fillRect(-6, -7, 12, 12); ctx.strokeRect(-6, -7, 12, 12);
     if (c >= 0 && !lit) {                                // antenna element grid
-      ctx.strokeStyle = 'rgba(40,46,34,0.6)'; ctx.lineWidth = 0.6;
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.strokeStyle = `rgba(5,217,232,${(0.35 + 0.5 * c).toFixed(3)})`; ctx.lineWidth = 0.6;
       ctx.beginPath();
       for (let i = -3; i <= 3; i += 3) { ctx.moveTo(i, -7); ctx.lineTo(i, 5); ctx.moveTo(-6, i - 1); ctx.lineTo(6, i - 1); }
       ctx.stroke();
     }
     ctx.restore();
     // Beacon on top, blinking as the beam sweeps past
-    ctx.fillStyle = s > 0.7 ? '#ff4d6d' : '#5a1020';
-    ctx.fillRect(x - 1, y - 9, 2, 2);
+    if (s > 0.7) navLight(ctx, x, y - 8, '#ff2a6d', 0.9);
+    else { ctx.fillStyle = '#5a1020'; ctx.fillRect(x - 1, y - 9, 2, 2); }
   }
 
   // Bars and the level-up picker, drawn above the HUD.
@@ -1572,7 +1995,7 @@ export class Game {
     Boss.drawUi(ctx, this);
     if (this.testRun) {
       ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.font = 'bold 12px monospace';
-      ctx.fillStyle = '#ffb703'; ctx.fillText('TEST RUN · not logged', 16, H - 16);
+      ctx.fillStyle = '#ffb703'; ctx.fillText('TEST RUN · not logged' + (this.invisible ? ' · INVISIBLE (Shift+I)' : ''), 16, H - 16);
     }
 
     if (this.eject && !this.over) {

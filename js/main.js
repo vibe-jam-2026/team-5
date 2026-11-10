@@ -5,6 +5,7 @@ import { input } from './input.js';
 import { highscores } from './highscores.js';
 import { sfx } from './audio.js';
 import { Game } from './game.js';
+import { quotes } from './quotes.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -18,7 +19,9 @@ let entryName = '';
 let lastRank = -1;
 let isNewBest = false;
 let aircraftIndex = 1;    // remembered between rounds
-let soundBudget = 0;      // limits kill/pickup sounds per frame when many happen at once
+let soundBudget = 0;
+let quoteSet = CONFIG.deathQuotes;   // Q on the game-over screen cycles the sets
+let quote = null;                    // the quote shown for this death      // limits kill/pickup sounds per frame when many happen at once
 
 const START = ['Enter', 'Space', 'NumpadEnter'];
 const fmtTime = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
@@ -41,7 +44,10 @@ function startGame() {
   sfx.select();
 }
 
+const deathReason = () => (game.pressedRed ? 'red' : game.cleared ? 'cleared' : game.crashed ? 'crash' : 'shot');
+
 function endGame() {
+  quote = quotes.pick(quoteSet, deathReason());
   const score = Math.floor(game.score);
   isNewBest = score > highscores.best();
   if (!game.testRun && highscores.qualifies(score)) {
@@ -135,6 +141,7 @@ function update(dt) {
     case 'gameover':
       if (input.wasPressed('Enter', 'NumpadEnter')) openSelect();
       if (input.wasPressed('Escape')) state = 'title';
+      if (input.wasPressed('KeyQ')) { quoteSet = quotes.next(quoteSet); quote = quotes.pick(quoteSet, deathReason()); sfx.select(); }
       break;
   }
 }
@@ -670,6 +677,33 @@ function cardName(str, x, y, sel) {
   glow(NEON.pink, 12, () => { ctx.fillStyle = g; ctx.fillText(str, x, y); });
 }
 
+// Split text into lines that fit maxW at the current font.
+function wrap(str, maxW) {
+  const lines = [];
+  let line = '';
+  for (const word of str.split(' ')) {
+    const tryLine = line ? line + ' ' + word : word;
+    if (line && ctx.measureText(tryLine).width > maxW) { lines.push(line); line = word; } else line = tryLine;
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
+// The death quote: italic white lines with a dim magenta attribution.
+function drawQuote(y, showSet) {
+  if (!quote) return;
+  ctx.font = 'italic 16px Georgia, "Times New Roman", serif';
+  const lines = wrap(`“${quote.q}”`, 640);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  lines.forEach((l, i) => glow(NEON.purple, 8, () => {
+    ctx.font = 'italic 16px Georgia, "Times New Roman", serif';
+    ctx.fillStyle = '#fff0fa';
+    ctx.fillText(l, W / 2, y + i * 20);
+  }));
+  const by = `— ${quote.by}` + (showSet ? `   ·   Q: next quote [${quotes.label(quoteSet)}]` : '');
+  text(by, W / 2, y + lines.length * 20 + 2, 12, NEON.dim, 'center', 'normal');
+}
+
 function overlay(alpha = 0.6) {
   ctx.fillStyle = `rgba(9,2,28,${alpha})`;
   ctx.fillRect(0, 0, W, H);
@@ -716,6 +750,7 @@ function draw() {
     const shown = (entryName + (Math.floor(clock * 3) % 2 ? '_' : ' ')).padEnd(3, ' ').slice(0, 3);
     neonText(shown.split('').join(' '), W / 2, 325, 40, NEON.yellow);
     text('type letters · ENTER to confirm', W / 2, 385, 14, NEON.dim);
+    drawQuote(432, false);
   }
 
   if (state === 'gameover') {
@@ -723,10 +758,11 @@ function draw() {
     chromeTitle('GAME OVER', W / 2, 46, 52);
     neonText(game.pressedRed ? 'YOU PRESSED THE BIG RED BUTTON' : game.cleared ? 'NIGHT CLEARED · SURVIVED TO DAWN, DOWNED IN OVERTIME' : game.crashed ? 'CRASHED INTO THE TREES' : 'SHOT DOWN', W / 2, 86, 16, game.cleared && !game.pressedRed ? NEON.yellow : NEON.magenta);
     neonText(`Airborne ${fmtTime(game.time)}  ·  ${game.kills} bandits splashed  ·  level ${game.level}  ·  ${Math.floor(game.score)} pts`, W / 2, 110, 15, NEON.cyan);
-    if (game.testRun) text('TEST RUN · not logged in the high scores', W / 2, H - 56, 13, '#ffb703');
+    if (game.testRun) text('TEST RUN · not logged in the high scores', W / 2, H - 12, 11, '#ffb703');
     const boardRows = Math.max(2, Math.min(highscores.list.length, CONFIG.highscoreCount));
     neonPanel(W / 2 - 220, 128, 440, 64 + boardRows * 20, NEON.magenta);
     drawPilotLog(W / 2 - 200, 150, 400);
+    drawQuote(422, true);
     if (Math.floor(clock * 2) % 2 === 0) neonText('ENTER choose aircraft & fly again   ·   ESC title', W / 2, H - 30, 18, NEON.yellow);
   }
 

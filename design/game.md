@@ -18,6 +18,7 @@ Genre inspiration: "survivors-likes" / "bullet heaven" (e.g. Vampire Survivors).
 - **Flares** (F or Space): the jet fires a salvo of burning flares that shoot out backwards in pairs, trailing smoke, and for 2 seconds nothing hurts you (drones, bullets, flak, the boss). While it lasts, the jet's contours glow blue (flickering just before it ends). It can only be used once a minute; the FL bar under XP shows the time left, the cooldown, or READY. Crashing into the trees still ends the run. Tunable in `js/config.js` (`flareShield`, `flareCooldown`).
 - From level 10, power-up crates sometimes drop and give a special weapon for 6 seconds: Scatter Cannon, Pulse Laser or Rocket Swarm.
 - Health at 0 ends the run: the jet is shot down and catches fire, the pilot ejects right away and parachutes down while the burning jet spirals into the forest and explodes (the same zoomed-in ejection scene, ENTER skips), then the game-over screen says "SHOT DOWN". The longer you survive, the more and tougher the drones.
+- **Death quotes:** every time you go down, the name-entry and game-over screens show a short quote. There are three sets: **War books** (Sun Tzu, Clausewitz, Moltke, Wellington, Churchill, Wilfred Owen and others), **Pilot sayings** (old aviation folklore) and **Documentary** (our own lines in the voice of an 80s war-documentary narrator; some only appear for a crash, the Big Red Button, being shot down or dying in Overtime). Q on the game-over screen switches to the next set (War books → Pilot sayings → Documentary → Mix) and shows a new quote. The default set is `deathQuotes` in `js/config.js` (currently War books); the quotes are in `js/quotes.js`. Only public-domain texts, folk sayings and our own lines, no quotes from modern copyrighted books or documentaries.
 - Score comes from kills (with a kill-streak multiplier), destroyed guns, pickups and survival time.
 
 ## The final boss: survive until dawn
@@ -53,7 +54,7 @@ Losing during the boss keeps everything you scored before it. All boss numbers (
 - Arrow keys or WASD: fly
 - F or Space: flares (2 s of cover, once a minute)
 - 1 / 2 / 3, or arrows + Enter: pick an upgrade or aircraft
-- Esc: pause and resume · M: mute · Enter: fly again after game over
+- Esc: pause and resume · M: mute · Enter: fly again after game over · Q on the game-over screen: next quote set
 
 ## Core loop
 
@@ -84,6 +85,7 @@ Fly to dodge the swarm → weapons shoot drones down → collect pickups → lev
 - Day cycle sky tied to an in-game clock: 6 PM sunset at the start, night with moon and stars, twilight at the 6 AM boss, sunrise after the boss, then day and sunset again in Overtime
 - Big red button trap card in the level-up choices
 - Flares: 2 seconds of cover on F/Space, once a minute
+- A war/pilot/documentary quote on the game-over screen each death
 
 **Nice to have:** only if there's time.
 
@@ -99,7 +101,7 @@ Fly to dodge the swarm → weapons shoot drones down → collect pickups → lev
 
 ## Tech
 
-Plain HTML, JavaScript modules and canvas. No libraries, no build step. Gameplay is in `js/game.js`, the final boss in `js/boss.js`, tunables in `js/config.js`, menus/HUD/high scores in `js/main.js`, sound and music in `js/audio.js`.
+Plain HTML, JavaScript modules and canvas. No libraries, no build step. Gameplay is in `js/game.js`, the final boss in `js/boss.js`, tunables in `js/config.js`, menus/HUD/high scores in `js/main.js`, death quotes in `js/quotes.js`, sound and music in `js/audio.js`.
 
 ## Decisions and changes
 
@@ -124,3 +126,4 @@ Plain HTML, JavaScript modules and canvas. No libraries, no build step. Gameplay
 - 2026-11-09: The single jet-rock music loop became three cheesy 80s neon tracks that crossfade: Neon Sunset at the start, Midnight Drive from midnight, and Dawn Strike from 4:30 AM through the boss.
 - 2026-11-09: Added a Shift+M test shortcut that jumps to just before midnight to hear the Midnight Drive music. Plain M still mutes.
 - 2026-11-09: The ejection parachute (big red button, crash and shot down) now matches the synthwave theme: a sunset-gradient dome with sun slats, a glowing magenta rim and cyan lines.
+- 2026-11-10: Every death now shows a short quote on the name-entry and game-over screens. Three sets to compare (War books, Pilot sayings, Documentary narrator, plus Mix); Q cycles them. Default is War books until the team picks one.

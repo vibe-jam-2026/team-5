@@ -21,7 +21,7 @@ let lastRank = -1;
 let isNewBest = false;
 let aircraftIndex = 1;    // remembered between rounds
 let soundBudget = 0;
-let quoteSet = CONFIG.deathQuotes;   // Q on the game-over screen cycles the sets
+const quoteSet = CONFIG.deathQuotes; // set in config.js
 let quote = null;                    // the quote shown for this death      // limits kill/pickup sounds per frame when many happen at once
 
 const START = ['Enter', 'Space', 'NumpadEnter'];
@@ -148,7 +148,6 @@ function update(dt) {
     case 'gameover':
       if (input.wasPressed('Enter', 'NumpadEnter')) openSelect();
       if (input.wasPressed('Escape')) state = 'title';
-      if (input.wasPressed('KeyQ')) { quoteSet = quotes.next(quoteSet); quote = quotes.pick(quoteSet, deathReason()); sfx.select(); }
       break;
   }
 }
@@ -841,7 +840,7 @@ function wrap(str, maxW) {
 }
 
 // The death quote: italic white lines with a dim magenta attribution.
-function drawQuote(y, showSet) {
+function drawQuote(y) {
   if (!quote) return;
   ctx.font = 'italic 16px Georgia, "Times New Roman", serif';
   const lines = wrap(`“${quote.q}”`, 640);
@@ -851,8 +850,7 @@ function drawQuote(y, showSet) {
     ctx.fillStyle = '#fff0fa';
     ctx.fillText(l, W / 2, y + i * 20);
   }));
-  const by = `— ${quote.by}` + (showSet ? `   ·   Q: next quote [${quotes.label(quoteSet)}]` : '');
-  text(by, W / 2, y + lines.length * 20 + 2, 12, NEON.dim, 'center', 'normal');
+  text(`— ${quote.by}`, W / 2, y + lines.length * 20 + 2, 12, NEON.dim, 'center', 'normal');
 }
 
 function overlay(alpha = 0.6) {
@@ -914,7 +912,7 @@ function draw() {
     const shown = (entryName + (Math.floor(clock * 3) % 2 ? '_' : ' ')).padEnd(3, ' ').slice(0, 3);
     neonText(shown.split('').join(' '), W / 2, 325, 40, NEON.yellow);
     text('type letters · ENTER to confirm', W / 2, 385, 14, NEON.dim);
-    drawQuote(432, false);
+    drawQuote(432);
   }
 
   if (state === 'gameover') {
@@ -926,7 +924,7 @@ function draw() {
     const boardRows = Math.max(2, Math.min(highscores.list.length, CONFIG.highscoreCount));
     neonPanel(W / 2 - 220, 128, 440, 64 + boardRows * 20, NEON.magenta);
     drawPilotLog(W / 2 - 200, 150, 400);
-    drawQuote(422, true);
+    drawQuote(422);
     if (Math.floor(clock * 2) % 2 === 0) neonText('ENTER choose aircraft & fly again   ·   ESC title', W / 2, H - 30, 18, NEON.yellow);
   }
 

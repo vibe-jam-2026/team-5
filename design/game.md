@@ -44,6 +44,7 @@ Losing during the boss keeps everything you scored before it. All boss numbers (
 
 - **Shift+M** during a run jumps to just before midnight (2:28 of play), so you hear the switch to the Midnight Drive music. Gives a level 8 loadout.
 - **Shift+B** during a run jumps straight to the boss with a mid-game loadout (level 15 weapons).
+- **Shift+I** toggles invisibility: the jet turns see-through and nothing can hurt it (drones, bullets, flak, the boss). Flying into the trees still crashes. Press again to turn it off.
 - **Shift+N** skips the current boss phase (warning → fight → breakup → core → dawn).
 - Opening the page with **`?boss`** at the end of the address starts every run at the boss.
 - Runs that use any of these show "TEST RUN" and are not saved to the high scores.
@@ -131,3 +132,4 @@ Plain HTML, JavaScript modules and canvas. No libraries, no build step. Gameplay
 - 2026-11-09: The ejection parachute (big red button, crash and shot down) now matches the synthwave theme: a sunset-gradient dome with sun slats, a glowing magenta rim and cyan lines.
 - 2026-11-10: During the 2 s flare cover the jet also flies at double speed, with flames shooting out behind it.
 - 2026-11-10: Made the game screen look more advanced and match the menus: neon sky (stars, clouds, wireframe mountains), layered rim-lit forest with mist and fireflies, neon AA trucks with searchlights, glowing flak, detailed jets (also on the aircraft screen, which now banks the model with a hologram scan) and a more detailed ejection with a fireball and shockwave. Gameplay is unchanged.
+- 2026-11-10: Added a Shift+I developer shortcut that makes the jet invisible and immune to damage, for easier testing (marks the run as TEST RUN).

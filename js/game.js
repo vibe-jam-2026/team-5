@@ -461,6 +461,7 @@ export class Game {
     this.boss = null;         // final boss state (see boss.js), set when it arrives
     this.cleared = false;     // true once the boss is beaten and dawn breaks
     this.testRun = false;     // a test shortcut was used: not saved to high scores
+    this.invisible = false;   // Shift+I developer cheat: nothing can hurt the jet
     this.pressedRed = false;  // true if the night ended by picking the big red button
     this.eject = null;        // ejection animation after the big red button (see updateEject)
     this.events = [];
@@ -474,6 +475,8 @@ export class Game {
   }
 
   get shielded() { return this.shieldT > 0; }
+  // Nothing hurts the jet: flare cover or the Shift+I invisibility cheat. (Trees still crash it.)
+  get untouchable() { return this.shielded || this.invisible; }
   get hour() { return Boss.hour(this); }
   get floorY() { return CRASH_Y; }
 
@@ -526,6 +529,7 @@ export class Game {
     if (input.wasPressed('Shift+KeyB')) this.skipToBoss();
     if (input.wasPressed('Shift+KeyM')) this.skipToMidnight();
     if (input.wasPressed('Shift+KeyN')) { this.testRun = true; Boss.skipPhase(this); }
+    if (input.wasPressed('Shift+KeyI')) { this.testRun = true; this.invisible = !this.invisible; }
 
     this.time += dt;
     this.updateFlares(dt, input);
@@ -639,7 +643,7 @@ export class Game {
       if (e.flash > 0) e.flash -= dt;
       if (e.batCd > 0) e.batCd -= dt;
       // Contact damage
-      if (d < e.r + p.r && !this.shielded) {
+      if (d < e.r + p.r && !this.untouchable) {
         p.hp -= e.dps * dt;
         if (this.hurtCd <= 0) { this.hurtCd = 0.4; this.events.push('hit'); }
       }
@@ -774,7 +778,7 @@ export class Game {
       if (b.life <= 0) b.done = true;
       else if (dist2(b, p) < (p.r + 3) ** 2) {
         b.done = true;
-        if (this.shielded) continue;   // flares decoy it: no damage
+        if (this.untouchable) continue;   // flares decoy it (or invisible): no damage
         p.hp -= b.dmg;
         this.hurtCd = 0.4;
         this.events.push('hit');
@@ -851,7 +855,7 @@ export class Game {
     const p = this.player, r = C.aaBlast;
     this.flak.push({ x, y, t: 0, r });
     this.events.push('boom');
-    if (!this.shielded && dist2({ x, y }, p) < (r + p.r) ** 2) {
+    if (!this.untouchable && dist2({ x, y }, p) < (r + p.r) ** 2) {
       p.hp -= C.aaDamage;
       this.hurtCd = 0.4;
       this.events.push('hit');
@@ -1509,6 +1513,7 @@ export class Game {
     else if (!(this.hurtCd > 0.2 && Math.floor(this.hurtCd * 30) % 2)) {
       ctx.save();
       ctx.translate(p.x, p.y); ctx.rotate(p.heading);
+      if (this.invisible) ctx.globalAlpha = 0.35 + 0.1 * Math.sin(this.time * 6);   // ghostly while invisible
       // Blue contours while the flare shield is up (flickering in its last moments).
       const shieldLine = this.shielded && (this.shieldT > 0.4 || Math.floor(this.time * 16) % 2) ? '#3da5ff' : null;
       const burner = this.shielded ? 9 + Math.sin(this.time * 60) * 2 : p.moving ? 6 + Math.sin(this.time * 50) * 2 : 2.5 + Math.sin(this.time * 40) * 0.5;
@@ -1987,7 +1992,7 @@ export class Game {
     Boss.drawUi(ctx, this);
     if (this.testRun) {
       ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.font = 'bold 12px monospace';
-      ctx.fillStyle = '#ffb703'; ctx.fillText('TEST RUN · not logged', 16, H - 16);
+      ctx.fillStyle = '#ffb703'; ctx.fillText('TEST RUN · not logged' + (this.invisible ? ' · INVISIBLE (Shift+I)' : ''), 16, H - 16);
     }
 
     if (this.eject && !this.over) {

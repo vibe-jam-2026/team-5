@@ -1,7 +1,8 @@
 // Final boss. Just before sunrise the Mothership arrives: the hive carrier the
 // drones have been coming from all night. Shoot off its turrets and break its
 // hull, then its AI core breaks loose for a short, frantic last fight. Beat the
-// core and dawn breaks: big bonus, full heal, and Overtime at double points.
+// core and dawn breaks: big bonus, then the jet lands at home base to a
+// cheering crowd and fireworks, and the run ends (see startLanding in game.js).
 //
 // game.js calls Boss.update / Boss.draw / Boss.drawUi and asks Boss.parts()
 // for things its weapons can hit. The boss state lives in game.boss.
@@ -155,6 +156,7 @@ function dawn(g) {
   g.cleared = true;
   g.clearedAt = g.time;
   g.events.push('dawn');
+  g.startLanding();
 }
 
 function inside(pt, q, pad) {
@@ -317,7 +319,7 @@ export const Boss = {
     else if (b.phase === 'fight') { hover(g, b, dt, 1.2); fight(g, b, dt); }
     else if (b.phase === 'breakup') { hover(g, b, dt, 0.4); breakup(g, b); }
     else if (b.phase === 'core') core(g, b, dt);
-    else if (b.phase === 'dawn' && b.t >= B.dawnTime) setPhase(b, 'overtime');
+    else if (b.phase === 'dawn' && b.t >= B.dawnTime) setPhase(b, 'victory');
   },
 
   // Things the jet's weapons can hit right now.
@@ -351,8 +353,8 @@ export const Boss = {
   // Normal drone spawns are cut back while the boss fights, and paused at sunrise.
   spawnScale(g) {
     const ph = g.boss?.phase;
-    if (!ph || ph === 'overtime') return 1;
-    return ph === 'dawn' ? 0 : B.spawnScale;
+    if (!ph) return 1;
+    return ph === 'dawn' || ph === 'victory' ? 0 : B.spawnScale;
   },
 
   // In-game clock in hours (0..24): 6 PM at the start of the run, 6 AM when
@@ -395,17 +397,14 @@ export const Boss = {
     }
     if (b.phase === 'fight' || b.phase === 'warning') bar(ctx, 'MOTHERSHIP', b.hull.hp / b.hull.maxHp, NEON.magenta);
     if (b.phase === 'core') bar(ctx, 'AI CORE', b.core.hp / b.core.maxHp, NEON.cyan);
-    if (b.phase === 'dawn') {
+    if (b.phase === 'dawn' && !g.over) {
       const a = Math.min(1, b.t * 2) * Math.min(1, (B.dawnTime - b.t) * 1.5);
       ctx.save();
       ctx.globalAlpha = Math.max(0, a);
       chrome(ctx, 'DAWN BREAKS!', W / 2, H / 2 - 60, 64);
       neon(ctx, `NIGHT CLEARED  ·  +${b.bonus} DAWN BONUS`, W / 2, H / 2, 20, '#fff');
-      neon(ctx, `OVERTIME: ALL POINTS x${B.overtimeMult}`, W / 2, H / 2 + 34, 18, NEON.yellow);
+      neon(ctx, 'RETURNING TO BASE', W / 2, H / 2 + 34, 18, NEON.yellow);
       ctx.restore();
-    }
-    if (b.phase === 'overtime') {
-      neon(ctx, `OVERTIME x${B.overtimeMult}`, W - 70, 66, 14, NEON.yellow);
     }
   },
 };

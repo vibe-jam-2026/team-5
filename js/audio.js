@@ -375,6 +375,26 @@ function tone(freq, dur = 0.1, type = 'square', vol = 0.15, slide = 0) {
   o.stop(a.currentTime + dur);
 }
 
+// Filtered white noise burst: tyre screech, crowd roar, firework crack.
+let noiseBuf = null;
+function noise(dur, vol, type, freq, q = 1, attack = 0.01) {
+  if (muted) return;
+  const a = ac(), now = a.currentTime;
+  if (!noiseBuf) {
+    noiseBuf = a.createBuffer(1, a.sampleRate * 2, a.sampleRate);
+    const d = noiseBuf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  }
+  const src = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
+  src.buffer = noiseBuf; src.loop = true;
+  f.type = type; f.frequency.value = freq; f.Q.value = q;
+  g.gain.setValueAtTime(0.0001, now);
+  g.gain.linearRampToValueAtTime(vol, now + attack);
+  g.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+  src.connect(f).connect(g).connect(a.destination);
+  src.start(now); src.stop(now + dur + 0.05);
+}
+
 export const sfx = {
   get muted() { return muted; },
   toggleMute() {
@@ -410,5 +430,13 @@ export const sfx = {
   // Boss: a two-tone siren, a big crunch, and a rising fanfare at dawn.
   bossWarn() { for (let i = 0; i < 6; i++) setTimeout(() => tone(i % 2 ? 520 : 780, 0.22, 'square', 0.09), i * 230); },
   bossDown() { tone(70, 0.9, 'sawtooth', 0.2, -50); setTimeout(() => tone(160, 0.5, 'square', 0.12, -120), 120); },
+  // Victory landing: tyre chirp, the crowd roaring with whistles, distant fireworks.
+  touchdown() { noise(0.3, 0.1, 'bandpass', 2600, 5); tone(90, 0.25, 'triangle', 0.15, -40); setTimeout(() => noise(0.25, 0.07, 'bandpass', 2300, 5), 160); },
+  cheer() {
+    noise(3.4, 0.12, 'bandpass', 1100, 0.6, 0.5);
+    noise(3, 0.05, 'bandpass', 2600, 1.2, 0.4);
+    for (let i = 0; i < 5; i++) setTimeout(() => tone(1700 + Math.random() * 700, 0.3, 'sine', 0.035, 500), 250 + i * 420);
+  },
+  firework() { noise(0.7, 0.09, 'lowpass', 500 + Math.random() * 400, 0.7, 0.005); setTimeout(() => noise(0.8, 0.03, 'highpass', 5000, 0.7, 0.2), 150); },
   dawn() { [523, 659, 784, 1046, 1318].forEach((f, i) => setTimeout(() => tone(f, i === 4 ? 0.6 : 0.16, 'square', 0.1), i * 120)); },
 };

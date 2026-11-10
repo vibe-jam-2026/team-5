@@ -90,7 +90,7 @@ function update(dt) {
       if (input.wasPressed('ArrowLeft', 'KeyA', 'ArrowUp', 'KeyW')) { aircraftIndex = (aircraftIndex + n - 1) % n; sfx.select(); }
       if (input.wasPressed('ArrowRight', 'KeyD', 'ArrowDown', 'KeyS')) { aircraftIndex = (aircraftIndex + 1) % n; sfx.select(); }
       for (let i = 0; i < n; i++) if (input.wasPressed('Digit' + (i + 1), 'Numpad' + (i + 1))) { aircraftIndex = i; startGame(); }
-      if (input.wasPressed('Escape')) state = 'title';
+      if (input.wasPressed('KeyQ')) state = 'title';
       break;
     }
 
@@ -147,7 +147,7 @@ function update(dt) {
 
     case 'gameover':
       if (input.wasPressed('Enter', 'NumpadEnter')) openSelect();
-      if (input.wasPressed('Escape')) state = 'title';
+      if (input.wasPressed('KeyQ')) state = 'title';
       break;
   }
 }
@@ -730,7 +730,7 @@ function drawSelect() {
   chromeTitle('CHOOSE YOUR AIRCRAFT', W / 2, 62, 42);
   ctx.fillStyle = 'rgba(9,2,28,0.85)';
   ctx.fillRect(W / 2 - 210, 96, 420, 24);
-  neonText('1 / 2 / 3   or   ← → and ENTER   ·   ESC back', W / 2, 108, 14, NEON.cyan);
+  neonText('1 / 2 / 3   or   ← → and ENTER   ·   Q back', W / 2, 108, 14, NEON.cyan);
   const list = CONFIG.aircraft, cw = 260, ch = 300, gap = 24;
   const x0 = W / 2 - (list.length * cw + (list.length - 1) * gap) / 2;
   const stats = [['SPEED', 'speed'], ['HEALTH', 'health'], ['DAMAGE', 'damage']];
@@ -925,7 +925,7 @@ function draw() {
     neonPanel(W / 2 - 220, 128, 440, 64 + boardRows * 20, NEON.magenta);
     drawPilotLog(W / 2 - 200, 150, 400);
     drawQuote(422);
-    if (Math.floor(clock * 2) % 2 === 0) neonText('ENTER choose aircraft & fly again   ·   ESC title', W / 2, H - 30, 18, NEON.yellow);
+    if (Math.floor(clock * 2) % 2 === 0) neonText('ENTER choose aircraft & fly again   ·   Q title', W / 2, H - 30, 18, NEON.yellow);
   }
 
   if (sfx.muted) text('MUTED', W - 16, H - 22, 12, '#8a7a9a', 'right');

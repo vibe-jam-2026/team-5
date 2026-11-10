@@ -57,7 +57,7 @@ Losing during the boss keeps everything you scored before it. All boss numbers (
 - F or Space: flares (2 s of cover and double speed, once a minute)
 - V: microphone on/off (it turns on by itself when a run starts); say "flares" to fire flares
 - 1 / 2 / 3, or arrows + Enter: pick an upgrade or aircraft
-- Esc: pause and resume · M: mute · Enter: fly again after game over
+- Esc: pause and resume (Esc is only used for pausing) · M: mute · Enter: fly again after game over · Q: quit to title (pause menu, game over) or back (aircraft screen)
 
 ## Core loop
 
@@ -151,3 +151,4 @@ Plain HTML, JavaScript modules and canvas. No libraries, no build step. Gameplay
 - 2026-11-10: Favicon changed from the ✈️ emoji to a neon synthwave icon (`favicon.svg`).
 - 2026-11-10: The Documentary quotes are now credited to "Night Ace: The Untold Story" to match the new game title.
 - 2026-11-10: Removed the Q key for cycling quote sets on the game-over screen (and its hint). The quote set is now picked only with `deathQuotes` in `js/config.js`.
+- 2026-11-10: Esc is now only used for pausing. Q quits to the title from the game-over screen and goes back from the aircraft screen (both used Esc before).

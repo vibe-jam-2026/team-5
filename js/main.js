@@ -205,6 +205,30 @@ const STARS = Array.from({ length: 45 }, (_, i) => {
   return { x: r(1) * W, y: r(2) * H * 0.6, s: 0.6 + r(3) * 1.2, phase: r(4) * 6.28, speed: 0.6 + r(5) * 1.6 };
 });
 
+// Denser star field for the in-game night sky; a few big ones sparkle.
+const SKY_STARS = Array.from({ length: 140 }, (_, i) => {
+  const r = (n) => { const x = Math.sin(i * 91.7 + n * 271.3) * 24634.6345; return x - Math.floor(x); };
+  const big = r(6) < 0.08;
+  return { x: r(1) * W, y: r(2) * H * 0.85, s: big ? 1.6 : 0.5 + r(3) * 1.1, big, phase: r(4) * 6.28, speed: 0.6 + r(5) * 2,
+    tint: r(7) < 0.15 ? '185,220,255' : r(7) > 0.9 ? '255,190,240' : '255,240,255' };
+});
+
+// Long thin synthwave cloud streaks at fixed heights above the horizon.
+// They drift slowly and scroll with the jet a little (parallax).
+const CLOUDS = Array.from({ length: 9 }, (_, i) => {
+  const r = (n) => { const x = Math.sin(i * 57.3 + n * 113.9) * 9631.123; return x - Math.floor(x); };
+  return { x: r(1) * (W + 600), up: 120 + r(2) * 330, len: 180 + r(3) * 320, th: 5 + r(4) * 9, par: 0.03 + r(5) * 0.05, drift: 4 + r(6) * 8 };
+});
+
+// Distant wireframe mountains on the horizon: a ridge height for x. The
+// waves fit a whole number of times into MOUNTAIN_PERIOD, so it repeats.
+const MOUNTAIN_PERIOD = 1920;
+function ridge(x, seed, h) {
+  const n = (k) => Math.sin(x * k * Math.PI * 2 / MOUNTAIN_PERIOD + seed * k) * 0.5 + 0.5;
+  const v = n(3) * 0.5 + n(8) * 0.3 + n(19) * 0.2;
+  return h * (0.35 + 0.65 * v * v);
+}
+
 // In-game sky with a day cycle driven by the in-game clock (game.hour):
 // each run starts at sunset, 6 PM. Night falls, and by 6 AM (when the final
 // boss arrives) the horizon glows with twilight. The sun only rises once the
@@ -237,7 +261,7 @@ const CYCLE = [
   { u: 1.00, sky: 'sunset',   sun: 0.2,  stars: 0.3, moon: 0 },    // 6:00 PM again
 ];
 
-const hexRgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+const hexRgb = (h) => (h[0] === '#' ? [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)) : h.match(/\d+/g).map(Number));
 function mixHex(a, b, k) {
   const A = hexRgb(a), B = hexRgb(b);
   return `rgb(${A.map((v, i) => Math.round(v + (B[i] - v) * k)).join(',')})`;
@@ -261,19 +285,44 @@ function drawBackground() {
   const t = performance.now() / 1000;
   const inRun = game && state !== 'select';
   const horizon = H - 50 + (inRun ? game.groundOffset : 0);
-  const tod = timeOfDay(inRun ? game.hour : 18);
+  const hour = inRun ? game.hour : 18;
+  const tod = timeOfDay(hour);
+  const camX = inRun ? (game.eject ? game.eject.cam.x : game.player.x) : 0;
   const sky = ctx.createLinearGradient(0, horizon - H * 1.6, 0, horizon);
   [0, 0.5, 0.8, 0.93, 1].forEach((at, j) => sky.addColorStop(at, tod.stops[j]));
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, W, H);
+  // Faint horizon glow band in the sky's own colour
+  const hb = ctx.createLinearGradient(0, horizon - 160, 0, horizon);
+  hb.addColorStop(0, 'rgba(255,42,109,0)');
+  hb.addColorStop(1, `rgba(255,${Math.round(60 + 120 * (1 - tod.stars))},140,${(0.10 + 0.12 * (1 - tod.stars)).toFixed(3)})`);
+  ctx.fillStyle = hb; ctx.fillRect(0, horizon - 160, W, 160);
 
   // Stars fade in towards the top, where the sky is darkest, and only at night.
-  for (const st of STARS) {
-    const fade = tod.stars * Math.max(0, Math.min(1, (horizon - st.y - H * 0.2) / (H * 0.5)));
-    if (fade <= 0) continue;
-    const a = fade * (0.2 + 0.4 * (0.5 + 0.5 * Math.sin(t * st.speed + st.phase)));
-    ctx.fillStyle = `rgba(255,235,255,${a.toFixed(3)})`;
-    ctx.fillRect(st.x, st.y, st.s, st.s);
+  if (tod.stars > 0.01) {
+    for (const st of SKY_STARS) {
+      const fade = tod.stars * Math.max(0, Math.min(1, (horizon - st.y - H * 0.15) / (H * 0.45)));
+      if (fade <= 0) continue;
+      const tw = 0.5 + 0.5 * Math.sin(t * st.speed + st.phase);
+      const a = fade * (0.25 + 0.6 * tw);
+      ctx.fillStyle = `rgba(${st.tint},${a.toFixed(3)})`;
+      ctx.fillRect(st.x, st.y, st.s, st.s);
+      if (st.big) {      // four-point sparkle
+        const l = 3 + tw * 4, cx = st.x + st.s / 2, cy = st.y + st.s / 2;
+        ctx.fillStyle = `rgba(${st.tint},${(a * 0.6).toFixed(3)})`;
+        ctx.fillRect(cx - l, cy - 0.4, l * 2, 0.8); ctx.fillRect(cx - 0.4, cy - l, 0.8, l * 2);
+      }
+    }
+    // A shooting star now and then
+    const period = 7, k = (t % period) / 0.9, n = Math.floor(t / period);
+    if (k < 1) {
+      const r = (m) => { const x = Math.sin(n * 12.9 + m * 78.2) * 43758.5; return x - Math.floor(x); };
+      const sx = W * (0.15 + r(1) * 0.7) + k * 220, sy = H * (0.05 + r(2) * 0.3) + k * 90;
+      const g = ctx.createLinearGradient(sx - 90, sy - 37, sx, sy);
+      g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(1, `rgba(220,240,255,${(0.8 * tod.stars * Math.sin(k * Math.PI)).toFixed(3)})`);
+      ctx.strokeStyle = g; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(sx - 90, sy - 37); ctx.lineTo(sx, sy); ctx.stroke();
+    }
   }
 
   // Moon: the sun's night twin, drawn in the same striped synthwave style.
@@ -281,41 +330,116 @@ function drawBackground() {
   // night and sets on the right (where the sun will come up) before dawn.
   // Its lit side always faces the sun, wherever that is below the horizon.
   const sunPos = { x: SUNSET_SUN.x, y: horizon - tod.sun * SUNSET_SUN.r };
-  const mp = (((inRun ? game.hour : 18) - MOON.rise + 24) % 24) / MOON.span;   // 0 rise .. 1 set
+  const mp = ((hour - MOON.rise + 24) % 24) / MOON.span;   // 0 rise .. 1 set
   if (tod.moon > 0.01 && mp >= 0 && mp <= 1) drawMoon(mp, horizon, sunPos, tod.moon, sky, t);
 
   const { x, r } = SUNSET_SUN;
   const cy = horizon - tod.sun * r;                 // sun centre
-  if (cy - r > H || tod.sun < -1.05) return;        // sun is below the horizon or the screen
-  // Pink glow when the sun is low, a soft white one when it's high.
   const low = Math.max(0, Math.min(1, 1 - tod.sun / 2));
-  const halo = ctx.createRadialGradient(x, cy, r * 0.6, x, cy, r * 2.4);
-  halo.addColorStop(0, low > 0.5 ? `rgba(255,42,109,${(0.45 * low).toFixed(3)})` : `rgba(255,250,220,${(0.35 * (1 - low)).toFixed(3)})`);
-  halo.addColorStop(1, 'rgba(255,42,109,0)');
-  ctx.save();
-  ctx.beginPath(); ctx.rect(0, 0, W, horizon); ctx.clip();   // nothing below the horizon
-  ctx.fillStyle = halo;
-  ctx.fillRect(x - r * 2.4, cy - r * 2.4, r * 4.8, r * 4.8);
-
-  ctx.beginPath();
-  ctx.arc(x, cy, r, 0, Math.PI * 2);
-  ctx.clip();
-  const sg = ctx.createLinearGradient(0, cy - r, 0, cy + r);
-  sg.addColorStop(0, NEON.yellow);
-  sg.addColorStop(0.45, low > 0.5 ? '#ff9e3d' : '#fff3b0');
-  sg.addColorStop(1, low > 0.5 ? NEON.pink : '#ffd166');
-  ctx.fillStyle = sg;
-  ctx.fillRect(x - r, cy - r, r * 2, r * 2);
-  // Slats cut through the sun near the horizon, thicker lower down, slowly sinking.
-  ctx.fillStyle = sky;
-  const gap = 12, drift = (t * 6) % gap;
-  for (let i = 0; i < 7; i++) {
-    const y = cy - r * 0.6 + i * gap + drift;
-    const h = 1 + ((y - (cy - r * 0.6)) / (r * 0.6)) * 6;
-    ctx.fillRect(x - r, y, r * 2, h);
+  if (!(cy - r > H || tod.sun < -1.05)) {           // sun is above the horizon and on screen
+    // Pink glow when the sun is low, a soft white one when it's high.
+    const halo = ctx.createRadialGradient(x, cy, r * 0.6, x, cy, r * 2.4);
+    halo.addColorStop(0, low > 0.5 ? `rgba(255,42,109,${(0.45 * low).toFixed(3)})` : `rgba(255,250,220,${(0.35 * (1 - low)).toFixed(3)})`);
+    halo.addColorStop(1, 'rgba(255,42,109,0)');
+    ctx.save();
+    ctx.beginPath(); ctx.rect(0, 0, W, horizon); ctx.clip();   // nothing below the horizon
+    ctx.fillStyle = halo;
+    ctx.fillRect(x - r * 2.4, cy - r * 2.4, r * 4.8, r * 4.8);
+    ctx.beginPath();
+    ctx.arc(x, cy, r, 0, Math.PI * 2);
+    ctx.clip();
+    const sg = ctx.createLinearGradient(0, cy - r, 0, cy + r);
+    sg.addColorStop(0, NEON.yellow);
+    sg.addColorStop(0.45, low > 0.5 ? '#ff9e3d' : '#fff3b0');
+    sg.addColorStop(1, low > 0.5 ? NEON.pink : '#ffd166');
+    ctx.fillStyle = sg;
+    ctx.fillRect(x - r, cy - r, r * 2, r * 2);
+    // Slats cut through the sun near the horizon, thicker lower down, slowly sinking.
+    ctx.fillStyle = sky;
+    const gap = 12, drift = (t * 6) % gap;
+    for (let i = 0; i < 7; i++) {
+      const y = cy - r * 0.6 + i * gap + drift;
+      const h = 1 + ((y - (cy - r * 0.6)) / (r * 0.6)) * 6;
+      ctx.fillRect(x - r, y, r * 2, h);
+    }
+    ctx.restore();
   }
-  ctx.restore();
+
+  // Cloud streaks: dark bodies lit from below by the sun (pink and orange at
+  // dusk), edged lavender by moonlight at night, white by day.
+  const day = Math.max(0, 1 - tod.stars * 1.2) * Math.max(0, Math.min(1, tod.sun / 2));
+  const body = mixHex(tod.stops[1], tod.stops[2], 0.5);
+  const rimSun = low > 0.5 ? '#ff7a9c' : '#fff6e0';
+  const rim = tod.stars > 0.6 ? mixHex('#2a1650', '#9d8cff', tod.moon * 0.8) : mixHex(rimSun, '#ffffff', day);
+  for (const c of CLOUDS) {
+    const span = W + c.len + 200;
+    const cx = ((((c.x - camX * c.par - t * c.drift) % span) + span) % span) - c.len - 100;
+    const cyy = horizon - c.up;
+    if (cyy < -20 || cyy > H) continue;
+    ctx.globalAlpha = 0.55 + 0.35 * day;
+    const cg = ctx.createLinearGradient(0, cyy - c.th, 0, cyy + c.th);
+    cg.addColorStop(0, body); cg.addColorStop(0.6, body); cg.addColorStop(1, rim);
+    ctx.fillStyle = cg;
+    ctx.beginPath();
+    ctx.ellipse(cx + c.len / 2, cyy, c.len / 2, c.th, 0, 0, Math.PI * 2);
+    ctx.ellipse(cx + c.len * 0.35, cyy - c.th * 0.5, c.len * 0.22, c.th * 0.9, 0, 0, Math.PI * 2);
+    ctx.ellipse(cx + c.len * 0.68, cyy - c.th * 0.3, c.len * 0.18, c.th * 0.8, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  // Wireframe mountains on the horizon, in two ranges (behind the forest).
+  drawMountains(horizon, camX, tod, low);
   // Ground detail scrolls with the camera; it's drawn in game.js.
+}
+
+// Synthwave wireframe mountains: a dark translucent range (the sun glows
+// through) with a neon ridge line and contour lines, scrolling with parallax.
+// Each range is drawn once into a repeating offscreen strip and blitted.
+const mountainCache = new Map();
+function drawMountains(horizon, camX, tod, low) {
+  if (horizon - 110 > H) return;
+  const neon = tod.stars > 0.6 ? '5,217,232' : low > 0.5 ? '255,113,206' : '190,140,255';
+  const ranges = [
+    { par: 0.05, h: 100, seed: 1.7, fill: 'rgba(22,6,44,0.5)', line: 0.35 },
+    { par: 0.12, h: 68, seed: 4.2, fill: 'rgba(12,4,28,0.78)', line: 0.6 },
+  ];
+  const P = MOUNTAIN_PERIOD, RES = 2;
+  for (const m of ranges) {
+    const sh = m.h + 6;
+    let c = mountainCache.get(m.seed);
+    if (!c || c.neon !== neon) {
+      c = c || { canvas: document.createElement('canvas') };
+      c.neon = neon;
+      c.canvas.width = P * RES; c.canvas.height = sh * RES;
+      const g = c.canvas.getContext('2d');
+      g.scale(RES, RES);
+      const step = 12, pts = [];
+      for (let x = 0; x <= P; x += step) pts.push([x, sh - ridge(x, m.seed, m.h)]);
+      const path = () => { g.beginPath(); pts.forEach(([px, py], i) => (i ? g.lineTo(px, py) : g.moveTo(px, py))); };
+      path(); g.lineTo(P, sh); g.lineTo(0, sh); g.closePath();
+      g.fillStyle = m.fill; g.fill();
+      g.save(); g.clip();
+      // Contour lines that follow the ridge, and vertical wireframe ribs
+      g.strokeStyle = `rgba(${neon},${(0.12 * m.line).toFixed(3)})`; g.lineWidth = 1;
+      for (let k = 1; k <= 4; k++) {
+        g.beginPath();
+        pts.forEach(([px, py], i) => { const y = py + (sh - py) * k * 0.22; i ? g.lineTo(px, y) : g.moveTo(px, y); });
+        g.stroke();
+      }
+      g.beginPath();
+      pts.forEach(([px, py], i) => { if (i % 3 === 0) { g.moveTo(px, py); g.lineTo(px, sh); } });
+      g.stroke();
+      g.restore();
+      // Glowing ridge line: a wide faint stroke under a thin bright one
+      path(); g.lineJoin = 'round';
+      g.strokeStyle = `rgba(${neon},${(m.line * 0.25).toFixed(3)})`; g.lineWidth = 5; g.stroke();
+      g.strokeStyle = `rgba(${neon},${m.line.toFixed(3)})`; g.lineWidth = 1.4; g.stroke();
+      mountainCache.set(m.seed, c);
+    }
+    const off = (((camX * m.par) % P) + P) % P;
+    for (let x = -off; x < W; x += P) ctx.drawImage(c.canvas, x, horizon - sh, P, sh);
+  }
 }
 
 // Striped neon moon at path position p (0 = rising, 1 = setting).
@@ -608,7 +732,6 @@ function drawSelect() {
   const list = CONFIG.aircraft, cw = 260, ch = 300, gap = 24;
   const x0 = W / 2 - (list.length * cw + (list.length - 1) * gap) / 2;
   const stats = [['SPEED', 'speed'], ['HEALTH', 'health'], ['DAMAGE', 'damage']];
-  const maxOf = (k) => Math.max(...list.map((a) => a[k]));
   const roles = ['RECON', 'MULTIROLE', 'HEAVY'];
   list.forEach((a, i) => {
     const sel = i === aircraftIndex;
@@ -634,22 +757,47 @@ function drawSelect() {
       }
       ctx.restore();
     });
+    // The model banks gently from side to side (the selected one rolls
+    // further), casting a shadow on the pad, with a hologram scan over it.
+    const roll = Math.sin(t * (sel ? 1.6 : 0.7) + i * 2) * (sel ? 0.5 : 0.25);
+    const bob = sel ? Math.sin(clock * 4) * 3 : 0;
+    const span = 40 * Math.abs(Math.cos(roll)) + 8;
+    const sh = ctx.createRadialGradient(px + 4, py + 30, 2, px + 4, py + 30, span);
+    sh.addColorStop(0, 'rgba(5,1,15,0.6)'); sh.addColorStop(1, 'rgba(5,1,15,0)');
     ctx.save();
-    ctx.translate(px, py + (sel ? Math.sin(clock * 4) * 3 : 0));
+    ctx.translate(px + 4 - roll * 8, py + 30); ctx.scale(1, 0.32);
+    ctx.fillStyle = sh; ctx.translate(-(px + 4), -(py + 30));
+    ctx.beginPath(); ctx.arc(px + 4, py + 30, span, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    ctx.save();
+    ctx.translate(px + roll * 4, py + bob);
     ctx.rotate(-Math.PI / 2);
-    ctx.scale(2.4, 2.4);
+    ctx.scale(2.4, 2.4 * Math.cos(roll));
     Game.drawJet(ctx, a, (sel ? 6 : 4.5) + Math.sin(clock * 50 + i) * 2);
+    ctx.restore();
+    // Hologram scanline sweeping up the model
+    ctx.save();
+    ctx.beginPath(); ctx.arc(px, py, 47, 0, Math.PI * 2); ctx.clip();
+    ctx.globalCompositeOperation = 'lighter';
+    const sy = py + 47 - ((t * (sel ? 0.9 : 0.4) + i * 0.3) % 1) * 94;
+    const scan = ctx.createLinearGradient(0, sy - 14, 0, sy + 2);
+    const sc = sel ? '255,113,206' : '5,217,232';
+    scan.addColorStop(0, `rgba(${sc},0)`); scan.addColorStop(0.85, `rgba(${sc},0.22)`); scan.addColorStop(1, `rgba(${sc},0.7)`);
+    ctx.fillStyle = scan; ctx.fillRect(px - 50, sy - 14, 100, 16);
+    ctx.fillStyle = `rgba(${sc},0.05)`;
+    for (let yy = py - 47; yy < py + 47; yy += 3) ctx.fillRect(px - 50, yy, 100, 1);
     ctx.restore();
     // Name: chrome on the selected card
     cardName(a.name.toUpperCase(), x + cw / 2, y + 166, sel);
-    text(a.desc, x + cw / 2, y + 190, 13, NEON.ink, 'center', 'normal');
+    text(a.desc, x + cw / 2, y + 186, 13, NEON.ink, 'center', 'normal');
+    text(`WEAPON: ${a.gun.name.toUpperCase()}`, x + cw / 2, y + 205, 12, sel ? NEON.yellow : a.gun.color, 'center');
     // Stat bars: segmented neon meters
     stats.forEach(([label, k], j) => {
-      const sy = y + 220 + j * 24;
+      const sy = y + 230 + j * 22;
       text(label, x + 20, sy, 12, NEON.ink, 'left');
       const segs = 10, bx = x + 92, bw = cw - 148, sw = bw / segs;
-      const filled = Math.round(segs * a[k] / maxOf(k));
-      const col = a[k] > 1 ? NEON.cyan : a[k] < 1 ? NEON.pink : NEON.yellow;
+      const filled = Math.round(segs * a[k]);   // full bar = 100%
+      const col = a[k] >= 1 ? NEON.cyan : a[k] >= 0.8 ? NEON.yellow : NEON.pink;
       for (let s = 0; s < segs; s++) {
         const sx = bx + s * sw;
         ctx.beginPath();

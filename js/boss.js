@@ -52,7 +52,7 @@ function hover(g, b, dt, k) {
 
 function hurt(g, dmg) {
   const p = g.player;
-  if (g.hurtCd > 0 || g.shielded) return;
+  if (g.hurtCd > 0 || g.untouchable) return;
   p.hp -= dmg;
   g.hurtCd = 0.4;
   g.events.push('hit');
@@ -91,7 +91,7 @@ function fight(g, b, dt) {
     g.events.push('rocket');
   }
   // Ramming the hull hurts.
-  if (inside(hull, p, p.r) && !g.shielded) { p.hp -= B.contactDps * dt; if (g.hurtCd <= 0) { g.hurtCd = 0.4; g.events.push('hit'); } }
+  if (inside(hull, p, p.r) && !g.untouchable) { p.hp -= B.contactDps * dt; if (g.hurtCd <= 0) { g.hurtCd = 0.4; g.events.push('hit'); } }
 }
 
 function breakup(g, b) {

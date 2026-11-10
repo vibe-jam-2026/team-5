@@ -156,3 +156,4 @@ Plain HTML, JavaScript modules and canvas. No libraries, no build step. Gameplay
 - 2026-11-10: Removed the Q key for cycling quote sets on the game-over screen (and its hint). The quote set is now picked only with `deathQuotes` in `js/config.js`.
 - 2026-11-10: Esc is now only used for pausing. Q quits to the title from the game-over screen and goes back from the aircraft screen (both used Esc before).
 - 2026-11-10: Death quotes now pick at random from War books and Documentary together (new default set `wardoc`).
+- 2026-11-10: "MUTED" now sits to the left of the mic status on the bottom line instead of overlapping it.

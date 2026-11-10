@@ -91,6 +91,7 @@ export const CONFIG = {
   // Flares (F or Space): a salvo of smoking flares shot out behind the jet; nothing hurts you for a moment.
   flareShield: 2,                // seconds of protection
   flareCooldown: 60,             // seconds before flares can be used again
+  flareSpeedBoost: 2,            // speed multiplier while the flares cover you (flames shoot out behind)
             // seconds of the pilot-ejecting animation before game over (ENTER skips)
 
   // Soundtrack: which of the three tracks plays when (in-game clock hours).

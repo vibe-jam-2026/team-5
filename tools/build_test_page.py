@@ -31,7 +31,7 @@ for f, name in MODS:
         parts.append(f'// ---- js/{f}.js\n{{\n{aliases}{src}\n'
                      'canvas.addEventListener("pointerdown", () => canvas.focus());\n}')
 
-head = f'''<title>Neon Ace Test</title>
+head = f'''<title>Night Ace Test</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <style>
 :root {{ --bg: #050308; --ink: #8a8aa0; --canvas: #0a0610; color-scheme: dark; }}

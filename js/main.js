@@ -870,8 +870,8 @@ function fitCanvas() {
 
 // Mic status, bottom right: press V to talk, say "flares".
 const VOICE_LABEL = {
-  off: ['V: VOICE OFF', NEON.dim], loading: ['MIC LOADING, PRESS V AGAIN', NEON.dim], starting: ['MIC STARTING…', NEON.cyan],
-  on: ['● MIC ON · SAY "FLARES"', '#ff4d6d'], denied: ['MIC BLOCKED', NEON.dim], unsupported: ['NO VOICE IN THIS BROWSER', NEON.dim],
+  off: ['V: MIC OFF', NEON.dim], loading: ['MIC LOADING, PRESS V AGAIN', NEON.dim], starting: ['MIC STARTING…', NEON.cyan],
+  on: ['● MIC ON · SAY "FLARES"', '#ff4d6d'], denied: ['MIC BLOCKED', NEON.dim], unsupported: ['NO MIC IN THIS BROWSER', NEON.dim],
 };
 // Returns the x where the mic label starts, so MUTED can sit to its left.
 function drawVoice() {

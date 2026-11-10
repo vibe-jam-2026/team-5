@@ -684,20 +684,16 @@ function drawTitle() {
   neonPanel(lx, ly, lw, lh, NEON.magenta);
   neonText('MISSION BRIEFING', lx + 20, ly + 22, 16, NEON.magenta, 'left');
   const how = [
-    'Pick your jet, then fly it through the neon night.',
-    'Hostiles swarm in from every side of the sky.',
-    'Your weapons fire on their own: you just fly.',
-    'Shoot them down, grab the SSD cards to level up.',
-    'Each level: pick 1 of 3 new or stronger weapons.',
-    'AA guns in the forest fire flak. Dodge or destroy!',
-    'Quick kills build a streak multiplier. Stay airborne!',
-    'Before sunrise the Mothership comes. Beat it for dawn!',
+    'Drones swarm in. Your guns fire on their own.',
+    'Grab SSD cards to level up and pick upgrades.',
+    'Dodge flak from the AA guns in the forest.',
+    'Beat the Mothership before sunrise for dawn!',
   ];
-  how.forEach((l, i) => text('▸ ' + l, lx + 20, ly + 44 + i * 17, 13, NEON.ink, 'left', 'normal'));
+  how.forEach((l, i) => text('▸ ' + l, lx + 20, ly + 48 + i * 22, 14, NEON.ink, 'left', 'normal'));
 
-  // Controls: one row per action, 27 px apart so the 24 px key caps never touch.
-  neonText('FLIGHT CONTROLS', lx + 20, ly + 190, 16, NEON.magenta, 'left');
-  const cy = ly + 216, row = 27, note = (str, x, y) => text(str, x + 8, y, 12, NEON.dim, 'left', 'normal');
+  // Controls: one row per action, 30 px apart so the 24 px key caps never touch.
+  neonText('FLIGHT CONTROLS', lx + 20, ly + 168, 16, NEON.magenta, 'left');
+  const cy = ly + 200, row = 30, note = (str, x, y) => text(str, x + 8, y, 12, NEON.dim, 'left', 'normal');
   controlRow('Fly', ['↑', '↓', '←', '→', 'or', 'W', 'A', 'S', 'D'], lx + 20, cy);
   controlRow('Pick upgrade', ['1', '2', '3', 'or', '←', '→', 'Enter'], lx + 20, cy + row);
   note('(2 s cover, every 60 s)', controlRow('Flares', ['F', 'or', 'Space'], lx + 20, cy + row * 2), cy + row * 2);

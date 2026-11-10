@@ -162,7 +162,7 @@ const FLYBY = { name: 'Tower Flyby', desc: 'Heal 30, +500 points' };
 // Trap card: looks like an upgrade, ends the game if picked.
 const RED_BUTTON = { name: 'Big Red Button', desc: 'Do not press. Seriously. Do NOT press it.' };
 // Offered next to the big red button when it's the only card left: skip level-ups until the boss.
-const AUTOPILOT = { name: 'Autopilot', desc: 'No more upgrades. Just fight until the boss.' };
+const AUTOPILOT = { name: 'Autopilot', desc: 'No more upgrades. Just fight until the Mothership.' };
 
 // Fill a polygon and give it a crisp dark outline (mitred corners keep it sharp).
 const OUTLINE = '#07040b';

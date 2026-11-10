@@ -67,6 +67,8 @@ function musicTrack() {
 function update(dt) {
   clock += dt;
   voice.allowToggle = state !== 'entry';   // V is a letter while typing initials
+  // The mic turns on with the key press that starts a run (it has to happen inside the key press).
+  voice.autoStartKeys = state === 'select' ? [...START, ...CONFIG.aircraft.flatMap((_, i) => ['Digit' + (i + 1), 'Numpad' + (i + 1)])] : [];
   sfx.music(musicTrack());
   shake = Math.max(0, shake - dt * 30);
   if (input.wasPressed('KeyM') && !input.wasPressed('Shift+KeyM')) sfx.toggleMute();   // Shift+M is a test shortcut

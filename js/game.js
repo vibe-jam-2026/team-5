@@ -234,6 +234,7 @@ export class Game {
     this.flareCd = 0;         // seconds until flares can be used again
     this.flares = [];         // burning flares shot out behind the jet
     this.smoke = [];          // smoke puffs the flares leave behind
+    this.flames = [];         // flames blasting out of the tail during the flare boost
     this.score = 0;
     this.time = 0;
     this.kills = 0;
@@ -359,7 +360,7 @@ export class Game {
 
   movePlayer(dt, input) {
     const p = this.player, ax = input.axis();
-    const speed = C.playerSpeed * this.aircraft.speed * (1 + this.lv.speed * 0.1);
+    const speed = C.playerSpeed * this.aircraft.speed * (1 + this.lv.speed * 0.1) * (this.shielded ? C.flareSpeedBoost : 1);
     if (ax.x) p.face = Math.sign(ax.x);
     if (ax.x || ax.y) {
       // Turn the jet smoothly towards the direction of travel.
@@ -1046,6 +1047,17 @@ export class Game {
       }
     }
     this.flares = this.flares.filter((f) => f.delay > 0 || f.life > 0);
+    // Boost flames: a stream of fire blasting out of the tail while the flares cover the jet.
+    if (this.shielded && !this.eject) {
+      const sz = this.aircraft.size, back = p.heading + Math.PI;
+      for (let i = 0; i < 4; i++) {
+        const a = back + rand(-0.18, 0.18), s = rand(280, 420), off = rand(12, 15) * sz;
+        this.flames.push({ x: p.x + Math.cos(back) * off, y: p.y + Math.sin(back) * off,
+          vx: Math.cos(a) * s + p.vx * 0.5, vy: Math.sin(a) * s + p.vy * 0.5, life: rand(0.18, 0.32), max: 0.32, r: rand(4, 7) * sz });
+      }
+    }
+    for (const q of this.flames) { q.x += q.vx * dt; q.y += q.vy * dt; q.r += 14 * dt; q.life -= dt; }
+    this.flames = this.flames.filter((q) => q.life > 0);
     for (const q of this.smoke) { q.r += 9 * dt; q.y -= 6 * dt; q.life -= dt; }
     this.smoke = this.smoke.filter((q) => q.life > 0);
   }
@@ -1060,6 +1072,20 @@ export class Game {
 
   // ---------- Drawing ----------
   // Scrolling ground: grass tufts and stones fixed in the world.
+  // Boost flames: white-hot at the nozzle, cooling through yellow and orange to red.
+  drawFlames(ctx) {
+    if (!this.flames.length) return;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    for (const q of this.flames) {
+      const k = q.life / q.max;   // 1 fresh, 0 burnt out
+      const [r, g, b] = k > 0.7 ? [255, 245, 200] : k > 0.45 ? [255, 200, 60] : k > 0.2 ? [255, 120, 30] : [220, 40, 40];
+      ctx.fillStyle = `rgba(${r},${g},${b},${(0.25 + 0.55 * k).toFixed(3)})`;
+      ctx.beginPath(); ctx.arc(q.x, q.y, q.r, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+  }
+
   // Flares: grey smoke trails with a white-hot spark at the head.
   drawFlares(ctx) {
     for (const q of this.smoke) {
@@ -1223,6 +1249,7 @@ export class Game {
       }
       ctx.restore();
     }
+    this.drawFlames(ctx);
     // Fighter jet, pointing where it flies (or the ejection, after the big red button)
     if (this.eject) this.drawEject(ctx);
     else if (!(this.hurtCd > 0.2 && Math.floor(this.hurtCd * 30) % 2)) {
@@ -1230,7 +1257,8 @@ export class Game {
       ctx.translate(p.x, p.y); ctx.rotate(p.heading);
       // Blue contours while the flare shield is up (flickering in its last moments).
       const shieldLine = this.shielded && (this.shieldT > 0.4 || Math.floor(this.time * 16) % 2) ? '#3da5ff' : null;
-      drawJet(ctx, this.aircraft, p.moving ? 6 + Math.sin(this.time * 50) * 2 : 2.5 + Math.sin(this.time * 40) * 0.5, shieldLine);
+      const burner = this.shielded ? 9 + Math.sin(this.time * 60) * 2 : p.moving ? 6 + Math.sin(this.time * 50) * 2 : 2.5 + Math.sin(this.time * 40) * 0.5;
+      drawJet(ctx, this.aircraft, burner, shieldLine);
       ctx.restore();
     }
     this.drawFlares(ctx);

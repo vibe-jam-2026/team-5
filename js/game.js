@@ -532,6 +532,8 @@ export class Game {
   }
 
   get shielded() { return this.shieldT > 0; }
+  // Current ceiling (world y): flares let the jet climb above max altitude.
+  get ceilY() { return CEIL_Y - (this.shielded ? C.flareAltitude : 0); }
   // Nothing hurts the jet: flare cover or the Shift+I invisibility cheat. (Trees still crash it.)
   get untouchable() { return this.shielded || this.invisible; }
   get hour() { return Boss.hour(this); }
@@ -641,6 +643,8 @@ export class Game {
       // Stalled at max altitude: the nose drops, the jet wobbles and sinks
       // slowly (picking up speed), with only weak steering and no climbing.
       p.stall -= dt;
+      // Keep falling until the jet is back below max altitude (after flares).
+      if (p.stall < 0.3 && p.y < CEIL_Y && !this.shielded) p.stall = 0.3;
       const k = 1 - p.stall / C.stallDuration;                 // 0 → 1 over the stall
       const right = ax.x ? ax.x > 0 : Math.cos(p.heading) >= 0;
       const nose = (right ? 1.0 : Math.PI - 1.0) + Math.sin(this.time * 9) * 0.18 * (1 - k);
@@ -651,7 +655,7 @@ export class Game {
       p.vx = ax.x * speed * C.stallControl + Math.sin(this.time * 7) * 18 * (1 - k);
       p.vy = sink + Math.max(0, ax.y) * speed * C.stallControl;
       p.x += p.vx * dt;
-      p.y = Math.max(CEIL_Y, p.y + p.vy * dt);
+      p.y += p.vy * dt;   // always sinking, so no ceiling clamp (no snap when flares end)
       p.moving = true;
       const back = 12 * this.aircraft.size;
       p.trail = (p.trail || []).filter((q) => (q.life -= dt) > 0);
@@ -674,8 +678,10 @@ export class Game {
     // The jet only moves while WASD / arrow keys are held.
     p.vx = ax.x * speed; p.vy = ax.y * speed;
     p.x += p.vx * dt;
-    p.y = Math.max(CEIL_Y, p.y + p.vy * dt);   // max height
-    if (p.y <= CEIL_Y && p.vy < 0) { p.stall = C.stallDuration; this.events.push('stall'); }   // climbed into the ceiling: stall
+    p.y = Math.max(Math.min(this.ceilY, p.y), p.y + p.vy * dt);   // max height (higher while flares burn); never pushed down
+    // Climbed into the ceiling, or still above max altitude when the flares
+    // run out: the jet stalls and sinks back down.
+    if ((p.y <= this.ceilY && p.vy < 0) || (p.y < CEIL_Y && !this.shielded)) { p.stall = C.stallDuration; this.events.push('stall'); }
     p.moving = !!(ax.x || ax.y);
     // Neon exhaust trail left behind the nozzle.
     const back = 12 * this.aircraft.size;
@@ -2375,7 +2381,7 @@ export class Game {
       ctx.restore();
     }
     // Ceiling notice when the jet nears its max height
-    else if (!this.over && !this.landing && !(p.stall > 0) && p.y - CEIL_Y < C.ceilingWarning && Math.floor(this.time * 4) % 2 === 0) {
+    else if (!this.over && !this.landing && !(p.stall > 0) && p.y - this.ceilY < C.ceilingWarning && Math.floor(this.time * 4) % 2 === 0) {
       ctx.save();
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.font = 'italic 900 24px Impact, "Arial Black", sans-serif';

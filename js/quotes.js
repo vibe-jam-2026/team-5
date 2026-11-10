@@ -50,18 +50,13 @@ const DOC = [
   { q: 'The flak came up from the forest like sparks from a campfire. One spark was enough.', by: 'Night Ace: The Untold Story', only: 'shot' },
 ];
 
-const SETS = { war: ['WAR BOOKS', WAR], pilot: ['PILOT SAYINGS', PILOT], doc: ['DOCUMENTARY', DOC] };
-const ORDER = ['war', 'pilot', 'doc', 'mix'];
+const SETS = { war: WAR, pilot: PILOT, doc: DOC, wardoc: [...WAR, ...DOC], mix: [...WAR, ...PILOT, ...DOC] };
 let last = null;
 
 export const quotes = {
-  order: ORDER,
-  label: (set) => (set === 'mix' ? 'MIX' : SETS[set][0]),
-  next: (set) => ORDER[(ORDER.indexOf(set) + 1) % ORDER.length],
   // reason: 'crash' | 'shot' | 'red' | 'won'. Never the same quote twice in a row.
   pick(set, reason) {
-    const pool = (set === 'mix' ? [...WAR, ...PILOT, ...DOC] : SETS[set][1])
-      .filter((x) => !x.only || x.only === reason);
+    const pool = (SETS[set] || SETS.wardoc).filter((x) => !x.only || x.only === reason);
     const options = pool.length > 1 ? pool.filter((x) => x !== last) : pool;
     last = options[Math.floor(Math.random() * options.length)];
     return last;

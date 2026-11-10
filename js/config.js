@@ -6,7 +6,7 @@ export const CONFIG = {
   subtitle: 'a neon sortie',
   highscoreCount: 10,
   highscoreKey: 'team5.highscores.v2',
-  deathQuotes: 'war',            // quote set on the game-over screen: 'war' | 'pilot' | 'doc' | 'mix'
+  deathQuotes: 'wardoc',         // quote set: 'wardoc' (war books + documentary) | 'war' | 'pilot' | 'doc' | 'mix'
 
   // Player
   playerSpeed: 190,

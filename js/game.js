@@ -161,6 +161,8 @@ const LASER_LEN = 260;
 const FLYBY = { name: 'Tower Flyby', desc: 'Heal 30, +500 points' };
 // Trap card: looks like an upgrade, ends the game if picked.
 const RED_BUTTON = { name: 'Big Red Button', desc: 'Do not press. Seriously. Do NOT press it.' };
+// Offered next to the big red button when it's the only card left: skip level-ups until the boss.
+const AUTOPILOT = { name: 'Autopilot', desc: 'No more upgrades. Just fight until the Mothership.' };
 
 // Fill a polygon and give it a crisp dark outline (mitred corners keep it sharp).
 const OUTLINE = '#07040b';
@@ -507,6 +509,7 @@ export class Game {
     this.hurtCd = 0;
     this.pendingLevels = 0;
     this.choosing = null;     // array of upgrade keys while picking
+    this.autopilot = false;   // true after picking Autopilot: no level-up screens until the boss
     this.choiceIndex = 0;
     this.over = false;
     this.crashed = false;     // true if the night ended by flying into the ground
@@ -625,7 +628,8 @@ export class Game {
       this.burst(this.player.x, this.player.y, '#ffb703', 30);
       this.startEject(false, true);
     } else if (this.pendingLevels > 0) {
-      this.openChoice();
+      if (this.autopilot && !this.boss) this.pendingLevels = 0;   // Autopilot: keep flying, no upgrade screens
+      else this.openChoice();
     }
   }
 
@@ -1090,6 +1094,8 @@ export class Game {
       const slot = Math.floor(Math.random() * Math.max(this.choosing.length, 2));
       this.choosing[Math.min(slot, this.choosing.length)] = 'redbutton';
     }
+    // Only the big red button left? Offer a way out: no more upgrades till the boss.
+    if (this.choosing.every((k) => k === 'redbutton') && !this.boss) this.choosing.push('autopilot');
     this.choiceIndex = 0;
     this.pendingLevels--;
     this.events.push('levelup');
@@ -1108,7 +1114,8 @@ export class Game {
     if (key === 'redbutton') {   // told you so: the pilot ejects, then the run ends
       this.pressedRed = true;
       this.startEject();
-    } else if (key === 'feast') { this.player.hp = Math.min(this.player.maxHp, this.player.hp + 30); this.addScore(500); }
+    } else if (key === 'autopilot') { this.autopilot = true; this.pendingLevels = 0; }
+    else if (key === 'feast') { this.player.hp = Math.min(this.player.maxHp, this.player.hp + 30); this.addScore(500); }
     else {
       this.lv[key]++;
       if (key === 'vigor') { this.player.maxHp += 25; this.player.hp = Math.min(this.player.maxHp, this.player.hp + 25); }
@@ -2509,7 +2516,7 @@ function drawUpgradeCard(ctx, key, i, x, y, w, h, sel, l, t) {
   // Status tag, top left
   ctx.textAlign = 'left'; ctx.font = 'bold 12px monospace';
   const trap = key === 'redbutton';
-  const tag = trap ? '⚠ DANGER' : !u ? 'BONUS' : l === 0 ? '★ NEW' : `LV ${l} → ${l + 1}`;
+  const tag = trap ? '⚠ DANGER' : key === 'autopilot' ? 'SKIP' : !u ? 'BONUS' : l === 0 ? '★ NEW' : `LV ${l} → ${l + 1}`;
   ctx.shadowColor = trap ? '#ff2a3a' : NEON.yellow; ctx.shadowBlur = l === 0 || !u ? 8 : 0;
   ctx.fillStyle = trap ? '#ff4d5a' : l === 0 || !u ? NEON.yellow : '#fff';
   ctx.fillText(tag, x + 22, y + 16);
@@ -2530,7 +2537,8 @@ function drawUpgradeCard(ctx, key, i, x, y, w, h, sel, l, t) {
   // Name: chrome gradient on the selected card
   ctx.textAlign = 'center';
   ctx.font = 'italic 900 21px Impact, "Arial Black", sans-serif';
-  const name = (u ? u.name : trap ? RED_BUTTON.name : FLYBY.name).toUpperCase();
+  const extra = trap ? RED_BUTTON : key === 'autopilot' ? AUTOPILOT : FLYBY;
+  const name = (u ? u.name : extra.name).toUpperCase();
   if (sel) {
     const chrome = ctx.createLinearGradient(0, y + 114, 0, y + 136);
     chrome.addColorStop(0, '#f4fdff'); chrome.addColorStop(0.45, '#5fd3ff');
@@ -2541,7 +2549,7 @@ function drawUpgradeCard(ctx, key, i, x, y, w, h, sel, l, t) {
   ctx.shadowBlur = 0;
   // Description, wrapped
   ctx.fillStyle = NEON.ink; ctx.font = '13px monospace';
-  wrapText(ctx, u ? u.desc(l) : trap ? RED_BUTTON.desc : FLYBY.desc, x + w / 2, y + 154, w - 30, 16);
+  wrapText(ctx, u ? u.desc(l) : extra.desc, x + w / 2, y + 154, w - 30, 16);
   // Level pips along the bottom: filled = owned, blinking = the level you'd get
   if (u) {
     const pw = 14, pg = 6, total = u.max * pw + (u.max - 1) * pg;
@@ -2650,6 +2658,13 @@ function drawUpgradeIcon(ctx, key, t, sel) {
       ctx.fillStyle = '#e01b2f'; ctx.beginPath(); ctx.ellipse(0, -2, 14, 9, 0, 0, Math.PI * 2); ctx.fill();
       ctx.shadowBlur = 0;
       ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.beginPath(); ctx.ellipse(-5, -5, 4, 2.5, -0.3, 0, Math.PI * 2); ctx.fill();
+      break;
+    }
+    case 'autopilot': { // dashed flight path ending in an arrow
+      ctx.setLineDash([4, 4]); ctx.lineDashOffset = -t * 20;
+      ctx.beginPath(); ctx.moveTo(-17, 10); ctx.quadraticCurveTo(-2, 12, 8, -8); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.beginPath(); ctx.moveTo(14, -16); ctx.lineTo(3, -11); ctx.lineTo(12, -4); ctx.closePath(); ctx.stroke();
       break;
     }
     default: {          // flyby bonus: star

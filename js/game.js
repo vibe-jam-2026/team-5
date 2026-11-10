@@ -137,8 +137,10 @@ function drawDrone(ctx, e, t) {
 
 // ---------- Upgrades ----------
 // Each upgrade has a max level; `apply` runs when picked.
+let gun = C.aircraft[1].gun;   // the current aircraft's cannon
 const UPGRADES = {
-  bolt:   { name: 'Guns, Guns, Guns', max: 8, desc: (l) => l === 0 ? 'Cannon fire at nearest threat' : 'Faster, harder, more tracers' },
+  // The cannon is different on every aircraft (CONFIG.aircraft[].gun).
+  bolt:   { get name() { return gun.name; }, max: 8, desc: (l) => l === 0 ? gun.desc : 'Faster, harder, more shells' },
   bats:   { name: 'Fox Two',        max: 6, desc: (l) => l === 0 ? 'A Sidewinder circles you' : '+1 missile, faster orbit' },
   aura:   { name: 'Danger Zone',    max: 5, desc: (l) => l === 0 ? 'Shreds anything up close' : 'Bigger, deadlier zone' },
   might:  { name: 'Weapons Hot',    max: 5, desc: () => '+20% damage' },
@@ -416,6 +418,7 @@ function drawPilot(ctx, wave, safe) {
 export class Game {
   constructor(aircraft = C.aircraft[1]) {
     this.aircraft = aircraft;
+    gun = aircraft.gun;
     const maxHp = Math.round(C.playerMaxHp * aircraft.health);
     this.player = { x: 0, y: 0, r: 11 * aircraft.size, hp: maxHp, maxHp, face: 1, heading: -Math.PI / 2 };
     this.lv = { bolt: 1, bats: 0, aura: 0, might: 0, speed: 0, vigor: 0, magnet: 0 };
@@ -682,13 +685,18 @@ export class Game {
       this.boltTimer -= dt;
       if (this.boltTimer <= 0 && (this.enemies.length || guns.length || parts.length)) {
         const l = this.lv.bolt;
-        this.boltTimer = 0.65 * Math.pow(0.88, l - 1);
+        const g = this.aircraft.gun;
+        this.boltTimer = g.interval * Math.pow(0.88, l - 1);
         const count = 1 + Math.floor(l / 3);
         const targets = [...this.enemies, ...guns, ...parts].sort((a, b) => dist2(a, p) - dist2(b, p)).slice(0, count);
         for (const t of targets) {
-          const a = Math.atan2(t.y - p.y, t.x - p.x);
-          this.bolts.push({ x: p.x, y: p.y, vx: Math.cos(a) * 480, vy: Math.sin(a) * 480,
-            dmg: 10 * m * (1 + 0.25 * (l - 1)), pierce: l >= 6 ? 2 : 0, life: 1.5 });
+          const a = Math.atan2(t.y - p.y, t.x - p.x), ux = Math.cos(a), uy = Math.sin(a);
+          // Twin guns fire two parallel shells from either side of the nose.
+          for (const off of g.twin ? [-5, 5] : [0]) {
+            this.bolts.push({ x: p.x - uy * off, y: p.y + ux * off, vx: ux * g.speed, vy: uy * g.speed,
+              dmg: g.dmg * m * (1 + 0.25 * (l - 1)), pierce: g.pierce + (l >= 6 ? 2 : 0), life: 1.5,
+              size: g.size, color: g.color });
+          }
         }
       }
     }
@@ -696,19 +704,19 @@ export class Game {
       b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
       for (const e of this.enemies) {
         if (e.dead || b.life <= 0) continue;
-        if (dist2(b, e) < (e.r + 4) ** 2) {
+        if (dist2(b, e) < (e.r + (b.size ?? 3) + 1) ** 2) {
           this.damage(e, b.dmg);
           if (b.pierce-- <= 0) b.life = 0;
         }
       }
       for (const g of guns) {
-        if (b.life > 0 && dist2(b, g) < (g.r + 4) ** 2) {
+        if (b.life > 0 && dist2(b, g) < (g.r + (b.size ?? 3) + 1) ** 2) {
           this.damageGun(g, b.dmg);
           if (b.pierce-- <= 0) b.life = 0;
         }
       }
       for (const q of parts) {
-        if (b.life > 0 && !q.dead && Boss.touches(q, b, 4)) {
+        if (b.life > 0 && !q.dead && Boss.touches(q, b, (b.size ?? 3) + 1)) {
           Boss.damage(this, q, b.dmg);
           if (b.pierce-- <= 0) b.life = 0;
         }
@@ -1437,9 +1445,9 @@ export class Game {
     // Cannon tracers: thin bright streaks along their flight path
     ctx.lineCap = 'butt';
     for (const b of this.bolts) {
-      ctx.strokeStyle = '#ffb703'; ctx.lineWidth = 3;
+      ctx.strokeStyle = b.color ?? '#ffb703'; ctx.lineWidth = b.size ?? 3;
       ctx.beginPath(); ctx.moveTo(b.x - b.vx * 0.03, b.y - b.vy * 0.03); ctx.lineTo(b.x, b.y); ctx.stroke();
-      ctx.strokeStyle = '#fff6d6'; ctx.lineWidth = 1.2;
+      ctx.strokeStyle = '#fff6d6'; ctx.lineWidth = (b.size ?? 3) * 0.4;
       ctx.beginPath(); ctx.moveTo(b.x - b.vx * 0.018, b.y - b.vy * 0.018); ctx.lineTo(b.x + b.vx * 0.004, b.y + b.vy * 0.004); ctx.stroke();
     }
     // Missiles (Fox Two), nose pointing along the orbit

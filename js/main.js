@@ -725,7 +725,6 @@ function drawSelect() {
   const list = CONFIG.aircraft, cw = 260, ch = 300, gap = 24;
   const x0 = W / 2 - (list.length * cw + (list.length - 1) * gap) / 2;
   const stats = [['SPEED', 'speed'], ['HEALTH', 'health'], ['DAMAGE', 'damage']];
-  const maxOf = (k) => Math.max(...list.map((a) => a[k]));
   const roles = ['RECON', 'MULTIROLE', 'HEAVY'];
   list.forEach((a, i) => {
     const sel = i === aircraftIndex;
@@ -783,14 +782,15 @@ function drawSelect() {
     ctx.restore();
     // Name: chrome on the selected card
     cardName(a.name.toUpperCase(), x + cw / 2, y + 166, sel);
-    text(a.desc, x + cw / 2, y + 190, 13, NEON.ink, 'center', 'normal');
+    text(a.desc, x + cw / 2, y + 186, 13, NEON.ink, 'center', 'normal');
+    text(`WEAPON: ${a.gun.name.toUpperCase()}`, x + cw / 2, y + 205, 12, sel ? NEON.yellow : a.gun.color, 'center');
     // Stat bars: segmented neon meters
     stats.forEach(([label, k], j) => {
-      const sy = y + 220 + j * 24;
+      const sy = y + 230 + j * 22;
       text(label, x + 20, sy, 12, NEON.ink, 'left');
       const segs = 10, bx = x + 92, bw = cw - 148, sw = bw / segs;
-      const filled = Math.round(segs * a[k] / maxOf(k));
-      const col = a[k] > 1 ? NEON.cyan : a[k] < 1 ? NEON.pink : NEON.yellow;
+      const filled = Math.round(segs * a[k]);   // full bar = 100%
+      const col = a[k] >= 1 ? NEON.cyan : a[k] >= 0.8 ? NEON.yellow : NEON.pink;
       for (let s = 0; s < segs; s++) {
         const sx = bx + s * sw;
         ctx.beginPath();

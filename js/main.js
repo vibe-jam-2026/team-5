@@ -870,14 +870,17 @@ function fitCanvas() {
 
 // Mic status, bottom right: press V to talk, say "flares".
 const VOICE_LABEL = {
-  off: ['V: VOICE OFF', NEON.dim], loading: ['MIC LOADING, PRESS V AGAIN', NEON.dim], starting: ['MIC STARTING…', NEON.cyan],
-  on: ['● MIC ON · SAY "FLARES"', '#ff4d6d'], denied: ['MIC BLOCKED', NEON.dim], unsupported: ['NO VOICE IN THIS BROWSER', NEON.dim],
+  off: ['V: MIC OFF', NEON.dim], loading: ['MIC LOADING, PRESS V AGAIN', NEON.dim], starting: ['MIC STARTING…', NEON.cyan],
+  on: ['● MIC ON · SAY "FLARES"', '#ff4d6d'], denied: ['MIC BLOCKED', NEON.dim], unsupported: ['NO MIC IN THIS BROWSER', NEON.dim],
 };
+// Returns the x where the mic label starts, so MUTED can sit to its left.
 function drawVoice() {
   const [label, color] = VOICE_LABEL[voice.state] || VOICE_LABEL.off;
   if (voice.state === 'on' && Math.floor(clock * 1.5) % 2) text(label.replace('●', ' '), W - 16, H - 16, 12, color, 'right');
   else text(label, W - 16, H - 16, 12, color, 'right');
   if (voice.heard && performance.now() - voice.heard.t < 900) neonText(voice.heard.text, W - 16, H - 36, 18, NEON.yellow, 'right');
+  ctx.font = 'bold 12px monospace';
+  return W - 16 - ctx.measureText(label).width;
 }
 
 function draw() {
@@ -896,7 +899,7 @@ function draw() {
     drawHud();
     game.drawUi(ctx);
   }
-  if (state !== 'entry' && state !== 'gameover') drawVoice();
+  const voiceLeft = state !== 'entry' && state !== 'gameover' ? drawVoice() : null;
 
   if (state === 'paused') {
     overlay();
@@ -929,7 +932,10 @@ function draw() {
     if (Math.floor(clock * 2) % 2 === 0) neonText('ENTER choose aircraft & fly again   ·   Q title', W / 2, H - 30, 18, NEON.yellow);
   }
 
-  if (sfx.muted) text('MUTED', W - 16, H - 22, 12, '#8a7a9a', 'right');
+  if (sfx.muted) {
+    if (voiceLeft === null) text('MUTED', W - 16, H - 16, 12, '#8a7a9a', 'right');
+    else text('MUTED ·', voiceLeft - 7, H - 16, 12, '#8a7a9a', 'right');
+  }
 }
 
 // ---------- Fixed-timestep loop ----------

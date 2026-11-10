@@ -17,15 +17,20 @@ export const CONFIG = {
   maxAltitude: 900,              // the jet can't climb higher than this above the ground
   ceilingWarning: 90,            // "MAX ALTITUDE" shows when this close to the ceiling             // "PULL UP!" shows when this close above the crash height
 
-  // Aircraft picked before each round. Stats multiply the player values above
-  // (speed x playerSpeed, health x playerMaxHp) and all weapon damage.
+  // Aircraft picked before each round. Stats are 0..1 (shown as %, 100% max)
+  // and multiply playerSpeed, playerMaxHp and all weapon damage.
+  // `gun` is the aircraft's own cannon: seconds between shots, damage per
+  // shell, shell speed, shells that pass through extra targets, shell size.
   aircraft: [
     { id: 'interceptor', name: 'Interceptor', desc: 'Fast but fragile',
-      speed: 1.3, health: 0.7, damage: 0.9, body: '#c9d2e3', wing: '#4cc9f0', size: 0.9 },
+      speed: 1.0, health: 0.6, damage: 0.7, body: '#c9d2e3', wing: '#4cc9f0', size: 0.9,
+      gun: { name: 'Twin Vulcan', desc: 'Rapid twin guns', interval: 0.28, dmg: 6, speed: 660, pierce: 0, size: 2, twin: true, color: '#4cc9f0' } },
     { id: 'striker', name: 'Striker', desc: 'All-rounder',
-      speed: 1.0, health: 1.0, damage: 1.0, body: '#a7b0c2', wing: '#6b7488', size: 1.0 },
+      speed: 0.85, health: 0.85, damage: 0.85, body: '#a7b0c2', wing: '#6b7488', size: 1.0,
+      gun: { name: 'Guns, Guns, Guns', desc: 'Cannon at nearest threat', interval: 0.55, dmg: 11, speed: 480, pierce: 0, size: 3, color: '#ffb703' } },
     { id: 'gunship', name: 'Gunship', desc: 'Slow, tough, hits hard',
-      speed: 0.75, health: 1.5, damage: 1.35, body: '#b8a27a', wing: '#6b5a3a', size: 1.2 },
+      speed: 0.65, health: 1.0, damage: 1.0, body: '#b8a27a', wing: '#6b5a3a', size: 1.2,
+      gun: { name: 'Heavy Cannon', desc: 'Big shells punch through', interval: 1.0, dmg: 26, speed: 380, pierce: 1, size: 6, color: '#ff4d6d' } },
   ],
 
   // Scoring

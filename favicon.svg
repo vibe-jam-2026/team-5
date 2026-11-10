@@ -20,7 +20,6 @@
     <rect x="12" y="37" width="40" height="3" fill="#12002b"/>
     <rect x="12" y="43" width="40" height="4" fill="#12002b"/>
   </g>
-  <path d="M6 52H58M4 58H60" stroke="#00f0ff" stroke-width="2" filter="url(#glow)"/>
   <path d="M32 10 L36 26 L52 36 L52 39 L36 35 L35 44 L40 48 L40 50 L32 48 L24 50 L24 48 L29 44 L28 35 L12 39 L12 36 L28 26 Z"
         fill="#12002b" stroke="#00f0ff" stroke-width="2.2" stroke-linejoin="round" filter="url(#glow)"/>
 </svg>

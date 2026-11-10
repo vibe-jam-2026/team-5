@@ -72,6 +72,7 @@ Fly to dodge the swarm → weapons shoot drones down → collect pickups → lev
 - AA trucks: dark hulls with magenta neon trim, a glowing cab, headlights, a cyan-lit radar panel and a searchlight that sweeps the night sky, follows the jet and turns red just before the gun fires. Flak is glowing tracers that burst into a flash, a neon shock ring and dark smoke.
 - Jets: shaded metal with a neon leading edge in each aircraft's colour (Interceptor cyan, Striker magenta, Gunship yellow), panel lines, a glass canopy, wing missiles or gun pods and blinking wing-tip lights. On the aircraft screen the model banks from side to side over its shadow with a hologram scan.
 - Ejection: a detailed seat with a neon rocket flame and smoke trail, the pilot in a harness and a white helmet with a mirrored sunset visor, and the jet blowing up in a fireball with a neon shockwave.
+- Favicon (`favicon.svg`): a neon cyan jet over a striped synthwave sunset sun with glowing horizon lines, on a dark purple tile.
 - Sound effects are synth tones generated in the browser. Music: three very cheesy 80s neon tracks, also generated in the browser, that crossfade (with a noise whoosh) as the night goes on:
   - **Neon Sunset** (title, start of the run at 6 PM, and the victory landing after dawn): laid-back synthwave with octave-bouncing bass, gated snare, lush pad, sparkly arp and a vibrato lead.
   - **Midnight Drive** (from 12:00 AM): darker and faster, four-on-the-floor, rolling bass, a rolling arp and brass stabs.
@@ -147,3 +148,4 @@ Plain HTML, JavaScript modules and canvas. No libraries, no build step. Gameplay
 - 2026-11-10: The microphone turns on automatically when a run starts (V still switches it off).
 - 2026-11-10: When the Big Red Button is the only level-up card left (everything maxed), an Autopilot card is offered next to it: no more upgrade screens until the boss.
 - 2026-11-10: Killing the AI core now ends the game (Overtime is gone): an ending where the jet lands at home base, the pilot climbs out, the crowd cheers and fireworks go off in the distance, then high-score entry and restart.
+- 2026-11-10: Favicon changed from the ✈️ emoji to a neon synthwave icon (`favicon.svg`).

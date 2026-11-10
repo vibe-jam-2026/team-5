@@ -15,7 +15,7 @@ export const CONFIG = {
   magnetRange: 90,               // SSD cards fly to you inside this range
   crashHeight: 40,               // flying lower than this above the ground crashes into the trees
   pullUpWarning: 90,
-  maxAltitude: 910,              // the jet can't climb higher than this above the ground
+  maxAltitude: 990,              // the jet can't climb higher than this above the ground
   ceilingWarning: 90,            // "MAX ALTITUDE" shows when this close to the ceiling
   stallDuration: 1.8,            // touching the ceiling stalls the jet for this many seconds
   stallSink: 170,                // top sinking speed (px/s) during a stall; it builds up slowly

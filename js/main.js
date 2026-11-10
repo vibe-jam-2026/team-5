@@ -674,7 +674,7 @@ function drawTitle() {
   drawSynthwaveSky(t);
   drawSynthwaveGround(t);
 
-  chromeTitle(CONFIG.title, W / 2, 58, 58);
+  chromeTitle(CONFIG.title, W / 2, 56, 68);
   ctx.fillStyle = 'rgba(9,2,28,0.85)';
   ctx.fillRect(W / 2 - 150, 94, 300, 24);
   neonText(`★  ${CONFIG.subtitle.toUpperCase()}  ★`, W / 2, 106, 14, NEON.cyan);

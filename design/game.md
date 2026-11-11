@@ -70,7 +70,7 @@ Fly to dodge the swarm → weapons shoot drones down → collect pickups → lev
 - In-game scene in the same neon style as the menus: a dense twinkling star field with sparkles and the odd shooting star, long cloud streaks lit by the sun (pink at dusk, moonlit lavender at night, white by day), neon wireframe mountains on the horizon, and faint sky dust that drifts past as you fly.
 - Forest: three rows of pines (misty far row, middle row, black near row) rim-lit by the sun or moon, drifting ground mist and fireflies at night.
 - AA trucks: dark hulls with magenta neon trim, a glowing cab, headlights, a cyan-lit radar panel and a searchlight that sweeps the night sky, follows the jet and turns red just before the gun fires. Flak is glowing tracers that burst into a flash, a neon shock ring and dark smoke.
-- Jets: shaded metal with a neon leading edge in each aircraft's colour (Interceptor cyan, Striker magenta, Gunship yellow), panel lines, a glass canopy, wing missiles or gun pods and blinking wing-tip lights. On the aircraft screen the model banks from side to side over its shadow with a hologram scan.
+- Jets are seen from the side (side profile, always the right way up whichever way they fly): shaded metal fuselage with a bubble canopy, a tall tail fin, the wing edge-on with a missile or gun pod under it, a neon stripe and leading edges in each aircraft's colour (Interceptor cyan, Striker magenta, Gunship yellow) and blinking lights. On the aircraft screen the side-on model pitches gently over its shadow with a hologram scan.
 - Ejection: a detailed seat with a neon rocket flame and smoke trail, the pilot in a harness and a white helmet with a mirrored sunset visor, and the jet blowing up in a fireball with a neon shockwave.
 - Favicon (`favicon.svg`): a neon cyan jet over a striped synthwave sunset sun on a dark purple tile.
 - Sound effects are synth tones generated in the browser. Music: three very cheesy 80s neon tracks, also generated in the browser, that crossfade (with a noise whoosh) as the night goes on:
@@ -159,3 +159,4 @@ Plain HTML, JavaScript modules and canvas. No libraries, no build step. Gameplay
 - 2026-11-10: "MUTED" now sits to the left of the mic status on the bottom line instead of overlapping it.
 - 2026-11-10: The mic status says "mic" instead of "voice" ("V: MIC OFF", "NO MIC IN THIS BROWSER").
 - 2026-11-10: Flares let the jet climb 250 px above max altitude; when they run out it stalls and sinks back down.
+- 2026-11-11: The jets are now drawn from the side instead of from above (in flight, the aircraft screen, the title screen, the ejection and the landing). Flying left mirrors the jet so it stays upright. Gameplay is unchanged.

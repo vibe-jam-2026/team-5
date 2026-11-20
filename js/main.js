@@ -592,21 +592,23 @@ function drawJetSilhouette(x, y, t) {
   ctx.save();
   ctx.translate(x, y);
   // Neon afterburner trail.
-  const trail = ctx.createLinearGradient(-90, 0, -16, 0);
+  const trail = ctx.createLinearGradient(-95, 0, -21, 0);
   trail.addColorStop(0, 'rgba(5,217,232,0)');
   trail.addColorStop(1, 'rgba(5,217,232,0.8)');
   ctx.fillStyle = trail;
-  ctx.fillRect(-90, -1.5, 74, 3);
+  ctx.fillRect(-95, -1.5, 74, 3);
   glow(NEON.magenta, 10, () => {
     ctx.fillStyle = NEON.magenta;
-    ctx.beginPath(); ctx.arc(-17, 0, 2.5 + Math.sin(t * 30), 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(-22, 0, 2.5 + Math.sin(t * 30), 0, Math.PI * 2); ctx.fill();
   });
-  // Body, swept wings and tail fin, in black against the sky.
+  // Side profile: fuselage, bubble canopy, tail fin and wing, in black against the sky.
   ctx.fillStyle = '#05010f';
   ctx.beginPath();
-  ctx.moveTo(26, 0); ctx.lineTo(4, -4); ctx.lineTo(-6, -16); ctx.lineTo(-11, -16); ctx.lineTo(-6, -4);
-  ctx.lineTo(-14, -4); ctx.lineTo(-20, -11); ctx.lineTo(-23, -11); ctx.lineTo(-19, -2);
-  ctx.lineTo(-19, 2); ctx.lineTo(-6, 4); ctx.lineTo(-11, 12); ctx.lineTo(-6, 12); ctx.lineTo(4, 4);
+  ctx.moveTo(28, 1); ctx.lineTo(20, -2); ctx.lineTo(12, -3.5);
+  ctx.quadraticCurveTo(7, -9, 0, -4);
+  ctx.lineTo(-10, -4); ctx.lineTo(-18, -16); ctx.lineTo(-23, -16); ctx.lineTo(-21, -3);
+  ctx.lineTo(-21, 3); ctx.lineTo(-12, 4); ctx.lineTo(-14, 7); ctx.lineTo(-9, 7); ctx.lineTo(2, 4.5);
+  ctx.lineTo(18, 3.5);
   ctx.closePath();
   ctx.fill();
   ctx.restore();
@@ -760,7 +762,7 @@ function drawSelect() {
       }
       ctx.restore();
     });
-    // The model banks gently from side to side (the selected one rolls
+    // The model, seen from the side, pitches gently (the selected one
     // further), casting a shadow on the pad, with a hologram scan over it.
     const roll = Math.sin(t * (sel ? 1.6 : 0.7) + i * 2) * (sel ? 0.5 : 0.25);
     const bob = sel ? Math.sin(clock * 4) * 3 : 0;
@@ -774,8 +776,8 @@ function drawSelect() {
     ctx.restore();
     ctx.save();
     ctx.translate(px + roll * 4, py + bob);
-    ctx.rotate(-Math.PI / 2);
-    ctx.scale(2.4, 2.4 * Math.cos(roll));
+    ctx.rotate(roll * 0.3);   // side view: the nose pitches gently up and down
+    ctx.scale(2.3, 2.3);
     Game.drawJet(ctx, a, (sel ? 6 : 4.5) + Math.sin(clock * 50 + i) * 2);
     ctx.restore();
     // Hologram scanline sweeping up the model

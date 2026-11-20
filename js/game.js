@@ -233,22 +233,30 @@ function wingMissile(ctx, x, y, lw) {
 }
 
 // Draw an aircraft at the origin pointing along +x (callers translate/rotate).
-// Top-down: shaded metal wings with a neon leading edge, panel lines,
-// intakes, a glass canopy, hardpoints and blinking wing-tip lights.
+// Side view: shaded metal fuselage with a bubble canopy, a tall tail fin,
+// the wing seen edge-on with its stores, a neon stripe and blinking lights.
+// The jet always stays the right way up: if the caller's rotation would turn
+// it upside down (flying left), it's mirrored top to bottom.
 // outline: optional contour colour; it also gets a thicker line and a glow.
 function drawJet(ctx, a, burner = 0, outline = null) {
   ctx.save();
+  if (ctx.getTransform().d < 0) ctx.scale(1, -1);
   ctx.scale(a.size, a.size);
   if (burner) drawAfterburner(ctx, burner);
   const lw = (outline ? 1.8 : 0.8) / a.size;
   const acc = JET_ACCENT[a.id] || NEON.magenta;
   const t = performance.now() / 1000;
   if (outline) { outlineColor = outline; ctx.shadowColor = outline; ctx.shadowBlur = 10; }
-  // Metal shading: lit from the top of the plane (−y), darker on the far wing.
-  const wingFill = (span) => {
-    const g = ctx.createLinearGradient(0, -span, 0, span);
-    g.addColorStop(0, shade(a.wing, 0.28)); g.addColorStop(0.45, a.wing);
-    g.addColorStop(0.55, shade(a.wing, -0.15)); g.addColorStop(1, shade(a.wing, -0.42));
+  // Per-aircraft shape: nose length, body height, fin size.
+  const S = {
+    interceptor: { nose: 22, h: 0.85, fin: 10, finBack: 2 },
+    gunship:     { nose: 18, h: 1.35, fin: 9, finBack: 1 },
+  }[a.id] || { nose: 19, h: 1, fin: 10.5, finBack: 2.5 };
+  const { nose, h } = S;
+  // Metal lit from above: bright top, dark belly.
+  const metal = (c, top, bot) => {
+    const g = ctx.createLinearGradient(0, top, 0, bot);
+    g.addColorStop(0, shade(c, 0.3)); g.addColorStop(0.45, c); g.addColorStop(1, shade(c, -0.5));
     return g;
   };
   const edge = (pts) => {       // neon strip along a leading edge
@@ -266,82 +274,71 @@ function drawJet(ctx, a, burner = 0, outline = null) {
     for (const [x1, y1, x2, y2] of segs) { ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); }
     ctx.stroke();
   };
-  let tips, nose, w;
-  if (a.id === 'interceptor') {        // slim cranked delta
-    poly(ctx, [10, -2, 0, -6, -10, -13.5, -12.5, -12.5, -11, -2, -11, 2, -12.5, 12.5, -10, 13.5, 0, 6, 10, 2], wingFill(13.5), lw);
-    lines([[-2, -5.5, -9, -11.5], [-2, 5.5, -9, 11.5], [-6, -3, -6, -9], [-6, 3, -6, 9]]);
-    edge([10, -2, 0, -6, -10, -13.5]); edge([10, 2, 0, 6, -10, 13.5]);
-    wingMissile(ctx, -3, -9, lw); wingMissile(ctx, -3, 9, lw);
-    // Canards
-    poly(ctx, [8, -2.5, 4, -6, 3, -6, 4.5, -2.5], wingFill(6), lw * 0.8);
-    poly(ctx, [8, 2.5, 4, 6, 3, 6, 4.5, 2.5], wingFill(6), lw * 0.8);
-    tips = [-11, 13]; nose = 22; w = 3.4;
-  } else if (a.id === 'gunship') {     // broad straight wings, twin engines, gun pods
-    poly(ctx, [6, -3, 4, -18.5, -3.5, -18.5, -5.5, -3, -5.5, 3, -3.5, 18.5, 4, 18.5, 6, 3], wingFill(18.5), lw);
-    lines([[1, -4, 0.5, -18], [1, 4, 0.5, 18], [-4.5, -9, 4.8, -9], [-4.5, 9, 4.8, 9]]);
-    edge([6, -3, 4, -18.5]); edge([6, 3, 4, 18.5]);
-    poly(ctx, [-9, -3, -12, -9.5, -15.5, -9.5, -14.5, -3, -14.5, 3, -15.5, 9.5, -12, 9.5, -9, 3], wingFill(9.5), lw);
-    // Engine nacelles with glowing exhausts
-    for (const sy of [-6, 6]) {
-      const ng = ctx.createLinearGradient(0, sy - 2.2, 0, sy + 2.2);
-      ng.addColorStop(0, shade(a.body, 0.25)); ng.addColorStop(1, shade(a.body, -0.4));
-      poly(ctx, [4, sy - 1.8, -11, sy - 2.2, -11, sy + 2.2, 4, sy + 1.8], ng, lw);
-      ctx.fillStyle = '#120a1c'; ctx.fillRect(3, sy - 1.4, 1.2, 2.8);
-      navLight(ctx, -11.3, sy, '#ff9e3d', 0.9);
-    }
-    // Gun pods
-    for (const sy of [-11, 11]) {
-      poly(ctx, [7.5, sy - 1.5, -3, sy - 1.8, -3, sy + 1.8, 7.5, sy + 1.5], '#3a3226', lw);
-      ctx.fillStyle = '#111'; ctx.fillRect(7.5, sy - 0.5, 2.5, 1);
-    }
-    tips = [0, 18.5]; nose = 18; w = 4.6;
-  } else {                             // swept wings
-    poly(ctx, [6, -2.2, -5.5, -16, -10, -16, -5.5, -2.2, -5.5, 2.2, -10, 16, -5.5, 16, 6, 2.2], wingFill(16), lw);
-    lines([[0, -4, -6, -14], [0, 4, -6, 14], [-5.5, -2.5, -8, -13], [-5.5, 2.5, -8, 13]]);
-    edge([6, -2.2, -5.5, -16]); edge([6, 2.2, -5.5, 16]);
-    wingMissile(ctx, -3.5, -10, lw); wingMissile(ctx, -3.5, 10, lw);
-    tips = [-7.5, 16]; nose = 18; w = 3.6;
+  // Far-side horizontal stabiliser (darker, behind the body)
+  poly(ctx, [-8, 0.2 * h, -15, -0.6, -16, 0.4, -12, 1.2 * h], shade(a.wing, -0.45), lw * 0.7);
+  // Tail fin
+  const fb = S.finBack, fh = S.fin;
+  const finPts = [-5, -2.2 * h, -12 - fb, -2.2 * h - fh, -14.5 - fb, -2.2 * h - fh, -14, -2 * h];
+  poly(ctx, finPts, metal(a.wing, -2 * h - fh, -2 * h), lw);
+  edge([-5, -2.2 * h, -12 - fb, -2.2 * h - fh]);
+  lines([[-9, -2.3 * h, -13 - fb, -2.2 * h - fh * 0.7]]);
+  if (a.id === 'gunship') {           // second fin peeking out behind
+    poly(ctx, [-7, -2.4 * h, -12, -2.2 * h - fh * 0.8, -13.5, -2.2 * h - fh * 0.8, -13, -2.2 * h], shade(a.wing, -0.35), lw * 0.7);
   }
-  // Tail planes
-  poly(ctx, [-7, -2, -13.5, -8.5, -14.5, -8, -12.5, -2], wingFill(8.5), lw);
-  poly(ctx, [-7, 2, -13.5, 8.5, -14.5, 8, -12.5, 2], wingFill(8.5), lw);
-  // Fuselage: rounded metal (light down the spine, dark at the sides)
-  const fg = ctx.createLinearGradient(0, -w, 0, w);
-  fg.addColorStop(0, shade(a.body, -0.25)); fg.addColorStop(0.35, shade(a.body, 0.35));
-  fg.addColorStop(0.55, a.body); fg.addColorStop(1, shade(a.body, -0.5));
-  poly(ctx, [nose, 0, nose - 6, -w * 0.7, 6, -w, -12, -3, -12, 3, 6, w, nose - 6, w * 0.7], fg, lw);
-  // Intakes beside the cockpit
-  ctx.fillStyle = '#0d0716';
-  ctx.fillRect(3, -w - 0.2, 4, 1.2); ctx.fillRect(3, w - 1, 4, 1.2);
-  // Radome tip and accent stripe down the back
-  poly(ctx, [nose, 0, nose - 3.5, -w * 0.4, nose - 3.5, w * 0.4], shade(a.body, -0.55), lw * 0.6);
+  // Fuselage: pointed nose, raised spine, flat belly, nozzle at the tail
+  const body = [nose, 0.6 * h, nose - 5, -1.1 * h, 9, -2.3 * h, -4, -2.5 * h, -12, -2.1 * h, -13.2, -1.8,
+    -13.2, 1.8, -8, 2.6 * h, 4, 3 * h, nose - 7, 2.3 * h];
+  poly(ctx, body, metal(a.body, -2.5 * h, 3 * h), lw);
+  // Radome tip
+  poly(ctx, [nose, 0.6 * h, nose - 3.5, -0.4 * h, nose - 3.5, 1.7 * h], shade(a.body, -0.55), lw * 0.6);
+  // Air intake under the cockpit
+  poly(ctx, [7, 0.4 * h, 1, 0.3 * h, 1, 2.6 * h, 5.5, 2.6 * h], '#0d0716', lw * 0.6);
+  // Neon accent stripe along the side
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';
-  ctx.fillStyle = acc; ctx.globalAlpha = 0.7;
-  ctx.fillRect(-10, -0.35, 9, 0.7);
+  ctx.fillStyle = acc; ctx.globalAlpha = 0.75;
+  ctx.fillRect(-11, -0.9 * h, 10, 0.7);
+  ctx.fillRect(nose - 9, -0.1 * h, 4, 0.5);
   ctx.restore();
-  lines([[0, -w * 0.9, 0, w * 0.9], [-6, -2.5, -6, 2.5]], 0.45);
-  // Tail fin seen from above: a thin raised blade on the spine
-  poly(ctx, [-4, -0.6, -13, -0.9, -14, 0, -13, 0.9, -4, 0.6], shade(a.wing, -0.3), lw * 0.7);
-  ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 0.35;
-  ctx.beginPath(); ctx.moveTo(-5, -0.25); ctx.lineTo(-13, -0.4); ctx.stroke();
+  lines([[-1, -2.4 * h, -1, 2.9 * h], [-7, -2.3 * h, -7, 2.6 * h], [9, -2.2 * h, 9, 2.4 * h]], 0.45);
   // Nozzle
-  ctx.fillStyle = '#1a1424'; ctx.fillRect(-13.2, -2.4, 1.4, 4.8);
-  // Glass canopy: deep blue with a cyan sheen and a white glint
-  const cg = ctx.createLinearGradient(1, -1.8, 10, 1.8);
-  cg.addColorStop(0, '#0b1a3a'); cg.addColorStop(0.5, '#2b8ed8'); cg.addColorStop(1, '#9ff3ff');
-  poly(ctx, [11, 0, 7, -1.9, 0.5, -1.6, 0.5, 1.6, 7, 1.9], cg, lw * 0.7);
+  ctx.fillStyle = '#1a1424'; ctx.fillRect(-13.8, -1.9, 1.4, 3.8);
+  // Wing seen from the side: a swept slab across the lower fuselage
+  poly(ctx, [4, 1.4 * h, -6, 1.8 * h, -10, 2.5 * h, -7, 2.9 * h, 2, 2.4 * h], metal(a.wing, 1.4 * h, 2.9 * h), lw * 0.8);
+  edge([4, 1.4 * h, -6, 1.8 * h]);
+  // Near-side horizontal stabiliser
+  poly(ctx, [-9, 0.6 * h, -15.5, 0.2, -16.5, 1.2, -12, 1.8 * h], metal(a.wing, 0, 2), lw * 0.7);
+  // Stores under the wing
+  if (a.id === 'gunship') {           // gun pod
+    poly(ctx, [7.5, 3.4 * h, -3, 3.2 * h, -3, 4.6 * h, 7.5, 4.4 * h], '#3a3226', lw);
+    ctx.fillStyle = '#111'; ctx.fillRect(7.5, 3.6 * h, 2.5, 0.7);
+  } else {
+    wingMissile(ctx, -2, 3.6 * h, lw);
+  }
+  if (a.id === 'interceptor') {       // canard just behind the cockpit
+    poly(ctx, [8, -0.4, 4, -0.2, 3, 0.4, 7, 0.4], metal(a.wing, -0.4, 0.4), lw * 0.7);
+  }
+  // Glass bubble canopy: deep blue with a cyan sheen and a white glint
+  const cg = ctx.createLinearGradient(0, -5 * h, 4, -2 * h);
+  cg.addColorStop(0, '#9ff3ff'); cg.addColorStop(0.45, '#2b8ed8'); cg.addColorStop(1, '#0b1a3a');
+  ctx.beginPath();
+  ctx.moveTo(nose - 6, -1.6 * h);
+  ctx.bezierCurveTo(nose - 9, -5.2 * h, 1, -5.4 * h, -2, -2.5 * h);
+  ctx.closePath();
+  ctx.fillStyle = cg; ctx.fill();
+  ctx.lineWidth = lw * 0.7; ctx.strokeStyle = outlineColor; ctx.stroke();
   ctx.strokeStyle = 'rgba(10,4,24,0.6)'; ctx.lineWidth = 0.35;
-  ctx.beginPath(); ctx.moveTo(4.5, -1.8); ctx.lineTo(4.5, 1.8); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(5, -2.3 * h); ctx.lineTo(4.5, -4.3 * h); ctx.stroke();
   ctx.fillStyle = 'rgba(255,255,255,0.85)';
-  ctx.beginPath(); ctx.moveTo(8.5, -1.1); ctx.lineTo(5.5, -1.3); ctx.lineTo(5.8, -0.6); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(nose - 9, -3.3 * h); ctx.lineTo(7, -4.3 * h); ctx.lineTo(7.3, -3.6 * h); ctx.closePath(); ctx.fill();
   outlineColor = OUTLINE;
   ctx.shadowBlur = 0;
-  // Wing-tip lights (port magenta, starboard cyan) and a white strobe
+  // Lights: wing-tip under the wing, tail light and a white strobe on the fin
   const strobe = (t * 1.3) % 1 < 0.08;
-  navLight(ctx, tips[0], -tips[1], '#ff2a6d', 1);
-  navLight(ctx, tips[0], tips[1], '#05d9e8', 1);
-  navLight(ctx, -14, 0, '#ffffff', 1.1, strobe);
+  navLight(ctx, -9.5, 2.7 * h, '#05d9e8', 1);
+  navLight(ctx, -13 - fb, -2.2 * h - fh + 0.6, '#ff2a6d', 1);
+  navLight(ctx, -14.5, -1.2, '#ffffff', 1.1, strobe);
+  if (a.id === 'gunship') navLight(ctx, -12.8, 0, '#ff9e3d', 0.9);
   ctx.restore();
 }
 
@@ -1302,8 +1299,9 @@ export class Game {
     ctx.translate(e.canopy.x, e.canopy.y); ctx.rotate(e.canopy.a); ctx.scale(this.aircraft.size, this.aircraft.size);
     const cg = ctx.createLinearGradient(-4, -2, 5, 2);
     cg.addColorStop(0, '#0b1a3a'); cg.addColorStop(0.5, '#2b8ed8'); cg.addColorStop(1, '#9ff3ff');
-    poly(ctx, [5, 0, 1, -2, -4, -1.6, -4, 1.6, 1, 2], cg, 0.6);
-    ctx.fillStyle = 'rgba(255,255,255,0.8)'; ctx.fillRect(0, -1.2, 3, 0.6);
+    ctx.beginPath(); ctx.moveTo(6, 1.2); ctx.bezierCurveTo(4, -2.6, -4, -2.8, -6, 1.2); ctx.closePath();
+    ctx.fillStyle = cg; ctx.fill(); ctx.lineWidth = 0.6; ctx.strokeStyle = OUTLINE; ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.8)'; ctx.fillRect(-1, -0.9, 3, 0.5);
     ctx.restore();
     // Empty seat falling away
     if (e.seat) {
@@ -1414,7 +1412,6 @@ export class Game {
       turn(Math.atan2(ny - j.y, nx - j.x) - 0.14 * s * s, 5);
       j.x = nx; j.y = ny;
       const g = Math.max(0, Math.min(1, (s - 0.35) / 0.5));
-      j.squash = 1 - 0.55 * g * g * (3 - 2 * g);               // tilts to a low side-on view near the ground
       j.scale = 1 + (LAND_SCALE - 1) * g * g * (3 - 2 * g);
       j.gear = Math.max(0, Math.min(1, (s - 0.5) / 0.25));      // landing gear comes down
       j.burner = 4 - 2 * s;
@@ -1609,7 +1606,7 @@ export class Game {
       ctx.fillStyle = `rgba(220,210,235,${(0.45 * q.life / q.max).toFixed(3)})`;
       ctx.beginPath(); ctx.arc(q.x, q.y, q.r, 0, Math.PI * 2); ctx.fill();
     }
-    // The jet: tilted to a low side-on view as it lands, with its gear down
+    // The jet, side-on, with its gear down
     if (j.gear > 0) {
       const k = j.scale;
       ctx.strokeStyle = '#3d3456'; ctx.lineWidth = 0.6 * k; ctx.fillStyle = '#0d0716';
@@ -1622,13 +1619,20 @@ export class Game {
     ctx.save();
     ctx.translate(j.x, j.y); ctx.scale(j.scale, j.scale * j.squash); ctx.rotate(j.a);
     drawJet(ctx, this.aircraft, j.burner > 0.2 ? j.burner + Math.sin(t * 50) : 0);
-    if (j.canopy > 0) {   // canopy hinges open at the back of the cockpit
+    if (j.canopy > 0) {   // canopy hinges up at the back of the cockpit
       ctx.scale(sz, sz);
-      poly(ctx, [11, 0, 7, -1.9, 0.5, -1.6, 0.5, 1.6, 7, 1.9], '#0d0716', 0.3);
-      ctx.translate(0.5, 0); ctx.rotate(-1.1 * j.canopy); ctx.translate(-0.5, 0);
-      const cg = ctx.createLinearGradient(1, -1.8, 10, 1.8);
-      cg.addColorStop(0, '#0b1a3a'); cg.addColorStop(0.5, '#2b8ed8'); cg.addColorStop(1, '#9ff3ff');
-      poly(ctx, [11, 0, 7, -1.9, 0.5, -1.6, 0.5, 1.6, 7, 1.9], cg, 0.3);
+      const nose = this.aircraft.id === 'interceptor' ? 22 : this.aircraft.id === 'gunship' ? 18 : 19;
+      const h = this.aircraft.id === 'interceptor' ? 0.85 : this.aircraft.id === 'gunship' ? 1.35 : 1;
+      const bubble = (fill) => {
+        ctx.beginPath(); ctx.moveTo(nose - 6, -1.6 * h);
+        ctx.bezierCurveTo(nose - 9, -5.2 * h, 1, -5.4 * h, -2, -2.5 * h); ctx.closePath();
+        ctx.fillStyle = fill; ctx.fill(); ctx.lineWidth = 0.3; ctx.strokeStyle = OUTLINE; ctx.stroke();
+      };
+      bubble('#0d0716');   // open cockpit
+      ctx.translate(-2, -2.5 * h); ctx.rotate(-1.1 * j.canopy); ctx.translate(2, 2.5 * h);
+      const cg = ctx.createLinearGradient(0, -5 * h, 4, -2 * h);
+      cg.addColorStop(0, '#9ff3ff'); cg.addColorStop(0.45, '#2b8ed8'); cg.addColorStop(1, '#0b1a3a');
+      bubble(cg);
     }
     ctx.restore();
     // Shadows, then the crowd and the pilot, back to front
